@@ -17,6 +17,30 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // Start-Wächter: Kommt die App nicht hoch (alter Browser, Ladefehler), steht hier ein Hinweis statt eines schwarzen Bildschirms
+      (function () {
+        var shown = false
+        function show(detail) {
+          var root = document.getElementById('root')
+          if (shown || !root || root.childElementCount > 0) return
+          shown = true
+          root.innerHTML =
+            '<div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;text-align:center;font-family:sans-serif;color:#F2F4F5;background:#0E1013">' +
+            '<p style="font-size:18px;font-weight:700;margin:0">GR Legends konnte nicht starten.</p>' +
+            '<p style="color:#9AA3AD;margin:0;max-width:420px">Bitte einmal neu laden. Hilft das nicht, den Browser aktualisieren oder einen anderen ausprobieren.</p>' +
+            '<button onclick="location.reload()" style="min-height:44px;padding:0 18px;border-radius:14px;border:1px solid #2A2F38;background:#1A1E24;color:#F2F4F5;font-size:15px">Neu laden</button>' +
+            '<p style="color:#6B7480;font-size:11px;margin:0;max-width:420px;word-break:break-word"></p></div>'
+          root.querySelector('p:last-child').textContent = (detail ? detail + ' · ' : '') + navigator.userAgent
+        }
+        window.addEventListener('error', function (e) {
+          // Nur Skriptfehler zählen, nicht z. B. eine nicht ladbare Schrift
+          if (e.target && e.target.tagName && e.target.tagName !== 'SCRIPT') return
+          setTimeout(function () { show(e.message || 'Skript konnte nicht geladen werden') }, 0)
+        }, true)
+        setTimeout(function () { show('Zeitüberschreitung beim Start') }, 10000)
+      })()
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
