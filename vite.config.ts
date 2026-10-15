@@ -21,7 +21,8 @@ function csp(): Plugin {
           `script-src 'self' ${hashes.join(' ')}`,
           "style-src 'self' 'unsafe-inline'",
           "font-src 'self' data:",
-          "img-src 'self' data: https://drive.google.com https://*.googleusercontent.com",
+          // Drive-Vorschaubilder leiten auf lh3.google… um; blob: für per API geladene Fotos
+          "img-src 'self' data: blob: https://*.google.com https://*.googleusercontent.com",
           // Drive kann Datei-Downloads auf googleusercontent.com umleiten
           'connect-src https://www.googleapis.com https://sheets.googleapis.com https://*.googleusercontent.com',
           "manifest-src 'self'",

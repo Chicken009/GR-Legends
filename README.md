@@ -27,6 +27,7 @@ GR Legends (Hauptordner, „Jeder mit dem Link: Betrachter“)
 GR Legends (Hauptordner)
 ├── GR-Legends-Einstellungen    ← Google-Tabelle, Name enthält „Einstellungen“
 └── Fotos/                      ← Fahrzeugfotos, Dateiname = Fahrzeugname, z. B. „Ferrari 458.jpg“
+                                   (Groß-/Kleinschreibung, Leer- und Sonderzeichen egal; Ordner auch „Bilder“)
 ```
 
 Vorlage: [`docs/GR-Legends-Einstellungen.xlsx`](docs/GR-Legends-Einstellungen.xlsx) hochladen und mit
