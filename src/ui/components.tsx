@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, type CSSProperties, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useRef, type CSSProperties, type ReactNode } from 'react'
 import type { AppData } from '../data/useRaceDays'
 import { ChevronDown, StrokeIcon } from './icons'
 import { initials } from './format'
@@ -108,8 +108,14 @@ export function Rank({ rank, size = 16, style }: { rank: number; size?: number; 
   )
 }
 
-/** Panel, das von unten hereinfährt (Profil, Auswahl). Schließt mit Esc oder Tipp daneben. */
+/** Panel, das von unten hereinfährt (Profil, Auswahl). Schließt mit Esc, Tipp daneben oder Runterziehen. */
 export function Sheet({ onClose, children, actions, label }: { onClose: () => void; children: ReactNode; actions?: ReactNode; label: string }) {
+  const sheetRef = useRef<HTMLDivElement>(null)
+  const backdropRef = useRef<HTMLDivElement>(null)
+  const bodyRef = useRef<HTMLDivElement>(null)
+  const drag = useRef<{ startY: number; startT: number; dy: number } | null>(null)
+  const closing = useRef(false)
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
     window.addEventListener('keydown', onKey)
@@ -120,19 +126,102 @@ export function Sheet({ onClose, children, actions, label }: { onClose: () => vo
       document.body.style.overflow = prev
     }
   }, [onClose])
+
+  // Ziehen: Panel folgt dem Finger, Hintergrund wird heller; weit oder schnell genug → schließen
+  const begin = (y: number) => {
+    if (closing.current) return
+    drag.current = { startY: y, startT: performance.now(), dy: 0 }
+    if (sheetRef.current) sheetRef.current.style.transition = 'none'
+  }
+  const move = (y: number) => {
+    const d = drag.current
+    if (!d || !sheetRef.current) return
+    d.dy = Math.max(0, y - d.startY)
+    sheetRef.current.style.transform = `translateY(${d.dy}px)`
+    if (backdropRef.current) backdropRef.current.style.backgroundColor = `rgba(7, 8, 10, ${0.7 * Math.max(0, 1 - d.dy / 400)})`
+  }
+  const end = () => {
+    const d = drag.current
+    drag.current = null
+    const sheet = sheetRef.current
+    if (!d || !sheet) return
+    const speed = d.dy / Math.max(1, performance.now() - d.startT)
+    sheet.style.transition = 'transform 0.22s ease-out'
+    if (d.dy > 120 || (d.dy > 30 && speed > 0.6)) {
+      closing.current = true
+      sheet.style.transform = 'translateY(100%)'
+      if (backdropRef.current) backdropRef.current.style.backgroundColor = 'rgba(7, 8, 10, 0)'
+      setTimeout(onClose, 200)
+    } else {
+      sheet.style.transform = ''
+      if (backdropRef.current) backdropRef.current.style.backgroundColor = ''
+    }
+  }
+
+  // Auch der Inhalt lässt sich runterziehen, wenn er ganz oben steht
+  useEffect(() => {
+    const body = bodyRef.current
+    if (!body) return
+    let startY = 0
+    let active = false
+    const onStart = (e: TouchEvent) => {
+      startY = e.touches[0].clientY
+      active = false
+    }
+    const onMove = (e: TouchEvent) => {
+      const y = e.touches[0].clientY
+      if (!active && body.scrollTop <= 0 && y - startY > 6) {
+        active = true
+        begin(startY)
+      }
+      if (active) {
+        e.preventDefault()
+        move(y)
+      }
+    }
+    const onEnd = () => {
+      if (active) end()
+      active = false
+    }
+    body.addEventListener('touchstart', onStart, { passive: true })
+    body.addEventListener('touchmove', onMove, { passive: false })
+    body.addEventListener('touchend', onEnd)
+    body.addEventListener('touchcancel', onEnd)
+    return () => {
+      body.removeEventListener('touchstart', onStart)
+      body.removeEventListener('touchmove', onMove)
+      body.removeEventListener('touchend', onEnd)
+      body.removeEventListener('touchcancel', onEnd)
+    }
+  })
+
   return (
-    <div className="sheet-backdrop" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="sheet" role="dialog" aria-modal="true" aria-label={label}>
-        <div className="grip">
-          <span />
+    <div ref={backdropRef} className="sheet-backdrop" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div ref={sheetRef} className="sheet" role="dialog" aria-modal="true" aria-label={label}>
+        <div
+          className="sheet-handle"
+          onPointerDown={(e) => {
+            if ((e.target as HTMLElement).closest('button, a, select')) return
+            e.currentTarget.setPointerCapture(e.pointerId)
+            begin(e.clientY)
+          }}
+          onPointerMove={(e) => move(e.clientY)}
+          onPointerUp={end}
+          onPointerCancel={end}
+        >
+          <div className="grip" aria-hidden="true">
+            <span />
+          </div>
+          <div className="sheet-bar">
+            <button className="icon-btn" aria-label="Schließen" onClick={onClose}>
+              <ChevronDown />
+            </button>
+            <div style={{ display: 'flex', gap: 4 }}>{actions}</div>
+          </div>
         </div>
-        <div className="sheet-bar">
-          <button className="icon-btn" aria-label="Schließen" onClick={onClose}>
-            <ChevronDown />
-          </button>
-          <div style={{ display: 'flex', gap: 4 }}>{actions}</div>
+        <div ref={bodyRef} className="sheet-body">
+          {children}
         </div>
-        <div className="sheet-body">{children}</div>
       </div>
     </div>
   )
