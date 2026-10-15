@@ -3,6 +3,7 @@ import { useAppData } from './data/useRaceDays'
 import { Celebration } from './ui/Celebration'
 import { DataContext, Monogram } from './ui/components'
 import { GradientDefs } from './ui/icons'
+import { ErrorBoundary } from './ui/ErrorBoundary'
 import { Layout } from './ui/Layout'
 import { MeProvider, useMe } from './ui/me'
 import { MePicker } from './ui/MePicker'
@@ -84,9 +85,11 @@ function Loaded() {
 
 export default function App() {
   return (
-    <MeProvider>
-      <GradientDefs />
-      <Loaded />
-    </MeProvider>
+    <ErrorBoundary>
+      <MeProvider>
+        <GradientDefs />
+        <Loaded />
+      </MeProvider>
+    </ErrorBoundary>
   )
 }
