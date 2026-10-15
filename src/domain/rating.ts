@@ -1,6 +1,7 @@
 import type { Result, Session } from '../types'
 import { isGuest } from './drivers'
 import { cleanReference } from './laps'
+import { orderSessions } from './sessions'
 
 export const RATING = {
   /** Startwert für Fahrer – mit der halben Skala bleiben die Werte dreistellig */
@@ -56,10 +57,8 @@ export function isQuali(s: Session) {
   return /quali/i.test(s.type)
 }
 
-/** Chronologische Reihenfolge: Datum, dann Upload-Zeit. */
-export function sortSessions(sessions: Session[]): Session[] {
-  return [...sessions].sort((a, b) => a.date.localeCompare(b.date) || a.createdTime.localeCompare(b.createdTime))
-}
+/** Chronologische Reihenfolge (siehe `orderSessions`). */
+export const sortSessions = orderSessions
 
 const total = (r: Result) => r.lapTimes.reduce((sum, l) => sum + l.ms, 0)
 

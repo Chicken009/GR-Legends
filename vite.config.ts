@@ -22,7 +22,8 @@ function csp(): Plugin {
           "style-src 'self' 'unsafe-inline'",
           "font-src 'self' data:",
           "img-src 'self' data: https://drive.google.com https://*.googleusercontent.com",
-          'connect-src https://www.googleapis.com https://sheets.googleapis.com',
+          // Drive kann Datei-Downloads auf googleusercontent.com umleiten
+          'connect-src https://www.googleapis.com https://sheets.googleapis.com https://*.googleusercontent.com',
           "manifest-src 'self'",
           "object-src 'none'",
           "base-uri 'none'",

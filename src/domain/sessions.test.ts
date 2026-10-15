@@ -144,6 +144,20 @@ describe('groupRaceDays', () => {
   })
 })
 
+describe('Reihenfolge am Renntag', () => {
+  it('ordnet gleichzeitig hochgeladene Läufe nach der Download-Nummer', () => {
+    const mk = (fileId: string, fileName: string, type: string, createdTime: string) => ({ ...session(fileId, []), fileName, type, createdTime })
+    const days = groupRaceDays([
+      mk('q', 'Qualifikation_01.01.2026.csv', 'Qualifikation', '2026-01-02T10:00:00.000Z'),
+      // als Stapel hochgeladen: Upload-Zeit passt nicht zur Rennreihenfolge
+      mk('r2', 'Rennen_01.01.2026(2).csv', 'Rennen', '2026-01-02T10:00:01.000Z'),
+      mk('r0', 'Rennen_01.01.2026.csv', 'Rennen', '2026-01-02T10:00:02.000Z'),
+      mk('r1', 'Rennen_01.01.2026 (1).csv', 'Rennen', '2026-01-02T10:00:03.000Z'),
+    ])
+    expect(days[0].sessions.map((s) => `${s.fileId}:${s.heat}`)).toEqual(['q:1', 'r0:1', 'r1:2', 'r2:3'])
+  })
+})
+
 describe('Strecke', () => {
   it('liest Name und Länge aus dem Ordnernamen', () => {
     expect(parseTrack('Musterring 2364cm')).toEqual({ name: 'Musterring', lengthCm: 2364 })
