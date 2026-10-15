@@ -16,6 +16,8 @@ export const LAP_THRESHOLDS = {
   incidentFactor: 1.3,
   /** Erste Runde (mit stehendem Start): erst ab diesem Faktor ein Zwischenfall */
   firstLapFactor: 1.6,
+  /** Ohne Tankfunktion: eine Box-Durchfahrt kostet höchstens diesen Anteil einer Runde */
+  driveThroughFactor: 0.5,
   /** Typischer Zeitverlust eines Boxenstopps (Tanken) in ms */
   pitLossMs: 4000,
 }
@@ -65,10 +67,21 @@ function buildReferences(sessions: Session[], aliases: DriverAliases, t: LapThre
 }
 
 /**
+ * Die Tankfunktion gilt für alle und das ganze Rennen. Mit Tank muss (fast) jeder an die Box;
+ * ohne Tank ist ein einzelner Stopp nur eine Durchfahrt durch die Boxengasse. Deshalb zählt
+ * ein Lauf als Tankrennen, wenn mehr als die Hälfte der Fahrer Boxenstopps hat.
+ */
+export function hasTankFunction(s: Session): boolean {
+  const withStops = s.results.filter((r) => r.pitStops > 0).length
+  return withStops > 0 && withStops > s.results.length / 2
+}
+
+/**
  * Teilt die Ausreißer-Runden eines Fahrers in Boxenstopps und Abflüge auf.
  *
- * - Ohne Tankfunktion: Die gezählten Boxenstopps (Durchfahrten) bekommen die Ausreißer mit
- *   dem kleinsten Zeitverlust, alle übrigen sind Abflüge.
+ * - Ohne Tankfunktion ist ein „Boxenstopp“ nur eine Durchfahrt durch die Boxengasse. Sie
+ *   bekommt höchstens einen Ausreißer mit kleinem Zeitverlust (bis `driveThroughFactor` ×
+ *   Referenz); größere Verluste bleiben Abflüge.
  * - Mit Tankfunktion: Ein Boxenstopp kostet etwa `pitLossMs`; bei leerem Tank wird zusätzlich
  *   mindestens eine Runde nicht gezählt (Verlust ≈ k × Referenz + Boxenzeit). Die Boxenstopps
  *   bekommen die Ausreißer, die am besten zu diesem Muster passen, der Rest sind Abflüge.
@@ -96,6 +109,7 @@ export function classifyIncidents(
   }
   const pitIdx = new Set(
     [...outliers]
+      .filter((o) => tank || o.loss <= ref * t.driveThroughFactor)
       .sort((a, b) => fit(a.loss) - fit(b.loss))
       .slice(0, Math.max(0, pitStops))
       .map((o) => o.i),
@@ -133,7 +147,7 @@ export function classifyAllLaps(
   return sessions.map((s) => {
     const all = s.results.flatMap((r) => r.lapTimes.map((l) => l.ms)).sort((a, b) => a - b)
     const sessionRef = all.length >= t.minLaps ? quantile(all, t.referenceQuantile) : null
-    const tank = s.results.some((r) => r.pitStops > 0)
+    const tank = hasTankFunction(s)
 
     return {
       ...s,

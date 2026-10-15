@@ -130,7 +130,10 @@ docs/          Einstellungen-Vorlage, Logo (Monogramm, App-Icon, Schriftzug)
 - *Zwischenfall*: Die Runde dauert mehr als das 1,3-Fache der sauberen Referenzrunde des Fahrers
   im Lauf (Startrunde: 1,6-fach). Die in Smartrace gezählten Boxenstopps bekommen die passenden
   Zwischenfälle, der Rest sind *Abflüge*. Mit Tankfunktion kostet ein Stopp etwa 4 s plus ggf.
-  nicht gezählte Runden (leerer Tank); ohne Tankfunktion sind die kleinsten Verluste die Stopps.
+  nicht gezählte Runden (leerer Tank).
+- *Tankfunktion* gilt für alle und das ganze Rennen: Ein Lauf zählt als Tankrennen, wenn mehr als
+  die Hälfte der Fahrer Boxenstopps hat. Sonst war ein „Stopp“ nur eine Durchfahrt durch die
+  Boxengasse – sie bekommt höchstens einen kleinen Zeitverlust (bis eine halbe Runde).
 - Abflugquoten zählen nur Rennen **ohne** Tankfunktion, weil dort Stopp und Abflug eindeutig sind.
 
 **Wertung** (`src/domain/rating.ts`): Elo aus direkten Duellen jedes Laufs, Start 500, halbe

@@ -3,7 +3,7 @@ import { applySettings, driveFileId, EMPTY_SETTINGS, parseScale, parseSettings }
 import { prepare } from '../data/useRaceDays'
 import { fixtureIds, readFixture } from '../test-utils'
 import type { Result, Session } from '../types'
-import { classifyIncidents } from './laps'
+import { classifyIncidents, hasTankFunction } from './laps'
 import { positionTrace } from './model'
 import { computeRatings, RATING, winChances } from './rating'
 import { buildSession } from './sessions'
@@ -74,10 +74,22 @@ describe('Wertung', () => {
 
 describe('Boxenstopp oder Abflug', () => {
   const lap = (ms: number, i: number) => ({ number: i + 2, ms, status: 'normal' as const })
-  it('ordnet ohne Tankfunktion die kleinsten Verluste den Boxenstopps zu', () => {
-    const laps = [10_000, 10_100, 15_000, 10_050, 30_000, 10_000].map(lap)
-    const out = classifyIncidents(laps, 1, false)
-    expect(out.map((l) => l.status)).toEqual(['normal', 'normal', 'pit', 'normal', 'crash', 'normal'])
+  it('wertet ohne Tankfunktion nur eine kurze Box-Durchfahrt als Stopp', () => {
+    const laps = [10_000, 10_100, 14_000, 10_050, 30_000, 10_000].map(lap)
+    expect(classifyIncidents(laps, 1, false).map((l) => l.status)).toEqual(['normal', 'normal', 'pit', 'normal', 'crash', 'normal'])
+    // Großer Zeitverlust ist ein Abflug, auch wenn Smartrace eine Durchfahrt gezählt hat
+    const crashOnly = [10_000, 10_100, 25_000, 10_050, 10_000].map(lap)
+    expect(classifyIncidents(crashOnly, 1, false)[2].status).toBe('crash')
+  })
+
+  it('erkennt die Tankfunktion an der Mehrheit der Fahrer mit Boxenstopp', () => {
+    const withStops = (stops: number[]) => ({ ...race('t', '2026-01-01', stops.map((_, i) => [`F${i}`, 'Auto', 10] as [string, string, number])), results: race('t', '2026-01-01', stops.map((_, i) => [`F${i}`, 'Auto', 10] as [string, string, number])).results.map((r, i) => ({ ...r, pitStops: stops[i] })) })
+    expect(hasTankFunction(withStops([2, 3, 1, 2]))).toBe(true)
+    expect(hasTankFunction(withStops([1, 1]))).toBe(true)
+    // ein Fahrer ist nur durch die Boxengasse gefahren
+    expect(hasTankFunction(withStops([0, 1, 0, 0, 0]))).toBe(false)
+    expect(hasTankFunction(withStops([1, 0]))).toBe(false)
+    expect(hasTankFunction(withStops([0, 0, 0]))).toBe(false)
   })
 
   it('erkennt mit Tankfunktion den Boxenstopp mit nicht gezählter Runde', () => {
