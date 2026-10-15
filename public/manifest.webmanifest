@@ -1,0 +1,12 @@
+{
+  "name": "GR Legends",
+  "short_name": "GR Legends",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0E1013",
+  "theme_color": "#0E1013",
+  "icons": [
+    { "src": "app-icon.png", "sizes": "1024x1024", "type": "image/png", "purpose": "any" },
+    { "src": "favicon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

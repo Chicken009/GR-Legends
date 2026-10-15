@@ -1,0 +1,198 @@
+import type { Result, Session } from '../types'
+import { isGuest } from './drivers'
+import { cleanReference } from './laps'
+
+export const RATING = {
+  /** Startwert für Fahrer – mit der halben Skala bleiben die Werte dreistellig */
+  start: 500,
+  /**
+   * Punkteabstand für eine Siegchance von 10 : 1 (klassisches Elo: 400). Die halbe Skala ändert
+   * weder Reihenfolge noch Siegchancen, nur liegen die Zahlen enger beieinander.
+   */
+  scale: 200,
+  /** Bewegung pro Lauf (Summe über alle Duelle, normiert auf die Feldgröße) */
+  k: 24,
+  /** Höhere Bewegung in den ersten Läufen, damit sich neue Fahrer schnell einpendeln */
+  kProvisional: 48,
+  provisionalRaces: 5,
+  /** Bewegung der Autowertung (pro Strecke) */
+  kCar: 10,
+  /** Qualifyings zählen halb */
+  qualiWeight: 0.5,
+  /** Abstand → Duell-Ergebnis: S = 0.5 + 0.5·tanh(Vorsprung / Skala) */
+  raceScaleLaps: 0.65,
+  qualiScaleRel: 0.025,
+}
+
+export interface RatingEvent {
+  fileId: string
+  date: string
+  type: string
+  driver: string
+  car: string
+  position: number
+  field: number
+  before: number
+  after: number
+  delta: number
+  /** Kurzer Grund für die Änderung, z. B. „Sieg vor Anton Berger – der Nr. 1“ */
+  reason: string
+  /** Größte Überraschung im Lauf: Erwartung gegen einen geschlagenen Gegner (0–1) */
+  upsetExpectation: number | null
+}
+
+export interface RatingResult {
+  drivers: Map<string, number>
+  cars: Map<string, number>
+  /** Verlauf pro Fahrer (chronologisch) */
+  history: Map<string, RatingEvent[]>
+  /** Verlauf aller Läufe, für Rangverläufe */
+  events: RatingEvent[]
+}
+
+export const carKey = (track: string, car: string) => `${track}\u0000${car}`
+
+export function isQuali(s: Session) {
+  return /quali/i.test(s.type)
+}
+
+/** Chronologische Reihenfolge: Datum, dann Upload-Zeit. */
+export function sortSessions(sessions: Session[]): Session[] {
+  return [...sessions].sort((a, b) => a.date.localeCompare(b.date) || a.createdTime.localeCompare(b.createdTime))
+}
+
+const total = (r: Result) => r.lapTimes.reduce((sum, l) => sum + l.ms, 0)
+
+/** Vorsprung von a gegenüber b in „Runden“ (Rennen) bzw. relativ zur Bestzeit (Qualifying). */
+function margin(a: Result, b: Result, quali: boolean, ref: number): number {
+  let m: number
+  if (quali) {
+    m = a.validBestLapMs != null && b.validBestLapMs != null ? (b.validBestLapMs - a.validBestLapMs) / ref : 0
+  } else if (a.laps !== b.laps) {
+    m = a.laps - b.laps
+  } else {
+    m = (total(b) - total(a)) / ref
+  }
+  // Die Platzierung laut Smartrace hat immer Vorrang
+  const ahead = a.position < b.position
+  if (ahead && m <= 0) m = 0.03
+  if (!ahead && m >= 0) m = -0.03
+  return m
+}
+
+function gapText(a: Result, b: Result): string {
+  if (a.laps !== b.laps) {
+    const n = Math.abs(a.laps - b.laps)
+    return n === 1 ? 'eine Runde' : n === 2 ? 'zwei Runden' : `${n} Runden`
+  }
+  const s = Math.abs(total(a) - total(b)) / 1000
+  return `${s.toLocaleString('de-DE', { maximumFractionDigits: 1, minimumFractionDigits: 1 })} s`
+}
+
+function rankOf(ratings: Map<string, number>, name: string): number {
+  const own = ratings.get(name) ?? 0
+  let rank = 1
+  for (const [n, v] of ratings) if (n !== name && v > own) rank++
+  return rank
+}
+
+/**
+ * Elo aus direkten Duellen: Jeder Lauf wird in Duelle zerlegt. Die Stärke im Duell ist
+ * Fahrerwertung + Autowertung (pro Strecke); das Ergebnis hängt vom Abstand ab. Gäste
+ * werden ignoriert. Wer ein schwächeres Auto fährt, hat eine geringere Erwartung und
+ * bekommt für einen Sieg entsprechend mehr Punkte.
+ */
+export function computeRatings(sessions: Session[], cfg = RATING): RatingResult {
+  const drivers = new Map<string, number>()
+  const cars = new Map<string, number>()
+  const counts = new Map<string, number>()
+  const history = new Map<string, RatingEvent[]>()
+  const events: RatingEvent[] = []
+
+  const carRating = (track: string, car: string) => {
+    const key = carKey(track, car)
+    if (!cars.has(key)) {
+      // Neues Auto auf dieser Strecke: Schnitt desselben Autos auf anderen Strecken
+      const others = [...cars].filter(([k]) => k.endsWith(`\u0000${car}`)).map(([, v]) => v)
+      cars.set(key, others.length ? others.reduce((a, b) => a + b, 0) / others.length : 0)
+    }
+    return cars.get(key)!
+  }
+
+  for (const s of sortSessions(sessions)) {
+    const players = s.results.filter((r) => !isGuest(r.driver))
+    if (players.length < 2) continue
+    const quali = isQuali(s)
+    const w = quali ? cfg.qualiWeight : 1
+    const ref = cleanReference(s.results.flatMap((r) => r.lapTimes.filter((l) => l.status !== 'invalid').map((l) => l.ms))) ?? 10000
+    const scale = quali ? cfg.qualiScaleRel : cfg.raceScaleLaps
+    const strength = (r: Result) => (drivers.get(r.driver) ?? cfg.start) + carRating(s.track, r.car)
+
+    const dDriver = new Map<string, number>()
+    const dCar = new Map<string, number>()
+    const details = new Map<string, { opp: Result; diff: number; e: number; s: number }[]>()
+    for (const a of players) {
+      for (const b of players) {
+        if (a === b) continue
+        const S = 0.5 + 0.5 * Math.tanh(margin(a, b, quali, ref) / scale)
+        const E = 1 / (1 + 10 ** ((strength(b) - strength(a)) / cfg.scale))
+        const diff = (S - E) / (players.length - 1)
+        dDriver.set(a.driver, (dDriver.get(a.driver) ?? 0) + diff)
+        dCar.set(a.car, (dCar.get(a.car) ?? 0) + diff)
+        const list = details.get(a.driver) ?? []
+        list.push({ opp: b, diff, e: E, s: S })
+        details.set(a.driver, list)
+      }
+    }
+
+    const snapshot = new Map(drivers)
+    for (const a of players) {
+      const n = counts.get(a.driver) ?? 0
+      const k = (n < cfg.provisionalRaces ? cfg.kProvisional : cfg.k) * w
+      const before = drivers.get(a.driver) ?? cfg.start
+      const after = before + k * (dDriver.get(a.driver) ?? 0)
+      drivers.set(a.driver, after)
+      counts.set(a.driver, n + 1)
+
+      const list = details.get(a.driver) ?? []
+      const up = after >= before
+      const key = list.reduce((best, d) => ((up ? d.diff > best.diff : d.diff < best.diff) ? d : best), list[0])
+      const beaten = list.filter((d) => d.s > 0.5)
+      const upsetExpectation = beaten.length ? Math.min(...beaten.map((d) => d.e)) : null
+      const field = players.length
+      let reason: string
+      if (!key) reason = ''
+      else if (up) {
+        // „Nr. 1“ erst, wenn die Wertung des Gegners eingependelt ist
+        const settled = (counts.get(key.opp.driver) ?? 0) >= cfg.provisionalRaces
+        const oppRank = settled && snapshot.has(key.opp.driver) ? rankOf(snapshot, key.opp.driver) : null
+        const who = oppRank === 1 ? `${key.opp.driver}, der Nr. 1 der Wertung` : key.opp.driver
+        const head = a.position === 1 ? `Sieg vor ${who}` : `Platz ${a.position} von ${field}, vor ${who}`
+        reason = key.e < 0.35 ? `${head} – als Außenseiter` : head
+      } else {
+        reason = `Platz ${a.position} von ${field}, ${gapText(a, key.opp)} hinter ${key.opp.driver}`
+      }
+      reason += ` · ${a.car}`
+      const ev: RatingEvent = {
+        fileId: s.fileId, date: s.date, type: s.type, driver: a.driver, car: a.car,
+        position: a.position, field, before, after, delta: after - before, reason, upsetExpectation,
+      }
+      events.push(ev)
+      const h = history.get(a.driver) ?? []
+      h.push(ev)
+      history.set(a.driver, h)
+    }
+    for (const [car, d] of dCar) {
+      const key = carKey(s.track, car)
+      cars.set(key, carRating(s.track, car) + cfg.kCar * w * d)
+    }
+  }
+  return { drivers, cars, history, events }
+}
+
+/** Siegchance jedes Fahrers in einem Rennen untereinander (Bradley-Terry aus der Wertung). */
+export function winChances(ratings: { name: string; strength: number }[], scale = RATING.scale): Map<string, number> {
+  const weights = ratings.map((r) => 10 ** (r.strength / scale))
+  const sum = weights.reduce((a, b) => a + b, 0)
+  return new Map(ratings.map((r, i) => [r.name, weights[i] / sum]))
+}
