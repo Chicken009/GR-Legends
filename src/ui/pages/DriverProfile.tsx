@@ -4,7 +4,8 @@ import type { Medal } from '../../domain/model'
 import { AREA } from '../colors'
 import { Avatar, carPath, driverPath, Segment, Sheet, Tile, useData, useMyName } from '../components'
 import { LineChart, type LinePoint } from '../charts/LineChart'
-import { BulbIcon, ShareIcon, StatusIcons } from '../icons'
+import { ShareIcon, StatusIcons } from '../icons'
+import { TipCarousel } from '../TipCarousel'
 import { MedalBadge, TIERS } from '../Medal'
 import { fmtDelta, fmtElo, fmtNum, fmtPct, formatDate, formatMonth, formatTime } from '../format'
 import { quantile } from '../../domain/laps'
@@ -35,7 +36,7 @@ export function DriverProfile({ onClose }: { onClose: () => void }) {
   const rival = model.rival(driver)
   const rivalElo = rival ? model.rating.drivers.get(rival.name) : null
   const goals = model.goals(driver)
-  const tip = model.tip(driver)
+  const tips = model.tips(driver)
   const fav = d.favoriteCar ? d.cars.get(d.favoriteCar) : null
   const isMe = driver === me
 
@@ -173,17 +174,7 @@ export function DriverProfile({ onClose }: { onClose: () => void }) {
         </section>
       )}
 
-      {tip && (
-        <div className="inner" style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start', boxShadow: `inset 3px 0 0 ${ACCENT}` }}>
-          <span style={{ flexShrink: 0 }}>
-            <BulbIcon color={ACCENT} />
-          </span>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <span style={{ fontSize: 13, fontWeight: 600 }}>Tipp</span>
-            <span style={{ fontSize: 13, color: 'var(--text-2)', lineHeight: 1.4 }}>{tip}</span>
-          </div>
-        </div>
-      )}
+      <TipCarousel tips={tips} accent={ACCENT} />
 
       <section className="inner" style={{ gap: 2 }}>
         <span style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Letzte Rennen</span>

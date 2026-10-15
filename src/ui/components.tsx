@@ -181,14 +181,21 @@ export function Sheet({ onClose, children, actions, label }: { onClose: () => vo
     const body = bodyRef.current
     if (!body) return
     let startY = 0
+    let startX = 0
     let active = false
+    let horizontal = false
     const onStart = (e: TouchEvent) => {
       startY = e.touches[0].clientY
+      startX = e.touches[0].clientX
       active = false
+      horizontal = false
     }
     const onMove = (e: TouchEvent) => {
       const y = e.touches[0].clientY
-      if (!active && body.scrollTop <= 0 && y - startY > 6) {
+      const dx = Math.abs(e.touches[0].clientX - startX)
+      // Seitliches Wischen (Tipps, Tabellen) schließt das Panel nicht
+      if (!active && dx > 8 && dx > Math.abs(y - startY)) horizontal = true
+      if (!active && !horizontal && body.scrollTop <= 0 && y - startY > 6 && y - startY > dx) {
         active = true
         begin(startY)
       }
