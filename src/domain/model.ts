@@ -35,6 +35,8 @@ export interface DriverStats {
   poles: number
   /** Anteil geschlagener Gegner über alle Rennen (normiert auf die Feldgröße), 0–1 */
   beatShare: number | null
+  /** Ø Platzierung in Rennen */
+  avgPosition: number | null
   laps: number
   km: number | null
   bestLapMs: number | null
@@ -63,8 +65,10 @@ export interface CarStats {
   name: string
   races: number
   wins: number
+  podiums: number
   winRate: number | null
   beatShare: number | null
+  avgPosition: number | null
   laps: number
   km: number | null
   bestLapMs: number | null
@@ -163,7 +167,7 @@ export interface Model {
 
 function emptyDriver(name: string): DriverStats {
   return {
-    name, races: 0, wins: 0, podiums: 0, qualis: 0, poles: 0, beatShare: null, laps: 0, km: null,
+    name, races: 0, wins: 0, podiums: 0, qualis: 0, poles: 0, beatShare: null, avgPosition: null, laps: 0, km: null,
     bestLapMs: null, pace: null, precision: null, crashes: 0, crashBaseLaps: 0, crashRate: null,
     crashLossMs: 0, cars: new Map(), favoriteCar: null, opponentsMet: new Set(), opponentsBeaten: new Set(),
     h2h: new Map(), raceDays: new Set(), streak: 0, maxStreak: 0, raceResults: [],
@@ -198,9 +202,12 @@ export function buildModel(input: Session[]): Model {
     const cs = new Map<string, CarStats>()
     const get = (n: string) => ds.get(n) ?? (ds.set(n, emptyDriver(n)), ds.get(n)!)
     const getCar = (n: string): CarStats =>
-      cs.get(n) ?? (cs.set(n, { name: n, races: 0, wins: 0, winRate: null, beatShare: null, laps: 0, km: null, bestLapMs: null, bestBy: null, pace: null, spread: null, rating: null, bonus: 0, drivers: new Map() }), cs.get(n)!)
+      cs.get(n) ?? (cs.set(n, { name: n, races: 0, wins: 0, podiums: 0, winRate: null, beatShare: null, avgPosition: null, laps: 0, km: null, bestLapMs: null, bestBy: null, pace: null, spread: null, rating: null, bonus: 0, drivers: new Map() }), cs.get(n)!)
     const beat = new Map<string, number[]>()
     const carBeat = new Map<string, number[]>()
+    const positions = new Map<string, number[]>()
+    const carPositions = new Map<string, number[]>()
+    const push = (m: Map<string, number[]>, k: string, v: number) => (m.get(k) ?? m.set(k, []).get(k)!).push(v)
     const paceSamples = new Map<string, number[]>()
     const carPace = new Map<string, number[]>()
     const precSamples = new Map<string, number[]>()
@@ -232,6 +239,8 @@ export function buildModel(input: Session[]): Model {
         if (!quali) {
           car.races++
           if (r.position === 1) car.wins++
+          if (r.position <= 3) car.podiums++
+          push(carPositions, r.car, r.position)
           if (share != null) (carBeat.get(r.car) ?? carBeat.set(r.car, []).get(r.car)!).push(share)
         }
 
@@ -256,6 +265,7 @@ export function buildModel(input: Session[]): Model {
           use.races++
           if (r.position === 1) { d.wins++; use.wins++; d.streak++; d.maxStreak = Math.max(d.maxStreak, d.streak) } else d.streak = 0
           if (r.position <= 3) d.podiums++
+          push(positions, r.driver, r.position)
           if (share != null) (beat.get(r.driver) ?? beat.set(r.driver, []).get(r.driver)!).push(share)
           for (const o of s.results) {
             if (o === r || isGuest(o.driver)) continue
@@ -274,6 +284,7 @@ export function buildModel(input: Session[]): Model {
     }
     for (const d of ds.values()) {
       d.beatShare = mean(beat.get(d.name) ?? [])
+      d.avgPosition = mean(positions.get(d.name) ?? [])
       d.pace = mean(paceSamples.get(d.name) ?? [])
       d.precision = mean(precSamples.get(d.name) ?? [])
       d.crashRate = d.crashBaseLaps >= 20 ? (d.crashes / d.crashBaseLaps) * 100 : null
@@ -291,6 +302,7 @@ export function buildModel(input: Session[]): Model {
     for (const c of cs.values()) {
       c.winRate = c.races ? c.wins / c.races : null
       c.beatShare = mean(carBeat.get(c.name) ?? [])
+      c.avgPosition = mean(carPositions.get(c.name) ?? [])
       c.pace = mean(carPace.get(c.name) ?? [])
       c.spread = mean(carPrec.get(c.name) ?? [])
       c.rating = carRatings.get(c.name) ?? null
