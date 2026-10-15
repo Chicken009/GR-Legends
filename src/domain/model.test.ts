@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applySettings, driveFileId, EMPTY_SETTINGS, parseSettings } from '../data/settings'
+import { applySettings, driveFileId, EMPTY_SETTINGS, parseScale, parseSettings } from '../data/settings'
 import { prepare } from '../data/useRaceDays'
 import { fixtureIds, readFixture } from '../test-utils'
 import type { Result, Session } from '../types'
@@ -127,6 +127,12 @@ describe('Kennzahlen', () => {
 })
 
 describe('Einstellungen', () => {
+  it('erkennt den Maßstab auch als Uhrzeit aus Google Sheets', () => {
+    for (const v of ['1:24', '01:24:00', '1:24:00', '1/24', '24', ' 1 : 24 ']) expect(parseScale(v), v).toBe('1:24')
+    for (const v of ['1:32', '01:32:00', '32']) expect(parseScale(v), v).toBe('1:32')
+    for (const v of ['', 'x', '1:43', '12:24']) expect(parseScale(v), v).toBeUndefined()
+  })
+
   it('liest Aliase, Gäste, Fahrzeuge und Korrekturen und überspringt Beispielzeilen', () => {
     const settings = parseSettings({
       fahrer: [['J. Muster', 'Jan Mustermann', '', '', 'Beispiel: …'], ['Jo', 'Mika'], ['Oma', '', 'x'], ['Gast 2', '', 'x']],

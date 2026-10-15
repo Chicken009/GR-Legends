@@ -22,6 +22,16 @@ export const EMPTY_SETTINGS: Settings = { aliases: {}, guests: [], cars: {}, cor
 
 const isExample = (row: string[]) => row.some((c) => /^beispiel/i.test((c ?? '').trim()))
 
+/**
+ * Maßstab aus der Tabelle. Google Sheets macht aus „1:24“ gern eine Uhrzeit („01:24:00“),
+ * deshalb werden auch diese Schreibweisen sowie „1/24“ und „24“ erkannt.
+ */
+export function parseScale(value: string): '1:24' | '1:32' | undefined {
+  const m = /^0?1\s*[:/]\s*(24|32)(:00)?(\s*(AM|PM))?$/i.exec(value.trim()) ?? /^(24|32)$/.exec(value.trim())
+  if (!m) return undefined
+  return m[1] === '24' ? '1:24' : '1:32'
+}
+
 /** Datei-ID aus einem Drive-Link (…/file/d/<id>/…, ?id=<id>) oder eine nackte ID. */
 export function driveFileId(link: string): string | null {
   const s = link.trim()
@@ -43,7 +53,8 @@ export function parseSettings(tabs: { fahrer?: string[][]; fahrzeuge?: string[][
     const [name = '', scale = '', display = ''] = row.map((c) => (c ?? '').trim())
     if (!name || isExample(row)) continue
     const entry: Settings['cars'][string] = {}
-    if (scale === '1:24' || scale === '1:32') entry.scale = scale
+    const parsed = parseScale(scale)
+    if (parsed) entry.scale = parsed
     if (display && display !== name) entry.displayName = display
     if (entry.scale || entry.displayName) out.cars[name] = entry
   }
