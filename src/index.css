@@ -1310,3 +1310,41 @@ table.dt tr.me-row .st1 {
   flex-direction: column;
   gap: 6px;
 }
+
+/* ---------- Tipps zum Durchwischen ---------- */
+.tips-track {
+  display: flex;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  overscroll-behavior-x: contain;
+}
+
+.tips-track::-webkit-scrollbar {
+  display: none;
+}
+
+.tips-slide {
+  flex: 0 0 100%;
+  scroll-snap-align: start;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px 14px 8px;
+  box-sizing: border-box;
+}
+
+.tips-dots {
+  display: flex;
+  justify-content: center;
+  gap: 5px;
+  padding: 0 0 10px;
+}
+
+.tips-dots button {
+  height: 6px;
+  border-radius: 3px;
+  border: none;
+  padding: 0;
+  transition: width 0.2s, background 0.2s;
+}

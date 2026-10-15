@@ -134,6 +134,13 @@ export interface RecordEntry {
   guest: boolean
 }
 
+export interface Tip {
+  title: string
+  text: string
+  /** Lob statt Verbesserungstipp */
+  good?: boolean
+}
+
 export interface NewsItem {
   kind: 'medal' | 'record-track' | 'record-car' | 'record-personal' | 'climb'
   driver: string
@@ -157,7 +164,8 @@ export interface Model {
   carRecords: Map<string, RecordEntry>
   goals: (driver: string) => Goal[]
   rival: (driver: string) => { name: string; wins: number; losses: number } | null
-  tip: (driver: string) => string | null
+  /** Tipps und Lob zum Durchwischen, Verbesserungstipps zuerst */
+  tips: (driver: string) => Tip[]
   eloAt: (driver: string, date: string) => number | null
   /** Rang aller Fahrer an jedem Renntag */
   rankTimeline: () => { dates: string[]; ranks: Map<string, (number | null)[]> }
@@ -474,28 +482,142 @@ export function buildModel(input: Session[]): Model {
     return out.slice(0, 3)
   }
 
-  const tip = (driver: string): string | null => {
+  const tips = (driver: string): Tip[] => {
     const all = stats('all').drivers
     const d = all.get(driver)
-    if (!d) return null
-    const cars = [...d.cars].filter(([, u]) => u.normal.length >= 15).map(([n, u]) => ({ n, med: median(u.normal)! }))
-    if (cars.length >= 2) {
-      cars.sort((a, b) => a.med - b.med)
-      const diff = (cars[cars.length - 1].med - cars[0].med) / 1000
-      if (diff >= 0.2) return `Mit dem ${cars[0].n} bist du im Schnitt ${diff.toLocaleString('de-DE', { maximumFractionDigits: 1, minimumFractionDigits: 1 })} s schneller als mit dem ${cars[cars.length - 1].n}.`
+    if (!d) return []
+    const out: Tip[] = []
+    const regulars = [...all.values()].filter((x) => x.races >= 3)
+    const s1 = (ms: number) => (ms / 1000).toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+    const pct = (v: number) => `${(v * 100).toLocaleString('de-DE', { maximumFractionDigits: 1 })} %`
+    const nl = (r: Result) => r.lapTimes.filter((l) => l.status === 'normal').map((l) => l.ms)
+
+    // Fahrzeugwahl: Tempo und Ergebnisse je Auto
+    // Tempo relativ zum Feld desselben Laufs – so stören Bahnzustand und Jahr nicht
+    const relPace = new Map<string, number[]>()
+    for (const { session, result } of d.raceResults) {
+      const own = median(nl(result))
+      const fieldMed = median(session.results.flatMap((r) => nl(r)))
+      if (own != null && fieldMed && nl(result).length >= 5) relPace.set(result.car, [...(relPace.get(result.car) ?? []), own / fieldMed])
     }
-    const rates = [...all.values()].map((x) => x.crashRate).filter((x): x is number => x != null)
-    const avg = mean(rates)
-    if (d.crashRate != null && avg != null && d.crashRate > avg * 1.5) return `Du fliegst öfter ab als der Schnitt (${d.crashRate.toFixed(1)} statt ${avg.toFixed(1)} pro 100 Runden). Konstanz bringt hier mehr als Tempo.`
-    const halves = d.raceResults.map(({ result }) => {
-      const nl = result.lapTimes.filter((l) => l.status === 'normal').map((l) => l.ms)
-      if (nl.length < 8) return null
-      const h = Math.floor(nl.length / 2)
-      return (mean(nl.slice(h))! - mean(nl.slice(0, h))!) / 1000
-    }).filter((x): x is number => x != null)
-    const fade = mean(halves)
-    if (fade != null && fade > 0.25) return `In der zweiten Rennhälfte verlierst du im Schnitt ${fade.toLocaleString('de-DE', { maximumFractionDigits: 1, minimumFractionDigits: 1 })} s pro Runde.`
-    return null
+    const typical = median(d.raceResults.flatMap(({ result }) => nl(result)))
+    const carSpeed = [...relPace].filter(([, xs]) => xs.length >= 3).map(([n, xs]) => ({ n, v: mean(xs)! })).sort((a, b) => a.v - b.v)
+    if (carSpeed.length >= 2 && typical) {
+      const diff = (carSpeed[carSpeed.length - 1].v - carSpeed[0].v) * typical
+      if (diff >= 200) out.push({ title: 'Fahrzeugwahl', text: `Mit dem ${carSpeed[0].n} bist du im Vergleich zum Feld etwa ${s1(diff)} s pro Runde schneller als mit dem ${carSpeed[carSpeed.length - 1].n}.` })
+    }
+    const carShare = new Map<string, number[]>()
+    for (const { session, result } of d.raceResults) {
+      const n = session.results.length
+      if (n > 1) carShare.set(result.car, [...(carShare.get(result.car) ?? []), (n - result.position) / (n - 1)])
+    }
+    const shares = [...carShare].filter(([, xs]) => xs.length >= 3).map(([n, xs]) => ({ n, v: mean(xs)! })).sort((a, b) => b.v - a.v)
+    if (shares.length >= 2 && shares[0].v - shares[shares.length - 1].v >= 0.25) {
+      out.push({ title: 'Erfolgsauto', text: `Mit dem ${shares[0].n} schlägst du ${pct(shares[0].v)} deiner Gegner, mit dem ${shares[shares.length - 1].n} nur ${pct(shares[shares.length - 1].v)}.` })
+    }
+
+    // Abflüge
+    const avgCrash = mean(regulars.map((x) => x.crashRate).filter((x): x is number => x != null))
+    if (d.crashRate != null && avgCrash != null) {
+      const n1 = (v: number) => v.toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+      if (d.crashRate > avgCrash * 1.3) out.push({ title: 'Abflüge', text: `Du fliegst öfter ab als der Schnitt (${n1(d.crashRate)} statt ${n1(avgCrash)} pro 100 Runden). Konstanz bringt hier mehr als Tempo.` })
+      else if (d.crashRate < avgCrash * 0.6) out.push({ title: 'Sauber unterwegs', good: true, text: `Du fliegst selten ab: ${n1(d.crashRate)} Abflüge pro 100 Runden, der Schnitt liegt bei ${n1(avgCrash)}.` })
+    }
+
+    // Konstanz
+    const avgPrec = mean(regulars.map((x) => x.precision).filter((x): x is number => x != null))
+    if (d.precision != null && avgPrec != null && d.races >= 3) {
+      if (d.precision > avgPrec * 1.15) out.push({ title: 'Gleichmäßigkeit', text: `Deine sauberen Runden schwanken um ${pct(d.precision)}, der Schnitt liegt bei ${pct(avgPrec)}. Gleichmäßig fahren bringt oft mehr als Risiko.` })
+      else if (d.precision < avgPrec * 0.85) out.push({ title: 'Präzise', good: true, text: `Deine Runden sind sehr gleichmäßig: ${pct(d.precision)} Schwankung, der Schnitt liegt bei ${pct(avgPrec)}.` })
+    }
+
+    // Ausdauer: zweite Rennhälfte
+    const halves = d.raceResults
+      .map(({ result }) => {
+        const laps = nl(result)
+        if (laps.length < 8) return null
+        const h = Math.floor(laps.length / 2)
+        return mean(laps.slice(h))! - mean(laps.slice(0, h))!
+      })
+      .filter((x): x is number => x != null)
+    const fade = halves.length >= 3 ? mean(halves) : null
+    if (fade != null && fade > 250) out.push({ title: 'Ausdauer', text: `In der zweiten Rennhälfte verlierst du im Schnitt ${s1(fade)} s pro Runde. Vielleicht am Anfang etwas weniger riskieren.` })
+    else if (fade != null && fade < -250) out.push({ title: 'Steigerung', good: true, text: `Du wirst im Rennen schneller: In der zweiten Hälfte bist du im Schnitt ${s1(-fade)} s pro Runde flotter.` })
+
+    // Start: erste Runde gegenüber der eigenen typischen Runde, verglichen mit dem Feld
+    const startLoss = (r: Result) => {
+      const first = r.lapTimes[0]
+      const med = median(nl(r))
+      return first && first.status !== 'invalid' && med != null && nl(r).length >= 5 ? first.ms - med : null
+    }
+    const mine = d.raceResults.map(({ result }) => startLoss(result)).filter((x): x is number => x != null)
+    const field = sessions.filter((x) => !isQuali(x)).flatMap((x) => x.results.filter((r) => !isGuest(r.driver) && r.driver !== driver).map(startLoss)).filter((x): x is number => x != null)
+    if (mine.length >= 3 && field.length >= 10) {
+      const diff = median(mine)! - median(field)!
+      if (diff > 500) out.push({ title: 'Start', text: `Deine Startrunde kostet dich im Schnitt ${s1(diff)} s mehr als die anderen. Ein ruhiger, sauberer Start lohnt sich.` })
+      else if (diff < -500) out.push({ title: 'Starke Starts', good: true, text: `Deine Startrunde ist im Schnitt ${s1(-diff)} s besser als die der anderen.` })
+    }
+
+    // Boxenstopps (Rennen mit Tankfunktion)
+    const pitLoss = (name: string | null) =>
+      sessions
+        .filter((x) => x.tank && !isQuali(x))
+        .flatMap((x) => x.results.filter((r) => (name ? r.driver === name : r.driver !== driver && !isGuest(r.driver))))
+        // nur reine Stopps; mit leerem Tank kommen nicht gezählte Runden dazu
+        .flatMap((r) => r.lapTimes.filter((l) => l.status === 'pit' && l.lossMs != null && l.lossMs <= 10_000).map((l) => l.lossMs!))
+    const myPits = pitLoss(driver)
+    const fieldPits = pitLoss(null)
+    if (myPits.length >= 3 && fieldPits.length >= 10) {
+      const diff = median(myPits)! - median(fieldPits)!
+      if (diff > 1000) out.push({ title: 'Boxenstopps', text: `Deine Boxenstopps kosten im Schnitt ${s1(diff)} s mehr als die der anderen. Hier lässt sich leicht Zeit gutmachen.` })
+      else if (diff < -1000) out.push({ title: 'Schnelle Box', good: true, text: `Deine Boxenstopps sind im Schnitt ${s1(-diff)} s schneller als die der anderen.` })
+    }
+
+    // Rivale: Tempo-Unterschied in gemeinsamen Rennen
+    const rv = rival(driver)
+    if (rv && rv.losses > rv.wins) {
+      const diffs = d.raceResults
+        .map(({ session, result }) => {
+          const o = session.results.find((r) => r.driver === rv.name)
+          const a = median(nl(result))
+          const b2 = o ? median(nl(o)) : null
+          return a != null && b2 != null ? a - b2 : null
+        })
+        .filter((x): x is number => x != null)
+      const diff = mean(diffs)
+      if (diff != null && diff > 100) out.push({ title: 'Rivale', text: `Gegen ${rv.name} steht es ${rv.wins} : ${rv.losses}. In gemeinsamen Rennen ist ${rv.name} im Schnitt ${s1(diff)} s pro Runde schneller.` })
+      else out.push({ title: 'Rivale', text: `Gegen ${rv.name} steht es ${rv.wins} : ${rv.losses} – vom Tempo her seid ihr gleichauf. Es entscheiden Fehler und Starts.` })
+    }
+
+    // Noch nie gefahren: schnelles Auto ausprobieren
+    const carsAll = [...stats('all').cars.values()].filter((c) => c.races >= 10 && c.pace != null).sort((a, b) => a.pace! - b.pace!)
+    const untried = carsAll.find((c) => !d.cars.has(c.name))
+    if (untried && carsAll.indexOf(untried) <= 2) out.push({ title: 'Ausprobieren', text: `Den ${untried.name} bist du noch nie gefahren – mit ihm gelingen im Schnitt mit die schnellsten Runden.` })
+
+    // Fortschritt: dieses Jahr gegenüber dem Vorjahr (Hauptstrecke)
+    const track = d.raceResults.length ? d.raceResults[d.raceResults.length - 1].session.track : null
+    const yearLaps = (y: string) => d.raceResults.filter(({ session }) => session.track === track && session.date.startsWith(y)).flatMap(({ result }) => nl(result))
+    const [y1, y0] = years
+    if (y1 && y0) {
+      const a = yearLaps(y1)
+      const b2 = yearLaps(y0)
+      if (a.length >= 30 && b2.length >= 30) {
+        const diff = median(b2)! - median(a)!
+        if (diff > 150) out.push({ title: 'Fortschritt', good: true, text: `${y1} bist du im Schnitt ${s1(diff)} s pro Runde schneller als ${y0}.` })
+        else if (diff < -150) out.push({ title: 'Formkurve', text: `${y1} bist du im Schnitt ${s1(-diff)} s pro Runde langsamer als ${y0}. Ein Blick auf die Fahrzeugwahl lohnt sich.` })
+      }
+    }
+
+    // Bahnrekord
+    if (track) {
+      const rec = trackRecords.get(track)
+      const own = Math.min(...d.raceResults.filter(({ session }) => session.track === track).map(({ result }) => result.validBestLapMs ?? Infinity))
+      if (rec && rec.driver === driver) out.push({ title: 'Bahnrekord', good: true, text: `Du hältst den Bahnrekord mit ${formatTime(rec.ms)} – verteidige ihn!` })
+      else if (rec && isFinite(own)) out.push({ title: 'Bahnrekord', text: `Bis zum Bahnrekord (${formatTime(rec.ms)}, ${rec.driver}${rec.guest ? ' als Gast' : ''}) fehlen dir ${((own - rec.ms) / 1000).toLocaleString('de-DE', { minimumFractionDigits: 3 })} s.` })
+    }
+
+    // Verbesserungstipps zuerst, dann Lob
+    return [...out.filter((t) => !t.good), ...out.filter((t) => t.good)]
   }
 
   let timelineCache: ReturnType<Model['rankTimeline']> | null = null
@@ -551,7 +673,7 @@ export function buildModel(input: Session[]): Model {
 
   return {
     sessions, years, tracks, rating, drivers, stats, ranking, statuses, medals,
-    trackRecords, carRecords, goals, rival, tip, eloAt, rankTimeline, news,
+    trackRecords, carRecords, goals, rival, tips, eloAt, rankTimeline, news,
   }
 }
 
