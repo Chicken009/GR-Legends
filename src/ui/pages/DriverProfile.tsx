@@ -1,0 +1,358 @@
+import { useState } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import type { Medal } from '../../domain/model'
+import { AREA } from '../colors'
+import { Avatar, carPath, driverPath, Segment, Sheet, Tile, useData, useMyName } from '../components'
+import { LineChart, type LinePoint } from '../charts/LineChart'
+import { BulbIcon, ShareIcon, StatusIcons } from '../icons'
+import { MedalBadge, TIERS } from '../Medal'
+import { fmtDelta, fmtElo, fmtNum, fmtPct, formatDate, formatMonth, formatTime } from '../format'
+import { quantile } from '../../domain/laps'
+
+const ACCENT = AREA.drivers
+
+export function DriverProfile({ onClose }: { onClose: () => void }) {
+  const { name = '' } = useParams()
+  const { model } = useData()
+  const me = useMyName()
+  const navigate = useNavigate()
+  const [chart, setChart] = useState<'elo' | 'rank' | 'lap'>('elo')
+  const driver = decodeURIComponent(name)
+  const d = model.stats('all').drivers.get(driver)
+  const history = model.rating.history.get(driver) ?? []
+  if (!d || history.length === 0) {
+    return (
+      <Sheet onClose={onClose} label="Fahrer nicht gefunden">
+        <p className="muted">„{driver}“ wurde nicht gefunden. Gäste haben kein Profil.</p>
+      </Sheet>
+    )
+  }
+  const rows = model.ranking('all')
+  const row = rows.find((r) => r.name === driver)
+  const statuses = model.statuses('all').get(driver)
+  const medals = model.medals.get(driver) ?? []
+  const current = medals.filter((m) => !m.former)
+  const rival = model.rival(driver)
+  const rivalElo = rival ? model.rating.drivers.get(rival.name) : null
+  const goals = model.goals(driver)
+  const tip = model.tip(driver)
+  const fav = d.favoriteCar ? d.cars.get(d.favoriteCar) : null
+  const isMe = driver === me
+
+  const share = async () => {
+    const url = window.location.href
+    try {
+      if (navigator.share) await navigator.share({ title: `${driver} · GR Legends`, url })
+      else await navigator.clipboard.writeText(url)
+    } catch {
+      // abgebrochen
+    }
+  }
+  const compareWith = me && me !== driver ? me : rows.find((r) => r.name !== driver)?.name
+
+  return (
+    <Sheet
+      onClose={onClose}
+      label={`Profil ${driver}`}
+      actions={
+        <>
+          {compareWith && (
+            <Link className="btn round" to={`/vergleich?a=${encodeURIComponent(driver)}&b=${encodeURIComponent(compareWith)}`}>
+              Vergleichen
+            </Link>
+          )}
+          <button className="btn round" aria-label="Link teilen" onClick={share} style={{ width: 44, padding: 0 }}>
+            <ShareIcon />
+          </button>
+        </>
+      }
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+        <Avatar name={driver} size={64} ring={isMe ? ACCENT : '#3A404A'} style={{ background: 'var(--inner)', fontSize: 22, fontWeight: 800, boxShadow: 'var(--sh2)' }} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <h1 style={{ fontSize: 26, fontWeight: 800, textShadow: '0 3px 12px rgba(0,0,0,.6)' }}>{driver}</h1>
+            <StatusIcons list={statuses} size={22} animate />
+          </div>
+          <span style={{ fontSize: 14, color: 'var(--muted)' }}>
+            {row ? (
+              <>
+                Gesamtrang <b style={{ color: ACCENT }}>#{row.rank}</b> von {rows.length}
+              </>
+            ) : (
+              'noch ohne Rang'
+            )}
+            {isMe && ' · Das bist du'}
+          </span>
+        </div>
+      </div>
+
+      <div className="tiles">
+        <Tile value={fmtElo(model.rating.drivers.get(driver))} label="Elo" color={ACCENT} />
+        <Tile value={d.races} label="Rennen" />
+        <Tile value={d.wins} label="Siege" />
+        <Tile value={fmtPct(d.beatShare)} label="geschlagen" />
+      </div>
+
+      {current.length > 0 && (
+        <div style={{ display: 'flex', gap: 8 }}>
+          {current.slice(0, 2).map((m) => (
+            <MedalChip key={m.id} medal={m} />
+          ))}
+          <Link to={`${driverPath(driver)}/medaillen`} replace className="tile" aria-label="Alle Medaillen anzeigen" style={{ width: 56, alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <span style={{ fontSize: 16, fontWeight: 700 }}>{medals.length > 2 ? `+${medals.length - 2}` : '›'}</span>
+            <span style={{ fontSize: 10, color: 'var(--muted)' }}>alle</span>
+          </Link>
+        </div>
+      )}
+
+      <section className="inner" style={{ padding: '14px 14px 10px', gap: 8 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 14, fontWeight: 600 }}>Entwicklung</span>
+          <Segment small label="Diagramm wählen" value={chart} onChange={setChart} options={[['elo', 'Elo'], ['rank', 'Rang'], ['lap', 'Ø Runde']]} />
+        </div>
+        <DriverChart driver={driver} kind={chart} />
+      </section>
+
+      <div className="grid-2">
+        <Link className="inner" to={d.favoriteCar ? carPath(d.favoriteCar) : '#'}>
+          <span className="l">Lieblingsauto</span>
+          <span className="v" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{d.favoriteCar ?? '–'}</span>
+          {fav && <span className="s">{fav.races} Rennen · Best {formatTime(fav.bestLapMs)}</span>}
+        </Link>
+        <Link className="inner" to={rival ? `/vergleich?a=${encodeURIComponent(driver)}&b=${encodeURIComponent(rival.name)}` : '#'}>
+          <span className="l">Rivale</span>
+          <span className="v">{rival?.name ?? '–'}</span>
+          {rival && (
+            <span className="s">
+              {rival.wins} : {rival.losses}
+              {rivalElo != null && ` · ${rivalText(rivalElo - (model.rating.drivers.get(driver) ?? 0))}`}
+            </span>
+          )}
+        </Link>
+        <div className="inner">
+          <span className="l">Gegner besiegt</span>
+          <span className="v">
+            {d.opponentsBeaten.size} von {d.opponentsMet.size}
+          </span>
+          <div className="bar" style={{ ['--accent' as string]: ACCENT }}>
+            <div style={{ width: `${d.opponentsMet.size ? (d.opponentsBeaten.size / d.opponentsMet.size) * 100 : 0}%` }} />
+          </div>
+        </div>
+        <div className="inner">
+          <span className="l">Gefahren</span>
+          <span className="v">{d.km != null ? `${fmtNum(d.km)} km` : '–'}</span>
+          <span className="s">{fmtNum(d.laps, 0)} Runden</span>
+        </div>
+        <div className="inner">
+          <span className="l">Pace</span>
+          <span className="v">{d.pace != null ? `${fmtNum(d.pace)} %` : '–'}</span>
+          <span className="s">der typischen Bestzeit</span>
+        </div>
+        <div className="inner">
+          <span className="l">Abflüge</span>
+          <span className="v">{d.crashRate != null ? `${fmtNum(d.crashRate)} / 100 Runden` : '–'}</span>
+          <span className="s">{d.crashRate != null ? `Ø ${fmtNum(d.crashes ? d.crashLossMs / d.crashes / 1000 : 0)} s Verlust` : 'zu wenige Rennen ohne Tank'}</span>
+        </div>
+      </div>
+
+      {goals.length > 0 && (
+        <section className="inner" style={{ gap: 10 }}>
+          <span style={{ fontSize: 14, fontWeight: 600 }}>Nächstes Ziel</span>
+          {goals.map((g) => (
+            <div key={g.label} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 13 }}>
+                <span style={{ fontWeight: 600 }}>{g.label}</span>
+                <span style={{ color: 'var(--muted)', fontSize: 12, textAlign: 'right' }}>{g.detail}</span>
+              </div>
+              <div className="bar" style={{ ['--accent' as string]: ACCENT }}>
+                <div style={{ width: `${Math.round(g.progress * 100)}%` }} />
+              </div>
+            </div>
+          ))}
+        </section>
+      )}
+
+      {tip && (
+        <div className="inner" style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start', boxShadow: `inset 3px 0 0 ${ACCENT}` }}>
+          <span style={{ flexShrink: 0 }}>
+            <BulbIcon color={ACCENT} />
+          </span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <span style={{ fontSize: 13, fontWeight: 600 }}>Tipp</span>
+            <span style={{ fontSize: 13, color: 'var(--text-2)', lineHeight: 1.4 }}>{tip}</span>
+          </div>
+        </div>
+      )}
+
+      <section className="inner" style={{ gap: 2 }}>
+        <span style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Letzte Rennen</span>
+        {d.raceResults
+          .slice(-6)
+          .reverse()
+          .map(({ session, result }) => (
+            <button key={session.fileId} className="row" style={{ border: 'none', background: 'none', textAlign: 'left', padding: '6px 0' }} onClick={() => navigate(`/lauf/${session.fileId}`)}>
+              <span className={`rank${result.position <= 3 ? ` r${result.position}` : ''}`} style={{ minWidth: 26 }}>
+                P{result.position}
+              </span>
+              <span className="grow">
+                <span className="name" style={{ fontWeight: 500 }}>
+                  {formatDate(session.date)} · {session.type} {session.heat}
+                </span>
+                <span className="sub">
+                  {result.car} · {session.results.length} Fahrer
+                </span>
+              </span>
+              <span className="num" style={{ fontSize: 12, color: 'var(--muted)' }}>
+                {formatTime(result.validBestLapMs)}
+              </span>
+            </button>
+          ))}
+      </section>
+    </Sheet>
+  )
+}
+
+function rivalText(diff: number) {
+  const r = Math.round(diff)
+  if (r === 0) return 'gleiche Wertung'
+  return r > 0 ? `${r} Elo vor dir` : `${-r} Elo hinter dir`
+}
+
+function MedalChip({ medal }: { medal: Medal }) {
+  return (
+    <div className="tile" style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10 }}>
+      <MedalBadge medal={medal} size={34} />
+      <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        <span style={{ fontSize: 12, fontWeight: 600, lineHeight: 1.2 }}>{medal.name}</span>
+        <span style={{ fontSize: 10, color: TIERS[medal.tier].text }}>
+          {TIERS[medal.tier].label} · {medal.title ? 'Titel' : `${['bahnrekord', 'fahrzeugrekord'].includes(medal.kind) ? 'seit ' : ''}${formatMonth(medal.date)}`}
+        </span>
+      </div>
+    </div>
+  )
+}
+
+function DriverChart({ driver, kind }: { driver: string; kind: 'elo' | 'rank' | 'lap' }) {
+  const { model } = useData()
+  const history = model.rating.history.get(driver) ?? []
+  if (kind === 'elo') {
+    const ups = [...history.keys()].filter((i) => history[i].delta > 0).sort((a, b) => history[b].delta - history[a].delta).slice(0, 2)
+    const downs = [...history.keys()].filter((i) => history[i].delta < 0).sort((a, b) => history[a].delta - history[b].delta).slice(0, 2)
+    const turning = new Set([...ups, ...downs, history.length - 1])
+    const points: LinePoint[] = history.map((e, i) => ({
+      y: e.after,
+      tip: turning.has(i) ? { title: `${fmtDelta(e.delta)} Elo`, text: e.reason, sub: `${formatDate(e.date)} · ${e.type} · ${e.position}. von ${e.field}`, color: e.delta >= 0 ? ACCENT : '#C5CCD3' } : undefined,
+    }))
+    const mid = Math.floor(history.length / 2)
+    return (
+      <>
+        <LineChart
+          points={points}
+          color={ACCENT}
+          label={`Elo-Verlauf von ${fmtElo(history[0]?.before)} auf ${fmtElo(history[history.length - 1]?.after)} über ${history.length} Läufe`}
+          xLabels={history.length > 1 ? [{ index: 0, text: formatDate(history[0].date) }, ...(history.length > 6 ? [{ index: mid, text: formatDate(history[mid].date) }] : []), { index: history.length - 1, text: formatDate(history[history.length - 1].date) }] : []}
+        />
+        <span style={{ fontSize: 11, color: 'var(--muted)' }}>Weiße Punkte antippen: Warum ging es hoch oder runter?</span>
+      </>
+    )
+  }
+  if (kind === 'rank') {
+    const { dates, ranks } = model.rankTimeline()
+    const r = ranks.get(driver) ?? []
+    const pts = dates.map((dt, i) => ({ dt, y: r[i] })).filter((p): p is { dt: string; y: number } => p.y != null)
+    if (pts.length < 2) return <p className="muted" style={{ margin: 0, fontSize: 13 }}>Noch zu wenige Renntage.</p>
+    return (
+      <LineChart
+        invert
+        points={pts.map((p) => ({ y: p.y }))}
+        color={ACCENT}
+        format={(v) => `${Math.round(v)}.`}
+        label={`Rang von ${pts[0].y} auf ${pts[pts.length - 1].y}`}
+        xLabels={[{ index: 0, text: formatDate(pts[0].dt) }, { index: pts.length - 1, text: formatDate(pts[pts.length - 1].dt) }]}
+      />
+    )
+  }
+  // Ø saubere Runde pro Renntag
+  const st = model.stats('all').drivers.get(driver)
+  const byDay = new Map<string, number[]>()
+  for (const { session, result } of st?.raceResults ?? []) {
+    const nl = result.lapTimes.filter((l) => l.status === 'normal').map((l) => l.ms)
+    if (nl.length) byDay.set(session.date, [...(byDay.get(session.date) ?? []), ...nl])
+  }
+  const pts = [...byDay].sort((a, b) => a[0].localeCompare(b[0])).map(([dt, xs]) => ({ dt, y: quantile([...xs].sort((a, b) => a - b), 0.5) }))
+  if (pts.length < 2) return <p className="muted" style={{ margin: 0, fontSize: 13 }}>Noch zu wenige Renntage.</p>
+  return (
+    <LineChart
+      invert
+      points={pts.map((p) => ({ y: p.y, tip: { title: formatTime(Math.round(p.y)), text: 'Ø saubere Runde', sub: formatDate(p.dt) } }))}
+      color={ACCENT}
+      format={(v) => (v / 1000).toLocaleString('de-DE', { maximumFractionDigits: 1 })}
+      label="Durchschnittliche saubere Runde pro Renntag"
+      xLabels={[{ index: 0, text: formatDate(pts[0].dt) }, { index: pts.length - 1, text: formatDate(pts[pts.length - 1].dt) }]}
+    />
+  )
+}
+
+/** Alle Medaillen eines Fahrers */
+export function MedalsSheet({ onClose }: { onClose: () => void }) {
+  const { name = '' } = useParams()
+  const { model } = useData()
+  const driver = decodeURIComponent(name)
+  const medals = model.medals.get(driver) ?? []
+  const current = medals.filter((m) => !m.former)
+  const former = medals.filter((m) => m.former)
+  return (
+    <Sheet
+      onClose={onClose}
+      label={`Medaillen von ${driver}`}
+      actions={
+        <Link className="btn round" to={driverPath(driver)} replace>
+          Zum Profil
+        </Link>
+      }
+    >
+      <h1 style={{ fontSize: 24, fontWeight: 800 }}>Alle Medaillen</h1>
+      <span style={{ color: 'var(--muted)', fontSize: 14, marginTop: -8 }}>
+        {driver} · {current.length} aktuell{former.length ? ` · ${former.length} ehemalig` : ''}
+      </span>
+      <div className="row-list" style={{ gap: 8 }}>
+        {current.map((m) => (
+          <MedalRow key={m.id} medal={m} />
+        ))}
+      </div>
+      {former.length > 0 && (
+        <>
+          <span className="kicker" style={{ marginTop: 8 }}>
+            Ehemalige Titel
+          </span>
+          <div className="row-list" style={{ gap: 8 }}>
+            {former.map((m) => (
+              <MedalRow key={m.id} medal={m} />
+            ))}
+          </div>
+        </>
+      )}
+      <p style={{ margin: 0, fontSize: 12, color: 'var(--muted)', lineHeight: 1.5 }}>
+        Je seltener, desto edler: Bronze, Silber, Gold, Platin, Diamant. Rekorde und Titel wandern – wer sie verliert, behält eine gedämpfte „Ehemals“-Version.
+      </p>
+    </Sheet>
+  )
+}
+
+function MedalRow({ medal }: { medal: Medal }) {
+  const t = TIERS[medal.tier]
+  return (
+    <div className="inner" style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+      <MedalBadge medal={medal} size={46} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 1, flex: 1, minWidth: 0 }}>
+        <span style={{ fontSize: 14, fontWeight: 600 }}>{medal.former ? `Ehemals: ${medal.name}` : medal.name}</span>
+        <span style={{ fontSize: 12, color: 'var(--muted)' }}>{medal.description}</span>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1, flexShrink: 0 }}>
+        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, textTransform: 'uppercase', color: medal.former ? 'var(--muted)' : t.text }}>{t.label}</span>
+        <span style={{ fontSize: 11, color: 'var(--muted)' }}>{medal.former ? `${formatMonth(medal.former.from)} – ${formatMonth(medal.former.to)}` : medal.title ? 'aktueller Titel' : formatDate(medal.date)}</span>
+      </div>
+    </div>
+  )
+}
