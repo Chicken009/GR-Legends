@@ -12,7 +12,7 @@ function fixtureSessions(): Session[] {
   return fixtureIds().map((id, i) => {
     const { name, text } = readFixture(id)
     const time = new Date(Date.UTC(2026, 0, 1, 0, i)).toISOString()
-    return buildSession({ id, name, track: 'Gintoft Ring 2364cm', createdTime: time, modifiedTime: time }, text)!
+    return buildSession({ id, name, track: 'Musterring 2364cm', createdTime: time, modifiedTime: time }, text)!
   })
 }
 

@@ -39,7 +39,7 @@ export interface Session {
   fileId: string
   fileName: string
   track: string
-  /** Streckenlänge aus dem Ordnernamen, z. B. `Gintoft Ring 2364cm` */
+  /** Streckenlänge aus dem Ordnernamen, z. B. `Musterring 2364cm` */
   trackLengthCm: number | null
   /** ISO-Datum YYYY-MM-DD */
   date: string
@@ -66,7 +66,7 @@ export interface RaceDay {
 export interface SourceFile {
   id: string
   name: string
-  /** Name des Strecken-Unterordners, z. B. `Gintoft Ring 2364cm` */
+  /** Name des Strecken-Unterordners, z. B. `Musterring 2364cm` */
   track: string
   createdTime: string
   modifiedTime: string
