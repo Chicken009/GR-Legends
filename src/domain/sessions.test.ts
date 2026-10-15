@@ -146,7 +146,7 @@ describe('groupRaceDays', () => {
 
 describe('Strecke', () => {
   it('liest Name und Länge aus dem Ordnernamen', () => {
-    expect(parseTrack('Gintoft Ring 2364cm')).toEqual({ name: 'Gintoft Ring', lengthCm: 2364 })
+    expect(parseTrack('Musterring 2364cm')).toEqual({ name: 'Musterring', lengthCm: 2364 })
     expect(parseTrack('Testbahn 1250,5 cm')).toEqual({ name: 'Testbahn', lengthCm: 1250.5 })
     expect(parseTrack('Unbekannte Strecke')).toEqual({
       name: 'Unbekannte Strecke',
@@ -158,10 +158,10 @@ describe('Strecke', () => {
     const { name, text } = readFixture('3ccfdd8f')
     const t = '2026-02-07T10:00:00.000Z'
     const session = buildSession(
-      { id: 'x', name, track: 'Gintoft Ring 2364cm', createdTime: t, modifiedTime: t },
+      { id: 'x', name, track: 'Musterring 2364cm', createdTime: t, modifiedTime: t },
       text,
     )!
-    expect(session).toMatchObject({ track: 'Gintoft Ring', trackLengthCm: 2364 })
+    expect(session).toMatchObject({ track: 'Musterring', trackLengthCm: 2364 })
     // 23,64 m in 10,077 s ≈ 8,45 km/h
     expect(lapSpeedKmh(2364, 10_077)).toBeCloseTo(8.445, 2)
   })

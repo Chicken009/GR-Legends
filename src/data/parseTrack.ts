@@ -5,7 +5,7 @@ export interface TrackInfo {
 
 const LENGTH_RE = /^(.*?)\s*(\d+(?:[.,]\d+)?)\s*cm\s*$/i
 
-/** Liest Streckenname und -länge aus Ordnernamen wie `Gintoft Ring 2364cm`. */
+/** Liest Streckenname und -länge aus Ordnernamen wie `Musterring 2364cm`. */
 export function parseTrack(folderName: string): TrackInfo {
   const trimmed = folderName.trim()
   const m = LENGTH_RE.exec(trimmed)

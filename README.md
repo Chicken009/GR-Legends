@@ -8,11 +8,11 @@ Es gibt kein Backend und Zuschauer brauchen keinen Login.
 
 ```
 GR Legends (Hauptordner, „Jeder mit dem Link: Betrachter“)
-├── Gintoft Ring 2364cm/         ← Unterordner = Streckenname + Länge in cm
-│   ├── Qualifikation_07.02.2026.csv
-│   ├── Rennen_07.02.2026.csv
-│   └── Rennen_07.02.2026.csv    ← gleicher Name erlaubt: Lauf 2 (Reihenfolge = Upload-Zeit)
-└── Rennen_05.02.2022.csv        ← ohne Unterordner: „Unbekannte Strecke“
+├── Musterring 2364cm/         ← Unterordner = Streckenname + Länge in cm
+│   ├── Qualifikation_01.03.2026.csv
+│   ├── Rennen_01.03.2026.csv
+│   └── Rennen_01.03.2026.csv    ← gleicher Name erlaubt: Lauf 2 (Reihenfolge = Upload-Zeit)
+└── Rennen_15.01.2024.csv        ← ohne Unterordner: „Unbekannte Strecke“
 ```
 
 - Ordnername: `<Strecke> <Länge>cm` – die Länge ist optional und wird für Geschwindigkeiten genutzt
@@ -80,9 +80,25 @@ Eine eigene Anmeldung bei GitHub Pages ist nicht nötig – es ist Teil des GitH
 3. Push bzw. Merge auf `main` baut und veröffentlicht die App (`.github/workflows/deploy.yml`)
    unter `https://<user>.github.io/<repo>/`.
 
-Die Seite bittet Suchmaschinen, sie nicht aufzunehmen (`<meta name="robots" content="noindex">` in
-`index.html`) – sie ist nur über den Link erreichbar. Testdaten und Vorlage im Repo enthalten keine
-echten Namen; die echten Daten kommen ausschließlich aus dem Drive-Ordner.
+## Datenschutz und Sicherheit
+
+- **Keine echten Daten im Repo:** Testdaten und Vorlage sind anonymisiert; die echten Ergebnisse
+  kommen ausschließlich aus dem Drive-Ordner.
+- **Suchmaschinen:** Die Seite bittet, nicht aufgenommen zu werden (`noindex`) – sie ist nur über den
+  Link erreichbar. Wer den Link oder die Ordner-ID kennt, kann die Ergebnisse aber sehen.
+- **Drive-Ordner:** Alles darin ist für jeden mit Link bzw. Ordner-ID lesbar, auch die
+  Einstellungen-Tabelle samt Notizen. Nichts Privates hineinlegen; Bearbeiten nur für einzelne
+  Personen freigeben, nie „Jeder mit dem Link: Bearbeiter“.
+- **API-Key:** steht zwangsläufig im ausgelieferten JavaScript. Deshalb auf die eigene Domain und
+  auf Drive- und Sheets-API beschränken und **kein Rechnungskonto** im Google-Cloud-Projekt
+  hinterlegen – dann kann Missbrauch nichts kosten.
+- **Was der Browser abruft:** nur die eigene Seite (auch die Schrift ist selbst ausgeliefert) und
+  die Google-APIs für Drive/Sheets. Keine Cookies, kein Tracking. Gespeichert wird nur lokal auf dem
+  Gerät: „Das bin ich“, Ansichts-Einstellungen, gesehene Medaillen und ein Cache der CSV-Dateien.
+- **Content-Security-Policy** (Produktions-Build, `vite.config.ts`): Skripte nur von der eigenen
+  Seite, Verbindungen nur zu den Google-APIs, Bilder nur von Drive.
+- **GitHub:** Der Deploy-Workflow läuft nur bei Pushes auf `main` oder per Hand, nie für Pull
+  Requests aus Forks – Secrets sind dort nicht erreichbar.
 
 ## Entwicklung
 
@@ -100,8 +116,8 @@ src/
 ├── data/      Drive- und Sheets-API, CSV-Parser, Einstellungen, Laden + Cache
 ├── domain/    Läufe, Rundenklassifizierung, Wertung (Elo), Kennzahlen, Medaillen
 └── ui/        Seiten, Diagramme (eigenes SVG), Symbole, Medaillen
-test/fixtures/ echte Smartrace-Exporte als Testdaten
-docs/          Einstellungen-Vorlage, Logo (Monogramm, App-Icon, Schriftzug, Plakette)
+test/fixtures/ Smartrace-Exporte als Testdaten (Namen anonymisiert)
+docs/          Einstellungen-Vorlage, Logo (Monogramm, App-Icon, Schriftzug)
 ```
 
 **Rundenklassifizierung** (`src/domain/laps.ts`):
