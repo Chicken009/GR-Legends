@@ -34,7 +34,8 @@ async function listChildren(folderId: string, apiKey: string): Promise<DriveFile
 }
 
 const SHEET_MIME = 'application/vnd.google-apps.spreadsheet'
-const PHOTO_FOLDER = /^(fahrzeug)?fotos$/i
+// „Fotos“, „Fahrzeugfotos“, „Bilder“, „Autobilder“ …
+const PHOTO_FOLDER = /(fotos?|bilder?|photos?|pictures?)$/i
 
 const isCsv = (f: DriveFile) => f.mimeType !== FOLDER_MIME && /\.csv$/i.test(f.name)
 const isImage = (f: DriveFile) => f.mimeType.startsWith('image/')
@@ -51,12 +52,26 @@ export interface DriveListing {
   files: SourceFile[]
   /** Google-Tabelle mit „Einstellungen“ im Namen (im Hauptordner) */
   settingsSheetId: string | null
-  /** Fahrzeugfotos aus dem Unterordner „Fotos“: Dateiname ohne Endung → Bild-URL */
+  /** Fahrzeugfotos aus dem Unterordner „Fotos“: vereinfachter Dateiname (`photoKey`) → Datei-ID */
   photos: Record<string, string>
 }
 
+/** Vereinfachter Name für den Foto-Abgleich: „Ferrari 458.JPG“ und „ferrari_458“ → „ferrari458“ */
+export const photoKey = (name: string) =>
+  name
+    .replace(/\.(jpe?g|png|webp|gif|heic|heif|avif)$/i, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9äöüß]/g, '')
+
 /** Öffentliches Vorschaubild einer Drive-Datei */
 export const drivePhotoUrl = (id: string) => `https://drive.google.com/thumbnail?id=${id}&sz=w1000`
+
+/** Foto über die Drive API laden (Ausweichweg, falls das Vorschaubild blockiert ist) */
+export async function downloadDrivePhoto(id: string, apiKey: string): Promise<string> {
+  const res = await fetch(`${API}/${id}?alt=media&key=${encodeURIComponent(apiKey)}`)
+  if (!res.ok) throw new Error(`Foto konnte nicht geladen werden (${res.status})`)
+  return URL.createObjectURL(await res.blob())
+}
 
 /**
  * Listet alle CSVs im Hauptordner und in den Strecken-Unterordnern (eine Ebene), dazu das
@@ -76,7 +91,7 @@ export async function listDriveFiles(folderId: string, apiKey: string): Promise<
     Promise.all(photoFolders.map(async (folder) => (await listChildren(folder.id, apiKey)).filter(isImage))),
   ])
   const photos: Record<string, string> = {}
-  for (const f of photoFiles.flat()) photos[f.name.replace(/\.[^.]+$/, '').trim()] = drivePhotoUrl(f.id)
+  for (const f of photoFiles.flat()) photos[photoKey(f.name)] = f.id
   const sheet = root.find((f) => f.mimeType === SHEET_MIME && /einstellungen/i.test(f.name))
   return {
     files: [...root.filter(isCsv).map((f) => toSource(f, UNKNOWN_TRACK)), ...nested.flat()],

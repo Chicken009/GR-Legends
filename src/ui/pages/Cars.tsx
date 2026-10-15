@@ -1,4 +1,7 @@
+import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import { config } from '../../config'
+import { downloadDrivePhoto, drivePhotoUrl, photoKey } from '../../data/drive'
 import type { CarStats } from '../../domain/model'
 import { carScale } from '../../data/settings'
 import { quantile } from '../../domain/laps'
@@ -91,6 +94,44 @@ export function Cars() {
   )
 }
 
+/** Fahrzeugfoto: erst das Drive-Vorschaubild, bei Fehler über die Drive API */
+function CarPhoto({ fileId, alt }: { fileId: string; alt: string }) {
+  const [src, setSrc] = useState(() => drivePhotoUrl(fileId))
+  const [stage, setStage] = useState<'thumb' | 'api' | 'failed'>('thumb')
+  useEffect(() => {
+    if (stage !== 'api' || !config.googleApiKey) return
+    let url: string | null = null
+    let cancelled = false
+    downloadDrivePhoto(fileId, config.googleApiKey)
+      .then((u) => {
+        url = u
+        if (cancelled) URL.revokeObjectURL(u)
+        else setSrc(u)
+      })
+      .catch(() => !cancelled && setStage('failed'))
+    return () => {
+      cancelled = true
+      if (url) URL.revokeObjectURL(url)
+    }
+  }, [stage, fileId])
+  if (stage === 'failed') {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+        <CarSilhouette />
+        <span style={{ fontSize: 12, color: 'var(--muted)' }}>Foto gefunden, konnte aber nicht geladen werden – Freigabe prüfen.</span>
+      </div>
+    )
+  }
+  return (
+    <img
+      src={src}
+      alt={alt}
+      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+      onError={() => setStage(stage === 'thumb' && config.googleApiKey ? 'api' : 'failed')}
+    />
+  )
+}
+
 export function CarProfile() {
   const { name = '' } = useParams()
   const { model, settings, photos } = useData()
@@ -102,7 +143,9 @@ export function CarProfile() {
   if (!c) return <div className="page"><p className="muted">Fahrzeug „{car}“ nicht gefunden.</p></div>
   const { rated } = rankedCars(cars)
   const rank = rated.findIndex((x) => x.name === car) + 1
-  const photo = photos[car] ?? Object.entries(settings.cars).map(([orig, e]) => (e.displayName === car ? photos[orig] : undefined)).find(Boolean)
+  // Foto nach Anzeigename oder nach einem der Smartrace-Namen dieses Autos
+  const names = [car, ...Object.entries(settings.cars).filter(([, e]) => e.displayName === car).map(([orig]) => orig)]
+  const photo = names.map((n) => photos[photoKey(n)]).find(Boolean)
   const scale = carScale(settings, car)
   const drivers = [...c.drivers]
     .filter(([n, v]) => v.bestLapMs != null && !isGuest(n))
@@ -118,7 +161,7 @@ export function CarProfile() {
   return (
     <div style={{ ['--accent' as string]: ACCENT }}>
       <div style={{ position: 'relative', height: 250, background: '#171A1F', display: 'flex', alignItems: 'center', justifyContent: 'center', borderBottom: '1px solid var(--line)', boxShadow: 'var(--sh1)', overflow: 'hidden' }}>
-        {photo ? <img src={photo} alt={car} referrerPolicy="no-referrer" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <CarSilhouette />}
+        {photo ? <CarPhoto key={photo} fileId={photo} alt={car} /> : <CarSilhouette />}
         <button className="icon-btn" aria-label="Zurück" onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/autos'))} style={{ position: 'absolute', top: 14, left: 10, background: 'var(--bg)' }}>
           <ChevronLeft color={ACCENT} />
         </button>
@@ -195,7 +238,8 @@ export function CarProfile() {
         })}
         {!photo && (
           <p style={{ margin: 0, fontSize: 12, color: 'var(--muted)' }}>
-            Foto fehlt: Bild mit dem Namen „{car}“ in den Drive-Unterordner „Fotos“ legen.
+            Foto fehlt: Bild mit dem Namen „{car}“ (z. B. „{car}.jpg“) in den Drive-Unterordner „Fotos“ legen.
+            {Object.keys(photos).length > 0 && ` Im Ordner gefunden: ${Object.keys(photos).length} Foto(s).`}
           </p>
         )}
       </div>
