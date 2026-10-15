@@ -1,13 +1,12 @@
-import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { config } from '../../config'
-import { downloadDrivePhoto, drivePhotoUrl, photoKey } from '../../data/drive'
 import type { CarStats } from '../../domain/model'
 import { carScale } from '../../data/settings'
 import { quantile } from '../../domain/laps'
 import { AREA } from '../colors'
-import { carPath, PageHead, PeriodTabs, Rank, Tile, useData, useMyName } from '../components'
-import { CarSilhouette, Chevrons, ChevronLeft, RecordFlame } from '../icons'
+import { CarPhoto, usePhotoId } from '../CarPhoto'
+import { carPath, PageHead, PeriodTabs, Tile, useData, useMyName, ViewToggle } from '../components'
+import { DataTable, type Column } from '../DataTable'
+import { CarSilhouette, Chevrons, ChevronLeft, NAV_ICONS, RecordFlame, StrokeIcon } from '../icons'
 import { fmtNum, fmtPct, formatTime } from '../format'
 import { useStored } from '../useStored'
 import { isGuest } from '../../domain/drivers'
@@ -35,100 +34,119 @@ export function UnderdogBonus({ bonus, compact }: { bonus: number; compact?: boo
 }
 
 export function Cars() {
-  const { model } = useData()
+  const { model, settings } = useData()
+  const me = useMyName()
   const navigate = useNavigate()
   const [period, setPeriod] = useStored('cars:period', 'all')
+  const [view, setView] = useStored<'table' | 'cards'>('cars:view', 'table')
   const p = period === 'all' || model.years.includes(period) ? period : 'all'
   const cars = model.stats(p).cars
   const { rated, rest } = rankedCars(cars)
-  const row = (c: CarStats, rank: number | null) => (
-    <tr key={c.name} onClick={() => navigate(carPath(c.name))}>
-      <td>{rank != null ? <Rank rank={rank} /> : <span className="rank">–</span>}</td>
-      <td className="left" style={{ color: 'var(--text)' }}>
-        <Link to={carPath(c.name)} onClick={(e) => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontWeight: 600, maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.name}</span>
-          <UnderdogBonus bonus={c.bonus} compact />
-        </Link>
-      </td>
-      <td>{c.races}</td>
-      <td>{fmtPct(c.winRate)}</td>
-      <td className="hide-mobile">{fmtPct(c.beatShare)}</td>
-      <td style={{ color: 'var(--text)' }}>{formatTime(c.bestLapMs)}</td>
-      <td className="hide-mobile">{c.bestBy && !isGuest(c.bestBy) ? c.bestBy : c.bestBy ? `${c.bestBy}` : '–'}</td>
-      <td className="hide-mobile">{fmtNum(c.km)}</td>
-    </tr>
-  )
+  const all = [...rated, ...rest]
+  const rankOf = new Map(rated.map((c, i) => [c.name, i + 1]))
+  const myFav = me ? model.stats(p).drivers.get(me)?.favoriteCar : null
+  const columns: Column<CarStats>[] = [
+    { key: 'name', label: 'Fahrzeug', left: true, value: (c) => c.name, render: (c) => <CarName car={c} /> },
+    { key: 'rating', label: 'Wertung', title: 'Autowertung: Einfluss des Autos auf die Ergebnisse', strong: true, value: (c) => c.rating, render: (c) => (c.rating == null ? '–' : `${c.rating >= 0 ? '+' : '−'}${Math.abs(Math.round(c.rating))}`) },
+    { key: 'races', label: 'Rennen', value: (c) => c.races },
+    { key: 'wins', label: 'Siege', value: (c) => c.wins },
+    { key: 'winRate', label: 'Siegquote', value: (c) => c.winRate, render: (c) => fmtPct(c.winRate) },
+    { key: 'podiums', label: 'Podien', value: (c) => c.podiums },
+    { key: 'avgPos', label: 'Ø Platz', asc: true, value: (c) => c.avgPosition, render: (c) => fmtNum(c.avgPosition) },
+    { key: 'beat', label: 'Geschlagen', title: 'Anteil geschlagener Gegner', value: (c) => c.beatShare, render: (c) => fmtPct(c.beatShare) },
+    { key: 'best', label: 'Bestzeit', asc: true, value: (c) => c.bestLapMs, render: (c) => formatTime(c.bestLapMs) },
+    { key: 'bestBy', label: 'von', left: true, value: (c) => c.bestBy },
+    { key: 'pace', label: 'Pace', title: 'Ø saubere Runde in % der typischen Streckenbestzeit', asc: true, value: (c) => c.pace, render: (c) => (c.pace != null ? `${fmtNum(c.pace)} %` : '–') },
+    { key: 'spread', label: 'Streuung', title: 'Ø Schwankung der Fahrer mit diesem Auto', asc: true, value: (c) => c.spread, render: (c) => fmtPct(c.spread, 1) },
+    { key: 'drivers', label: 'Fahrer', title: 'Verschiedene Fahrer mit diesem Auto', value: (c) => [...c.drivers.keys()].filter((n) => !isGuest(n)).length },
+    { key: 'laps', label: 'Runden', value: (c) => c.laps, render: (c) => fmtNum(c.laps, 0) },
+    { key: 'km', label: 'km', value: (c) => c.km, render: (c) => fmtNum(c.km) },
+    { key: 'scale', label: 'Maßstab', value: (c) => carScale(settings, c.name), render: (c) => `1:${carScale(settings, c.name)}` },
+  ]
   return (
     <div className="page" style={{ ['--accent' as string]: ACCENT }}>
-      <PageHead title="Fahrzeuge" kicker="Autowertung" color={ACCENT} />
+      <PageHead title="Fahrzeuge" kicker="Autowertung" color={ACCENT}>
+        <ViewToggle value={view} onChange={setView} />
+      </PageHead>
       <PeriodTabs value={p} onChange={setPeriod} years={model.years} />
-      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-        <div className="table-wrap">
-          <table className="data">
-            <thead>
-              <tr>
-                <th style={{ width: 44 }}>#</th>
-                <th className="left">Fahrzeug</th>
-                <th>Rennen</th>
-                <th>Siege</th>
-                <th className="hide-mobile">Geschlagen</th>
-                <th>Best</th>
-                <th className="hide-mobile">von</th>
-                <th className="hide-mobile">km</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rated.map((c, i) => row(c, i + 1))}
-              {rest.map((c) => row(c, null))}
-            </tbody>
-          </table>
+      {view === 'table' ? (
+        <DataTable
+          label="Fahrzeuge"
+          rows={all}
+          columns={columns}
+          rank={(c) => rankOf.get(c.name) ?? null}
+          picture={(c) => <CarThumb car={c.name} />}
+          rowKey={(c) => c.name}
+          onRowClick={(c) => navigate(carPath(c.name))}
+          highlight={(c) => c.name === myFav}
+        />
+      ) : (
+        <div className="card-grid">
+          {all.map((c) => (
+            <CarCard key={c.name} car={c} rank={rankOf.get(c.name) ?? null} mine={c.name === myFav} />
+          ))}
         </div>
-      </div>
+      )}
       <div className="legend">
         <span>Rang nach Autowertung: wie stark das Auto die Ergebnisse beeinflusst (ab 3 Rennen)</span>
         <span>
           <UnderdogBonus bonus={1} compact /> Underdog-Bonus: schwaches Auto, Siege zählen mehr
         </span>
+        {myFav && <span style={{ color: 'var(--me)' }}>Grün: dein Lieblingsauto</span>}
       </div>
     </div>
   )
 }
 
-/** Fahrzeugfoto: erst das Drive-Vorschaubild, bei Fehler über die Drive API */
-function CarPhoto({ fileId, alt }: { fileId: string; alt: string }) {
-  const [src, setSrc] = useState(() => drivePhotoUrl(fileId))
-  const [stage, setStage] = useState<'thumb' | 'api' | 'failed'>('thumb')
-  useEffect(() => {
-    if (stage !== 'api' || !config.googleApiKey) return
-    let url: string | null = null
-    let cancelled = false
-    downloadDrivePhoto(fileId, config.googleApiKey)
-      .then((u) => {
-        url = u
-        if (cancelled) URL.revokeObjectURL(u)
-        else setSrc(u)
-      })
-      .catch(() => !cancelled && setStage('failed'))
-    return () => {
-      cancelled = true
-      if (url) URL.revokeObjectURL(url)
-    }
-  }, [stage, fileId])
-  if (stage === 'failed') {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-        <CarSilhouette />
-        <span style={{ fontSize: 12, color: 'var(--muted)' }}>Foto gefunden, konnte aber nicht geladen werden – Freigabe prüfen.</span>
-      </div>
-    )
-  }
+function CarName({ car }: { car: CarStats }) {
   return (
-    <img
-      src={src}
-      alt={alt}
-      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-      onError={() => setStage(stage === 'thumb' && config.googleApiKey ? 'api' : 'failed')}
-    />
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: 'var(--text)', fontWeight: 600 }}>
+      {car.name}
+      <UnderdogBonus bonus={car.bonus} compact />
+    </span>
+  )
+}
+
+/** Kleines Bild für die Liste: Foto oder Auto-Symbol */
+function CarThumb({ car }: { car: string }) {
+  const photo = usePhotoId(car)
+  const icon = <StrokeIcon d={NAV_ICONS.cars} size={20} color="#6B7480" />
+  return <span className="thumb">{photo ? <CarPhoto key={photo} fileId={photo} alt="" width={120} fallback={icon} /> : icon}</span>
+}
+
+function CarCard({ car, rank, mine }: { car: CarStats; rank: number | null; mine: boolean }) {
+  const photo = usePhotoId(car.name)
+  const silhouette = <CarSilhouette width={150} />
+  return (
+    <Link to={carPath(car.name)} className="ccard" aria-label={`Fahrzeug ${car.name}`} style={mine ? { borderColor: 'rgba(59,188,74,.5)' } : undefined}>
+      <div className="pic">
+        {photo ? <CarPhoto key={photo} fileId={photo} alt={car.name} width={600} fallback={silhouette} /> : silhouette}
+        <span className={`rank-badge rank${rank != null && rank <= 3 ? ` r${rank}` : ''}`}>{rank ?? '–'}</span>
+      </div>
+      <div className="info">
+        <span style={{ fontSize: 15, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: mine ? 'var(--me)' : undefined }}>{car.name}</span>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
+          <span className="num" style={{ fontSize: 13, color: 'var(--text-2)' }}>
+            Best {formatTime(car.bestLapMs)}
+          </span>
+          <UnderdogBonus bonus={car.bonus} compact />
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 4, borderTop: '1px solid #262B33', paddingTop: 8 }}>
+          <Mini v={car.races} l="Rennen" />
+          <Mini v={fmtPct(car.winRate)} l="Siege" />
+          <Mini v={fmtNum(car.km)} l="km" />
+        </div>
+      </div>
+    </Link>
+  )
+}
+
+function Mini({ v, l }: { v: string | number; l: string }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+      <span style={{ fontSize: 14, fontWeight: 700 }}>{v}</span>
+      <span style={{ fontSize: 10, color: 'var(--muted)' }}>{l}</span>
+    </div>
   )
 }
 
@@ -138,14 +156,13 @@ export function CarProfile() {
   const me = useMyName()
   const navigate = useNavigate()
   const car = decodeURIComponent(name)
+  const photoId = usePhotoId(car)
   const cars = model.stats('all').cars
   const c = cars.get(car)
   if (!c) return <div className="page"><p className="muted">Fahrzeug „{car}“ nicht gefunden.</p></div>
   const { rated } = rankedCars(cars)
   const rank = rated.findIndex((x) => x.name === car) + 1
-  // Foto nach Anzeigename oder nach einem der Smartrace-Namen dieses Autos
-  const names = [car, ...Object.entries(settings.cars).filter(([, e]) => e.displayName === car).map(([orig]) => orig)]
-  const photo = names.map((n) => photos[photoKey(n)]).find(Boolean)
+  const photo = photoId
   const scale = carScale(settings, car)
   const drivers = [...c.drivers]
     .filter(([n, v]) => v.bestLapMs != null && !isGuest(n))
@@ -161,7 +178,21 @@ export function CarProfile() {
   return (
     <div style={{ ['--accent' as string]: ACCENT }}>
       <div style={{ position: 'relative', height: 250, background: '#171A1F', display: 'flex', alignItems: 'center', justifyContent: 'center', borderBottom: '1px solid var(--line)', boxShadow: 'var(--sh1)', overflow: 'hidden' }}>
-        {photo ? <CarPhoto key={photo} fileId={photo} alt={car} /> : <CarSilhouette />}
+        {photo ? (
+          <CarPhoto
+            key={photo}
+            fileId={photo}
+            alt={car}
+            fallback={
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                <CarSilhouette />
+                <span style={{ fontSize: 12, color: 'var(--muted)' }}>Foto gefunden, konnte aber nicht geladen werden – Freigabe prüfen.</span>
+              </div>
+            }
+          />
+        ) : (
+          <CarSilhouette />
+        )}
         <button className="icon-btn" aria-label="Zurück" onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/autos'))} style={{ position: 'absolute', top: 14, left: 10, background: 'var(--bg)' }}>
           <ChevronLeft color={ACCENT} />
         </button>

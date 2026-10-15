@@ -64,7 +64,7 @@ export const photoKey = (name: string) =>
     .replace(/[^a-z0-9äöüß]/g, '')
 
 /** Öffentliches Vorschaubild einer Drive-Datei */
-export const drivePhotoUrl = (id: string) => `https://drive.google.com/thumbnail?id=${id}&sz=w1000`
+export const drivePhotoUrl = (id: string, width = 1000) => `https://drive.google.com/thumbnail?id=${id}&sz=w${width}`
 
 /** Foto über die Drive API laden (Ausweichweg, falls das Vorschaubild blockiert ist) */
 export async function downloadDrivePhoto(id: string, apiKey: string): Promise<string> {
