@@ -758,10 +758,20 @@ table.data .left {
   box-shadow: 0 -20px 50px rgba(0, 0, 0, 0.5);
 }
 
+.sheet-handle {
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
+}
+
+.sheet-handle:active {
+  cursor: grabbing;
+}
+
 .sheet .grip {
   display: flex;
   justify-content: center;
-  padding-top: 8px;
+  padding: 10px 0 4px;
 }
 
 .sheet .grip span {
