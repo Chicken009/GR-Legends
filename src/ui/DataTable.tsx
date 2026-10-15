@@ -1,6 +1,17 @@
 import { useState, type ReactNode } from 'react'
 import { Rank } from './components'
 
+/**
+ * Grüner Verlauf der eigenen Zeile über die Zellen hinweg (wie vorher als Zeilenhintergrund):
+ * kräftig an den festen Spalten, nach rechts auslaufend. Pro Zelle ein Stück des Verlaufs, damit
+ * er in allen Browsern durchgehend aussieht.
+ */
+const FADE_CELLS = 3
+const alphaAt = (i: number) => (i >= FADE_CELLS ? 0.04 : 0.24 - (0.2 * i) / FADE_CELLS)
+const meCell = (i: number) => ({
+  background: `linear-gradient(90deg, rgba(59,188,74,${alphaAt(i).toFixed(3)}), rgba(59,188,74,${alphaAt(i + 1).toFixed(3)}))`,
+})
+
 export interface Column<T> {
   key: string
   label: string
@@ -40,6 +51,7 @@ export function DataTable<T>({
   label: string
 }) {
   const [sort, setSort] = useState<{ key: string; dir: 1 | -1 }>({ key: '#', dir: 1 })
+  const [scrolled, setScrolled] = useState(false)
   const col = columns.find((c) => c.key === sort.key)
   const sorted = [...rows].sort((a, b) => {
     const va = col ? col.value(a) : rank(a)
@@ -57,7 +69,7 @@ export function DataTable<T>({
 
   return (
     <div className="card dt-card">
-      <div className="dt-scroll">
+      <div className={`dt-scroll${scrolled ? ' scrolled' : ''}`} onScroll={(e) => setScrolled(e.currentTarget.scrollLeft > 2)}>
         <table className="dt" aria-label={label}>
           <thead>
             <tr>
@@ -80,12 +92,13 @@ export function DataTable<T>({
           <tbody>
             {sorted.map((r) => {
               const rk = rank(r)
+              const me = highlight?.(r) ?? false
               return (
-                <tr key={rowKey(r)} className={highlight?.(r) ? 'me-row' : undefined} onClick={() => onRowClick(r)}>
+                <tr key={rowKey(r)} className={me ? 'me-row' : undefined} onClick={() => onRowClick(r)}>
                   <td className="st0">{rk != null ? <Rank rank={rk} /> : <span className="rank">–</span>}</td>
                   <td className="st1">{picture(r)}</td>
-                  {columns.map((c) => (
-                    <td key={c.key} className={`${c.left ? 'left' : ''}${c.strong ? ' strong' : ''}`}>
+                  {columns.map((c, i) => (
+                    <td key={c.key} className={`${c.left ? 'left' : ''}${c.strong ? ' strong' : ''}`} style={me ? meCell(i) : undefined}>
                       {c.render ? c.render(r) : (c.value(r) ?? '–')}
                     </td>
                   ))}

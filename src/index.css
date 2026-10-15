@@ -1169,6 +1169,11 @@ table.dt th.sorted {
 table.dt td {
   border-top: 1px solid var(--grid);
   color: var(--text-2);
+}
+
+/* Nur die festen Spalten brauchen eine deckende Fläche */
+table.dt td.st0,
+table.dt td.st1 {
   background: var(--card);
 }
 
@@ -1208,6 +1213,11 @@ table.dt .st1 {
   padding-left: 4px;
   padding-right: 8px;
   text-align: left;
+  transition: box-shadow 0.2s;
+}
+
+/* Schattenkante nur, wenn seitlich gescrollt ist */
+.dt-scroll.scrolled table.dt .st1 {
   box-shadow: 8px 0 10px -8px rgba(0, 0, 0, 0.7);
 }
 
@@ -1217,16 +1227,25 @@ table.dt th.st1 {
 }
 
 table.dt tbody tr:hover td {
-  background: #1b1e24;
+  background-color: rgba(255, 255, 255, 0.03);
 }
 
-table.dt tr.me-row td {
-  background: #1d2a21;
+table.dt tbody tr:hover td.st0,
+table.dt tbody tr:hover td.st1 {
+  background: #1d2026;
 }
 
-table.dt tr.me-row .st0,
-table.dt tr.me-row .st1 {
+/* Eigene Zeile: Anfang des Verlaufs als deckende Farbe (Karte + Grün) */
+table.dt tr.me-row {
+  background: none;
+}
+
+table.dt tr.me-row td.st0 {
   background: #224b2c;
+}
+
+table.dt tr.me-row td.st1 {
+  background: linear-gradient(90deg, #224b2c, #204429);
 }
 
 .thumb {
