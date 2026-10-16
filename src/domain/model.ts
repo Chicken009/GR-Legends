@@ -1,6 +1,7 @@
 import { formatTime } from '../data/time'
 import type { Result, Session } from '../types'
 import { isGuest } from './drivers'
+import { crashCost, crashObservations, estimateCars, paceObservations, type CarFit } from './carModel'
 import { quantile } from './laps'
 import { carKey, computeRatings, isQuali, RATING, sortSessions, type RatingEvent, type RatingResult } from './rating'
 
@@ -79,6 +80,10 @@ export interface CarStats {
   paceGap: number | null
   /** Ø Präzision der Fahrer mit diesem Auto */
   spread: number | null
+  /** Sauberes Tempo, fahrer- und laufbereinigt: ms pro Runde gegenüber dem Ø Auto (minus = schneller) */
+  tempo: number | null
+  /** Abflüge pro 100 Runden, fahrer- und laufbereinigt (nur Rennen ohne Tankfunktion) */
+  crashRate: number | null
   rating: number | null
   /** 0 = kein Bonus, 1–3 = Underdog-Bonus */
   bonus: number
@@ -216,7 +221,7 @@ export interface Model {
 export const PLACEMENT_RUNS = RATING.provisionalRaces
 
 /** Rekord-Tipps nur in Reichweite: Rückstand höchstens so viel (Anteil der Rekordzeit) */
-const RECORD_REACH = { track: 0.015, car: 0.05 }
+const RECORD_REACH = { track: 0.025, car: 0.05 }
 
 /** Mindestzahl Rennen für den Titel „Saisonsieger“ */
 export const SEASON_MIN_RACES = 5
@@ -258,12 +263,13 @@ export function buildModel(input: Session[]): Model {
     const cs = new Map<string, CarStats>()
     const get = (n: string) => ds.get(n) ?? (ds.set(n, emptyDriver(n)), ds.get(n)!)
     const getCar = (n: string): CarStats =>
-      cs.get(n) ?? (cs.set(n, { name: n, races: 0, wins: 0, podiums: 0, winRate: null, beatShare: null, avgPosition: null, laps: 0, km: null, bestLapMs: null, bestBy: null, pace: null, paceGap: null, spread: null, rating: null, bonus: 0, drivers: new Map() }), cs.get(n)!)
+      cs.get(n) ?? (cs.set(n, { name: n, races: 0, wins: 0, podiums: 0, winRate: null, beatShare: null, avgPosition: null, laps: 0, km: null, bestLapMs: null, bestBy: null, pace: null, paceGap: null, spread: null, tempo: null, crashRate: null, rating: null, bonus: 0, drivers: new Map() }), cs.get(n)!)
     const beat = new Map<string, number[]>()
     const carBeat = new Map<string, number[]>()
     const positions = new Map<string, number[]>()
     const carPositions = new Map<string, number[]>()
     const push = (m: Map<string, number[]>, k: string, v: number) => (m.get(k) ?? m.set(k, []).get(k)!).push(v)
+    const push2 = <T,>(m: Map<string, T[]>, k: string, v: T) => (m.get(k) ?? m.set(k, []).get(k)!).push(v)
     const paceSamples = new Map<string, number[]>()
     const gapSamples = new Map<string, number[]>()
     const carGap = new Map<string, number[]>()
@@ -352,14 +358,39 @@ export function buildModel(input: Session[]): Model {
       d.favoriteCar = [...d.cars].sort((a, b) => b[1].races - a[1].races || b[1].laps - a[1].laps)[0]?.[0] ?? null
     }
     // Autowertung: Mittel über Strecken, gewichtet nach Rennen
-    const carRatings = new Map<string, number>()
-    for (const [key, v] of rating.cars) {
-      const car = key.split('\u0000')[1]
-      carRatings.set(car, (carRatings.get(car) ?? 0) + v / tracks.length)
+    // Mittel über die Strecken, auf denen das Auto gefahren ist
+    const byCar = <T,>(m: Map<string, T>) => {
+      const out = new Map<string, T[]>()
+      for (const [key, v] of m) push2(out, key.split('\u0000')[1], v)
+      return out
     }
-    const rated = [...cs.values()].filter((c) => c.races >= 3).map((c) => carRatings.get(c.name) ?? 0)
-    const m = mean(rated) ?? 0
-    const sd = Math.sqrt(mean(rated.map((x) => (x - m) ** 2)) ?? 0) || 1
+    const carRatings = new Map([...byCar(rating.cars)].map(([car, vs]) => [car, mean(vs)!]))
+
+    // Fahrer- und laufbereinigtes Tempo und Abflüge (Stand Ende des Zeitraums, neuere Läufe zählen mehr)
+    const inP = sessions.filter((x) => inPeriod(x.date, period))
+    const asOf = inP.reduce((m, x) => (x.date > m ? x.date : m), '')
+    const crashObs = crashObservations(inP, carKey, isQuali)
+    const est = estimateCars(paceObservations(inP, carKey, isQuali, RATING.qualiWeight), crashObs, crashCost(inP), asOf, RATING.carHalfLifeDays, RATING.carPrior)
+    const paceFit = est.pace
+    const crashFit = est.crash
+    const baseCrash = crashObs.length ? crashObs.reduce((a, o) => a + o.y, 0) / crashObs.length : null
+    const weighted = (fit: CarFit, value: (key: string, e: number) => number | null) => {
+      const acc = new Map<string, [number, number]>()
+      for (const [key, e] of fit.effect) {
+        const v = value(key, e)
+        const w = fit.weight.get(key) ?? 0
+        if (v == null || !w) continue
+        const car = key.split('\u0000')[1]
+        const a = acc.get(car) ?? [0, 0]
+        acc.set(car, [a[0] + v * w, a[1] + w])
+      }
+      return new Map([...acc].map(([car, [sum, w]]) => [car, sum / w]))
+    }
+    const carTempo = weighted(paceFit, (key, e) => {
+      const ref = trackRef.get(key.split('\u0000')[0])
+      return ref ? (Math.exp(e) - 1) * ref : null
+    })
+    const carCrash = weighted(crashFit, (_, e) => (baseCrash != null ? Math.max(0, baseCrash + e) * 100 : null))
     for (const c of cs.values()) {
       c.winRate = c.races ? c.wins / c.races : null
       c.beatShare = mean(carBeat.get(c.name) ?? [])
@@ -367,9 +398,12 @@ export function buildModel(input: Session[]): Model {
       c.pace = mean(carPace.get(c.name) ?? [])
       c.paceGap = mean(carGap.get(c.name) ?? [])
       c.spread = mean(carPrec.get(c.name) ?? [])
+      c.tempo = carTempo.get(c.name) ?? null
+      c.crashRate = carCrash.get(c.name) ?? null
       c.rating = carRatings.get(c.name) ?? null
-      const z = ((c.rating ?? m) - m) / sd
-      c.bonus = c.races < 3 ? 0 : z < -1.5 ? 3 : z < -1 ? 2 : z < -0.5 ? 1 : 0
+      // feste Schwellen: nur spürbar schwächere Autos (6 Punkte ≈ 0,75 % langsamere Runden)
+      const r = c.rating ?? 0
+      c.bonus = c.races < 3 ? 0 : r <= -18 ? 3 : r <= -12 ? 2 : r <= -6 ? 1 : 0
     }
     const result = { drivers: ds, cars: cs }
     statsCache.set(period, result)
@@ -700,9 +734,9 @@ export function buildModel(input: Session[]): Model {
     }
 
     // Noch nie gefahren: schnelles Auto ausprobieren
-    const carsAll = [...stats('all').cars.values()].filter((c) => c.races >= 10 && c.pace != null).sort((a, b) => a.pace! - b.pace!)
+    const carsAll = [...stats('all').cars.values()].filter((c) => c.races >= 10 && c.tempo != null).sort((a, b) => a.tempo! - b.tempo!)
     const untried = carsAll.find((c) => !d.cars.has(c.name))
-    if (untried && carsAll.indexOf(untried) <= 2) out.push({ title: 'Ausprobieren', text: `Den ${untried.name} bist du noch nie gefahren – mit ihm gelingen im Schnitt mit die schnellsten Runden.` })
+    if (untried && carsAll.indexOf(untried) <= 2) out.push({ title: 'Ausprobieren', text: `Den ${untried.name} bist du noch nie gefahren – mit ihm fahren dieselben Fahrer im Schnitt mit die schnellsten Runden.` })
 
     // Fortschritt: dieses Jahr gegenüber dem Vorjahr (Hauptstrecke)
     const track = d.raceResults.length ? d.raceResults[d.raceResults.length - 1].session.track : null

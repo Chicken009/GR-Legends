@@ -103,7 +103,8 @@ export function Compare() {
       { label: 'Ø Platz', a: ca?.avgPosition ?? null, b: cb?.avgPosition ?? null, format: (v) => fmtNum(v), lower: true },
       { label: 'Ø Gegner geschlagen', a: ca?.beatShare ?? null, b: cb?.beatShare ?? null, format: (v) => fmtPct(v) },
       { label: 'Bestzeit', a: ca?.bestLapMs ?? null, b: cb?.bestLapMs ?? null, format: (v) => formatTime(v), lower: true },
-      { label: 'Pace', a: ca?.paceGap ?? null, b: cb?.paceGap ?? null, format: fmtGapSec, lower: true },
+      { label: 'Tempo (bereinigt)', a: ca?.tempo ?? null, b: cb?.tempo ?? null, format: fmtGapSec, lower: true },
+      { label: 'Abflüge/100 (bereinigt)', a: ca?.crashRate ?? null, b: cb?.crashRate ?? null, format: (v) => fmtNum(v), lower: true },
       { label: 'Streuung der Fahrer', a: ca?.spread ?? null, b: cb?.spread ?? null, format: (v) => fmtPct(v, 1), lower: true },
       { label: 'Kilometer', a: ca?.km ?? null, b: cb?.km ?? null, format: (v) => fmtNum(v) },
     ]
