@@ -1,14 +1,14 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { PLACEMENT_RUNS, type RankRow } from '../../domain/model'
 import { AREA } from '../colors'
-import { Avatar, driverPath, PageHead, PeriodTabs, Placement, Rank, useData, useMyName, ViewToggle } from '../components'
+import { Avatar, driverPath, PageHead, PeriodTabs, Placement, Rank, SettingsHint, useData, useMyName, ViewToggle } from '../components'
 import { DataTable, type Column } from '../DataTable'
 import { StatusIcons } from '../icons'
 import { fmtElo, fmtGapSec, fmtNum, fmtPct, formatTime } from '../format'
 import { useStored } from '../useStored'
 
 export function Drivers() {
-  const { model } = useData()
+  const { model, unmatched } = useData()
   const me = useMyName()
   const location = useLocation()
   const navigate = useNavigate()
@@ -153,6 +153,7 @@ export function Drivers() {
           })}
         </div>
       )}
+      <SettingsHint names={unmatched.drivers} kind="Fahrer" />
       {view === 'table' && (
         <div className="legend" style={{ gap: 18 }}>
           <span>Pace = Abstand der Ø sauberen Runde zur typischen Bestzeit der Strecke (Grenze der schnellsten 10 % aller Runden); minus = noch schneller</span>

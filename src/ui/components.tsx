@@ -271,6 +271,16 @@ export function Placement({ n, size = 12, short }: { n: number; size?: number; s
   )
 }
 
+/** Hinweis auf Einträge im Einstellungen-Sheet, die zu keinem Rennen passen (meist Tippfehler) */
+export function SettingsHint({ names, kind }: { names: string[]; kind: 'Fahrer' | 'Fahrzeug' }) {
+  if (!names.length) return null
+  return (
+    <p className="inner" style={{ margin: 0, padding: '10px 12px', fontSize: 12, color: 'var(--muted)', lineHeight: 1.45 }}>
+      <b style={{ color: 'var(--text-2)' }}>Einstellungen-Sheet:</b> {names.length === 1 ? `Dieser ${kind}name kommt` : `Diese ${kind}namen kommen`} in keinem Rennen vor – bitte die Schreibweise mit Smartrace vergleichen: {names.map((n) => `„${n}“`).join(', ')}
+    </p>
+  )
+}
+
 export function Empty({ children }: { children: ReactNode }) {
   return <p className="muted" style={{ margin: 0, fontSize: 13 }}>{children}</p>
 }

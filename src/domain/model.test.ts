@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applySettings, driveFileId, EMPTY_SETTINGS, parseScale, parseSettings } from '../data/settings'
+import { applySettings, carScale, driveFileId, EMPTY_SETTINGS, parseScale, parseSettings, unmatchedSettings } from '../data/settings'
 import { prepare } from '../data/useRaceDays'
 import { fixtureIds, readFixture } from '../test-utils'
 import type { Result, Session } from '../types'
@@ -181,15 +181,33 @@ describe('Einstellungen', () => {
       fahrzeuge: [['Porsche', '1:24', '', '', 'Beispiel'], ['Ferrari 458 Italia', '', 'Ferrari 458']],
       korrekturen: [['https://drive.google.com/file/d/abcdefghijk12/view', '2', 'Jo', 'Anton Berger']],
     })
-    expect(settings.aliases).toEqual({ Jo: 'Mika' })
-    expect(settings.guests).toEqual(['Oma', 'Gast 2'])
-    expect(settings.cars).toEqual({ 'Ferrari 458 Italia': { displayName: 'Ferrari 458' } })
+    expect(settings.aliases).toEqual({ jo: 'Mika' })
+    expect(settings.guests).toEqual(['oma', 'gast 2'])
+    expect(settings.cars).toEqual({ 'ferrari 458 italia': { name: 'Ferrari 458 Italia', displayName: 'Ferrari 458' } })
     expect(settings.corrections).toEqual([{ fileId: 'abcdefghijk12', position: 2, correctDriver: 'Anton Berger' }])
     expect(driveFileId('https://drive.google.com/open?id=abcdefghijk12')).toBe('abcdefghijk12')
 
     const [s] = applySettings([race('abcdefghijk12', '2026-01-01', [['Jo', 'Ferrari 458 Italia', 10], ['Jo', 'X', 9], ['Oma', 'X', 8], ['Gast 2', 'X', 7]])], settings)
     expect(s.results.map((r) => r.driver)).toEqual(['Mika', 'Anton Berger', 'Gast (Oma)', 'Gast 2'])
     expect(s.results[0].car).toBe('Ferrari 458')
+  })
+
+  it('findet Namen auch mit anderen Leerzeichen oder anderer Schreibweise', () => {
+    // Smartrace mit doppeltem Leerzeichen, im Sheet abgeschrieben mit einfachem / geschütztem Leerzeichen
+    const settings = parseSettings({
+      fahrer: [['anna  b.', 'Anna']],
+      fahrzeuge: [['Mercedes C63 AMG DTM No.\u00a06', '', 'Mercedes C63 AMG DTM'], ['Mercedes C63 AMG DTM No. 2', '1:24']],
+    })
+    const [s] = applySettings([race('f', '2026-01-01', [['Anna B.', 'Mercedes C63 AMG DTM  No. 6', 10], ['Ben', 'Mercedes C63 AMG DTM No. 2', 9], ['Cleo', 'Mercedes C63 AMG DTM', 8]])], settings)
+    expect(s.results.map((r) => r.driver)).toEqual(['Anna', 'Ben', 'Cleo'])
+    expect(s.results.map((r) => r.car)).toEqual(['Mercedes C63 AMG DTM', 'Mercedes C63 AMG DTM No. 2', 'Mercedes C63 AMG DTM'])
+    expect(carScale(settings, 'Mercedes C63 AMG DTM No. 2')).toBe(24)
+  })
+
+  it('meldet Einträge im Sheet, die zu keinem Rennen passen', () => {
+    const settings = parseSettings({ fahrer: [['Jo', 'Mika'], ['Joo', 'Mika']], fahrzeuge: [['Mercedes C63 AMG DTM No 6', '', 'Mercedes C63 AMG DTM']] })
+    const sessions = [race('f', '2026-01-01', [['Jo', 'Mercedes C63 AMG DTM No. 6', 10], ['Ben', 'X', 9]])]
+    expect(unmatchedSettings(sessions, settings)).toEqual({ drivers: ['Joo'], cars: ['Mercedes C63 AMG DTM No 6'] })
   })
 })
 
