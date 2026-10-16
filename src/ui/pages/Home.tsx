@@ -6,6 +6,7 @@ import { AREA } from '../colors'
 import { driverPath, MeButton, Monogram, Placement, useData, useMyName } from '../components'
 import { Chevrons, Crown, RecordFlame, StatusIcons, Trophy } from '../icons'
 import { MedalBadge } from '../Medal'
+import { byProgress, ChallengeItem } from '../ChallengeItem'
 import { fmtElo, formatDate, formatTime, plural, shortName } from '../format'
 import { isQuali } from '../../domain/rating'
 
@@ -151,6 +152,7 @@ export function Home() {
       </div>
 
       <SeasonCard />
+      <ChallengesCard />
 
       {news.length > 0 && (
         <section style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -208,7 +210,7 @@ function SeasonCard() {
   return (
     <section className="card" style={{ gap: 4 }}>
       <div className="card-head">
-        <span className="kicker" style={{ color: AREA.drivers }}>
+        <span className="kicker" style={{ color: AREA.season }}>
           Saison {year}
         </span>
         <Link to={`/saison/${year}`} style={{ fontSize: 12, color: 'var(--muted)' }}>
@@ -220,6 +222,35 @@ function SeasonCard() {
       <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--muted)', lineHeight: 1.45 }}>
         Punkte pro Rennen für jeden geschlagenen Gegner, Bonus für Sieg, schnellste Runde und Pole. Es zählen die besten {SEASON_POINTS.countedDays} Renntage.
       </p>
+    </section>
+  )
+}
+
+/** Saison-Challenges, die man angefangen hat oder leicht schaffen kann (nur mit gewähltem Namen) */
+function ChallengesCard() {
+  const { model } = useData()
+  const me = useMyName()
+  if (!me) return null
+  const year = CURRENT_YEAR
+  const open = model
+    .challenges(me, year)
+    .filter((c) => !c.done && (c.value > 0 || c.target - c.value <= 1))
+    .sort(byProgress)
+    .slice(0, 3)
+  if (!open.length) return null
+  return (
+    <section className="card" style={{ gap: 8 }}>
+      <div className="card-head">
+        <span className="kicker" style={{ color: AREA.season }}>
+          Challenges {year}
+        </span>
+        <Link to={`/saison/${year}`} state={{ tab: 'challenges' }} style={{ fontSize: 12, color: 'var(--muted)' }}>
+          Alle Challenges ›
+        </Link>
+      </div>
+      {open.map((c) => (
+        <ChallengeItem key={c.id} c={c} accent={AREA.season} />
+      ))}
     </section>
   )
 }

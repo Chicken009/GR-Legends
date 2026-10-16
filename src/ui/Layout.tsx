@@ -1,21 +1,23 @@
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { AREA } from './colors'
 import { Avatar, useData, useMyName, Wordmark } from './components'
 import { NAV_ICONS, StrokeIcon } from './icons'
 import { useMe } from './me'
 
+// „Rennen“ umfasst Renntage (Historie), Statistik und einzelne Läufe
 const ITEMS = [
-  { to: '/', label: 'Boxengasse', short: 'Start', icon: NAV_ICONS.home, color: AREA.home, end: true },
-  { to: '/fahrer', label: 'Fahrer', short: 'Fahrer', icon: NAV_ICONS.drivers, color: AREA.drivers },
-  { to: '/autos', label: 'Fahrzeuge', short: 'Autos', icon: NAV_ICONS.cars, color: AREA.cars },
-  { to: '/historie', label: 'Historie', short: 'Historie', icon: NAV_ICONS.history, color: AREA.history },
-  { to: '/statistik', label: 'Statistiken', short: 'Statistik', icon: NAV_ICONS.stats, color: AREA.stats },
+  { to: '/', label: 'Boxengasse', short: 'Start', icon: NAV_ICONS.home, color: AREA.home, match: (p: string) => p === '/' },
+  { to: '/fahrer', label: 'Fahrer', short: 'Fahrer', icon: NAV_ICONS.drivers, color: AREA.drivers, match: (p: string) => p.startsWith('/fahrer') },
+  { to: '/autos', label: 'Fahrzeuge', short: 'Autos', icon: NAV_ICONS.cars, color: AREA.cars, match: (p: string) => p.startsWith('/autos') },
+  { to: '/saison', label: 'Saison', short: 'Saison', icon: NAV_ICONS.season, color: AREA.season, match: (p: string) => p.startsWith('/saison') || p.startsWith('/wrapped') },
+  { to: '/historie', label: 'Rennen', short: 'Rennen', icon: NAV_ICONS.races, color: AREA.history, match: (p: string) => /^\/(historie|statistik|lauf)/.test(p) },
 ]
 
 export function Layout() {
   const me = useMyName()
   const { openPicker } = useMe()
   const { source } = useData()
+  const { pathname } = useLocation()
   return (
     <div className="shell">
       <nav className="side-nav" aria-label="Hauptnavigation">
@@ -23,7 +25,7 @@ export function Layout() {
           <Wordmark width={150} />
         </div>
         {ITEMS.map((it) => (
-          <NavLink key={it.to} to={it.to} end={it.end} className="item" style={{ ['--nav-color' as string]: it.color }}>
+          <NavLink key={it.to} to={it.to} className={() => `item${it.match(pathname) ? ' active' : ''}`} aria-current={it.match(pathname) ? 'page' : undefined} style={{ ['--nav-color' as string]: it.color }}>
             <StrokeIcon d={it.icon} color={it.color} />
             <span>{it.label}</span>
             <span className="dot" />
@@ -50,13 +52,9 @@ export function Layout() {
       </div>
       <nav className="bottom-nav" aria-label="Hauptnavigation">
         {ITEMS.map((it) => (
-          <NavLink key={it.to} to={it.to} end={it.end} aria-label={it.label} style={{ ['--nav-color' as string]: it.color }}>
-            {({ isActive }) => (
-              <>
-                <StrokeIcon d={it.icon} color={isActive ? it.color : '#7D8691'} />
-                <span>{it.short}</span>
-              </>
-            )}
+          <NavLink key={it.to} to={it.to} aria-label={it.label} className={() => (it.match(pathname) ? 'active' : '')} aria-current={it.match(pathname) ? 'page' : undefined} style={{ ['--nav-color' as string]: it.color }}>
+            <StrokeIcon d={it.icon} color={it.match(pathname) ? it.color : '#7D8691'} />
+            <span>{it.short}</span>
           </NavLink>
         ))}
       </nav>

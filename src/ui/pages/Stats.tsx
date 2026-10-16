@@ -7,6 +7,7 @@ import { driverPath, PageHead, PeriodTabs, Segment, Tile, useData, useMyName } f
 import { BarList, BumpChart, DuelMatrix, TrendChart } from '../charts/StatsCharts'
 import { fmtNum, fmtPct, formatTime, shortName } from '../format'
 import { useStored } from '../useStored'
+import { RacesSwitch } from './History'
 
 const ACCENT = AREA.stats
 
@@ -18,8 +19,10 @@ export function Stats() {
   const p = period === 'all' || model.years.includes(period) ? period : 'all'
   return (
     <div className="page" style={{ ['--accent' as string]: ACCENT }}>
-      <PageHead title="Statistiken" color={ACCENT} />
+      <PageHead title="Rennen" kicker="Statistik" color={AREA.history} />
+      <RacesSwitch value="statistik" />
       <Segment
+        small
         label="Bereich"
         value={tab === 'duelle' ? 'duelle' : 'ueberblick'}
         onChange={(v) => navigate(v === 'duelle' ? '/statistik/duelle' : '/statistik', { replace: true })}

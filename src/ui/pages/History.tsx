@@ -4,7 +4,7 @@ import { isGuest } from '../../domain/drivers'
 import { isQuali } from '../../domain/rating'
 import type { RaceDay, Result, Session } from '../../types'
 import { AREA, seriesColors } from '../colors'
-import { carPath, driverPath, PageHead, Placement, Rank, useData, useMyName } from '../components'
+import { carPath, driverPath, PageHead, Placement, Rank, Segment, useData, useMyName } from '../components'
 import { LAP_HEAT_RAMP, LapHeatmap } from '../charts/LapHeatmap'
 import { LapChart, PositionChart } from '../charts/RaceCharts'
 import { ChevronLeft, ChevronRight, Trophy } from '../icons'
@@ -12,6 +12,22 @@ import { fmtDelta, formatDate, formatGap, formatTime, formatTrack, plural, sessi
 import { useStored } from '../useStored'
 
 const ACCENT = AREA.history
+
+/** Umschalter im Tab „Rennen“: Renntage (Historie) und Statistik */
+export function RacesSwitch({ value }: { value: 'renntage' | 'statistik' }) {
+  const navigate = useNavigate()
+  return (
+    <Segment
+      label="Rennen"
+      value={value}
+      onChange={(v) => navigate(v === 'statistik' ? '/statistik' : '/historie', { replace: true })}
+      options={[
+        ['renntage', 'Renntage'],
+        ['statistik', 'Statistik'],
+      ]}
+    />
+  )
+}
 
 export function History() {
   const { days, model } = useData()
@@ -28,7 +44,8 @@ export function History() {
   )
   return (
     <div className="page" style={{ ['--accent' as string]: ACCENT }}>
-      <PageHead title="Historie" kicker="Alle Renntage" color={ACCENT} />
+      <PageHead title="Rennen" kicker="Alle Renntage" color={ACCENT} />
+      <RacesSwitch value="renntage" />
       <div className="filters">
         <div role="tablist" aria-label="Jahr" className="tabs">
           {['all', ...model.years].map((y) => (
