@@ -215,6 +215,9 @@ export interface Model {
 /** Läufe, bis die Wertung eines neuen Fahrers eingependelt ist */
 export const PLACEMENT_RUNS = RATING.provisionalRaces
 
+/** Rekord-Tipps nur in Reichweite: Rückstand höchstens so viel (Anteil der Rekordzeit) */
+const RECORD_REACH = { track: 0.015, car: 0.05 }
+
 /** Mindestzahl Rennen für den Titel „Saisonsieger“ */
 export const SEASON_MIN_RACES = 5
 
@@ -715,12 +718,43 @@ export function buildModel(input: Session[]): Model {
       }
     }
 
-    // Bahnrekord
+    // Rekorde: Bahnrekord nur, wenn er in Reichweite ist – sonst erreichbare Fahrzeugrekorde
     if (track) {
+      const sec = (ms: number) => (ms / 1000).toLocaleString('de-DE', { minimumFractionDigits: 3 })
+      const ownByCar = new Map<string, number>()
+      for (const x of sessions) {
+        if (x.track !== track) continue
+        for (const r of x.results) {
+          if (r.driver !== driver || r.validBestLapMs == null) continue
+          ownByCar.set(r.car, Math.min(ownByCar.get(r.car) ?? Infinity, r.validBestLapMs))
+        }
+      }
+      const own = Math.min(...ownByCar.values())
       const rec = trackRecords.get(track)
-      const own = Math.min(...d.raceResults.filter(({ session }) => session.track === track).map(({ result }) => result.validBestLapMs ?? Infinity))
-      if (rec && rec.driver === driver) out.push({ title: 'Bahnrekord', good: true, text: `Du hältst den Bahnrekord mit ${formatTime(rec.ms)} – verteidige ihn!` })
-      else if (rec && isFinite(own)) out.push({ title: 'Bahnrekord', text: `Bis zum Bahnrekord (${formatTime(rec.ms)}, ${rec.driver}${rec.guest ? ' als Gast' : ''}) fehlen dir ${((own - rec.ms) / 1000).toLocaleString('de-DE', { minimumFractionDigits: 3 })} s.` })
+      let trackTip = false
+      if (rec && rec.driver === driver) {
+        out.push({ title: 'Bahnrekord', good: true, text: `Du hältst den Bahnrekord mit ${formatTime(rec.ms)} – verteidige ihn!` })
+        trackTip = true
+      } else if (rec && isFinite(own) && own - rec.ms <= rec.ms * RECORD_REACH.track) {
+        out.push({ title: 'Bahnrekord in Reichweite', text: `Bis zum Bahnrekord (${formatTime(rec.ms)}, ${rec.driver}${rec.guest ? ' als Gast' : ''}) fehlen dir nur ${sec(own - rec.ms)} s.` })
+        trackTip = true
+      }
+      const carRecs = [...ownByCar]
+        .map(([car, best]) => ({ car, best, rec: carRecords.get(carKey(track, car)) }))
+        .filter((x): x is { car: string; best: number; rec: RecordEntry } => x.rec != null)
+      // Fahrzeugrekord, der zugleich Bahnrekord ist, steckt schon im Tipp oben
+      const sameAsTrack = (x: { rec: RecordEntry }) => trackTip && rec != null && x.rec.ms === rec.ms && x.rec.car === rec.car
+      const reachable = carRecs
+        .filter((x) => x.rec.driver !== driver && !sameAsTrack(x) && x.best - x.rec.ms <= x.rec.ms * RECORD_REACH.car)
+        .sort((a, b) => (a.best - a.rec.ms) / a.rec.ms - (b.best - b.rec.ms) / b.rec.ms)
+      for (const x of reachable.slice(0, trackTip ? 1 : 2)) {
+        out.push({ title: 'Fahrzeugrekord in Reichweite', text: `Im ${x.car} fehlen dir ${sec(x.best - x.rec.ms)} s zum Rekord von ${x.rec.driver}${x.rec.guest ? ' (Gast)' : ''} (${formatTime(x.rec.ms)}).` })
+      }
+      const held = carRecs.filter((x) => x.rec.driver === driver && !sameAsTrack(x))
+      if (held.length) {
+        const more = held.length === 2 ? ' und in einem weiteren Auto' : held.length > 2 ? ` und in ${held.length - 1} weiteren Autos` : ''
+        out.push({ title: 'Fahrzeugrekord', good: true, text: `Du hältst den Rekord im ${held[0].car}${more} – verteidige ${held.length > 1 ? 'sie' : 'ihn'}!` })
+      }
     }
 
     // Verbesserungstipps zuerst, dann Lob
