@@ -171,6 +171,8 @@ export const CAREER_XP = { race: 10, quali: 4, raceDay: 15, win: 10, podium: 5, 
 const levelXp = (level: number) => 25 * level * (level - 1)
 const CAREER_TITLES: [number, string][] = [[15, 'Legende'], [10, 'Profi'], [7, 'Routinier'], [5, 'Stammfahrer'], [3, 'Hobbyfahrer'], [1, 'Rookie']]
 export const careerTitle = (level: number) => CAREER_TITLES.find(([min]) => level >= min)![1]
+/** Nächster Titel über dem aktuellen Level: [ab Level, Titel] oder null bei „Legende“ */
+export const nextCareerTitle = (level: number) => [...CAREER_TITLES].reverse().find(([min]) => min > level) ?? null
 
 export type { ConstructorStanding, SeasonStanding } from './season'
 export type { Challenge } from './challenges'
