@@ -16,9 +16,10 @@ const ACCENT = AREA.cars
 
 /** Autos sortiert nach Autowertung (ab 3 Rennen), danach die übrigen nach Rennen */
 function rankedCars(cars: Map<string, CarStats>) {
-  const list = [...cars.values()].filter((c) => c.races > 0)
+  // auch Autos, die bisher nur im Qualifying gefahren sind
+  const list = [...cars.values()].filter((c) => c.races > 0 || c.qualis > 0)
   const rated = list.filter((c) => c.races >= 3).sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))
-  const rest = list.filter((c) => c.races < 3).sort((a, b) => b.races - a.races)
+  const rest = list.filter((c) => c.races < 3).sort((a, b) => b.races - a.races || b.qualis - a.qualis)
   return { rated, rest }
 }
 
@@ -50,6 +51,7 @@ export function Cars() {
     { key: 'name', label: 'Fahrzeug', left: true, value: (c) => c.name, render: (c) => <CarName car={c} /> },
     { key: 'rating', label: 'Wertung', title: 'Autowertung in Elo-Punkten: fahrerbereinigtes Tempo und Abflüge aus allen Rennen, gleichbleibende neue Entwicklungen zählen zusätzlich', strong: true, value: (c) => c.rating, render: (c) => (c.rating == null ? '–' : `${c.rating >= 0 ? '+' : '−'}${Math.abs(Math.round(c.rating))}`) },
     { key: 'races', label: 'Rennen', value: (c) => c.races },
+    { key: 'qualis', label: 'Qualis', value: (c) => c.qualis },
     { key: 'wins', label: 'Siege', value: (c) => c.wins },
     { key: 'winRate', label: 'Siegquote', value: (c) => c.winRate, render: (c) => fmtPct(c.winRate) },
     { key: 'podiums', label: 'Podien', value: (c) => c.podiums },

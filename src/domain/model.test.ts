@@ -5,7 +5,7 @@ import { fixtureIds, readFixture } from '../test-utils'
 import type { Result, Session } from '../types'
 import { estimateCars, fitCars, type CarObs } from './carModel'
 import { classifyIncidents, hasTankFunction } from './laps'
-import { PLACEMENT_RUNS, positionTrace } from './model'
+import { buildModel, PLACEMENT_RUNS, positionTrace } from './model'
 import { computeRatings, RATING, winChances } from './rating'
 import { buildSession } from './sessions'
 
@@ -313,5 +313,15 @@ describe('Autowertung gewichtet konsistente Fahrer', () => {
     // ohne Gewichtung nach Konsistenz zieht der Wechselhafte das Ergebnis Richtung B
     const flat = estimateCars(obs, [], new Map(), { ...opt, consistency: { ...RATING.carConsistency, rounds: 0 } })
     expect(flat.total.get('X\u0000A')! - flat.total.get('X\u0000B')!).toBeGreaterThan(est.total.get('X\u0000A')! - est.total.get('X\u0000B')!)
+  })
+})
+
+describe('Fahrzeuge nur im Qualifying', () => {
+  it('zählt Autos, die bisher nur im Qualifying gefahren sind', () => {
+    const q = { ...race('q', '2026-01-01', [['Anna', 'Mercedes C63 AMG DTM No. 2', 5], ['Ben', 'X', 5]]), type: 'Qualifikation', fileName: 'Qualifikation_01.01.2026.csv' }
+    const r = race('r', '2026-01-01', [['Anna', 'X', 10], ['Ben', 'X', 9]])
+    const car = buildModel([q, r]).stats('all').cars.get('Mercedes C63 AMG DTM No. 2')!
+    expect(car.races).toBe(0)
+    expect(car.qualis).toBe(1)
   })
 })

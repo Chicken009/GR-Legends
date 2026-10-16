@@ -67,6 +67,7 @@ export interface DriverStats {
 export interface CarStats {
   name: string
   races: number
+  qualis: number
   wins: number
   podiums: number
   winRate: number | null
@@ -263,7 +264,7 @@ export function buildModel(input: Session[]): Model {
     const cs = new Map<string, CarStats>()
     const get = (n: string) => ds.get(n) ?? (ds.set(n, emptyDriver(n)), ds.get(n)!)
     const getCar = (n: string): CarStats =>
-      cs.get(n) ?? (cs.set(n, { name: n, races: 0, wins: 0, podiums: 0, winRate: null, beatShare: null, avgPosition: null, laps: 0, km: null, bestLapMs: null, bestBy: null, pace: null, paceGap: null, spread: null, tempo: null, crashRate: null, rating: null, bonus: 0, drivers: new Map() }), cs.get(n)!)
+      cs.get(n) ?? (cs.set(n, { name: n, races: 0, qualis: 0, wins: 0, podiums: 0, winRate: null, beatShare: null, avgPosition: null, laps: 0, km: null, bestLapMs: null, bestBy: null, pace: null, paceGap: null, spread: null, tempo: null, crashRate: null, rating: null, bonus: 0, drivers: new Map() }), cs.get(n)!)
     const beat = new Map<string, number[]>()
     const carBeat = new Map<string, number[]>()
     const positions = new Map<string, number[]>()
@@ -301,6 +302,7 @@ export function buildModel(input: Session[]): Model {
         dEntry.normal.push(...nl)
         car.drivers.set(r.driver, dEntry)
         const share = s.results.length > 1 ? (s.results.length - r.position) / (s.results.length - 1) : null
+        if (quali) car.qualis++
         if (!quali) {
           car.races++
           if (r.position === 1) car.wins++
