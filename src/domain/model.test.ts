@@ -4,6 +4,8 @@ import { prepare } from '../data/useRaceDays'
 import { fixtureIds, readFixture } from '../test-utils'
 import type { Result, Session } from '../types'
 import { estimateCars, fitCars, type CarObs } from './carModel'
+import { seasonChallenges } from './challenges'
+import { constructorStandings, seasonStandings } from './season'
 import { classifyIncidents, hasTankFunction } from './laps'
 import { buildModel, PLACEMENT_RUNS, positionTrace } from './model'
 import { computeRatings, RATING, winChances } from './rating'
@@ -222,17 +224,6 @@ describe('Einstufung und Pace', () => {
     }
   })
 
-  it('lässt neue Fahrer in der Saison erst nach der Einstufung zählen', () => {
-    for (const y of model.years) {
-      for (const r of model.season(y)) {
-        if (r.placing != null) expect(r.gain).toBe(0)
-        const h = model.rating.history.get(r.name)!
-        const placed = h[PLACEMENT_RUNS - 1]
-        if (placed && placed.date.startsWith(y)) expect(r.start).toBe(placed.after)
-      }
-    }
-  })
-
   it('gibt die Pace als Abstand in Millisekunden an', () => {
     const paces = [...model.stats('all').drivers.values()].map((d) => d.paceGap).filter((v): v is number => v != null)
     expect(paces.length).toBeGreaterThan(0)
@@ -323,5 +314,52 @@ describe('Fahrzeuge nur im Qualifying', () => {
     const car = buildModel([q, r]).stats('all').cars.get('Mercedes C63 AMG DTM No. 2')!
     expect(car.races).toBe(0)
     expect(car.qualis).toBe(1)
+  })
+})
+
+describe('Saisonwertung mit Punkten', () => {
+  // Läufe: Reihenfolge = Platzierung, Runden gleich; Rundenzeit steigt mit dem Platz (Platz 1 am schnellsten)
+  const r = (id: string, date: string, order: string[], type = 'Rennen') => ({ ...race(id, date, order.map((n) => [n, 'X', 10] as [string, string, number])), type })
+
+  it('gibt Punkte je geschlagenem Gegner, Siegbonus und Bonus für schnellste Runde und Pole', () => {
+    const st = seasonStandings([r('q', '2026-01-10', ['Ben', 'Anna'], 'Qualifikation'), r('a', '2026-01-10', ['Anna', 'Ben', 'Cleo', 'Dora'])])
+    const anna = st.find((x) => x.name === 'Anna')!
+    const ben = st.find((x) => x.name === 'Ben')!
+    // Anna: 3 geschlagen + Sieg 1 + schnellste Runde 2 = 6; Ben: 2 geschlagen + Pole 1 = 3
+    expect(anna.points).toBe(6)
+    expect(ben.points).toBe(3)
+    expect(anna.rank).toBe(1)
+  })
+
+  it('wertet pro Renntag die besten 3 Rennen und die besten 5 Renntage, Finale im Dezember doppelt', () => {
+    const sessions = [
+      // Tag 1: 4 Rennen, Anna gewinnt alle (je 2 Punkte) → nur 3 zählen = 6, + schnellste Runde 2 = 8
+      ...['a', 'b', 'c', 'd'].map((id) => r(id, '2026-01-10', ['Anna', 'Ben'])),
+      // Tage 2–6: je ein Rennen, Ben gewinnt → je 2 + 2 = 4
+      ...[2, 3, 4, 5].map((m) => r(`m${m}`, `2026-0${m}-10`, ['Ben', 'Anna'])),
+      r('dez', '2026-12-10', ['Ben', 'Anna']),
+    ]
+    const st = seasonStandings(sessions)
+    const anna = st.find((x) => x.name === 'Anna')!
+    const ben = st.find((x) => x.name === 'Ben')!
+    expect(anna.days[0].points).toBe(8)
+    expect(ben.days.find((d) => d.finale)!.points).toBe(8)
+    // Ben: 6 Renntage (Tag 1 mit 0 Punkten wird gestrichen): 4·4 + 8 = 24
+    expect(ben.days.filter((d) => !d.counted)).toHaveLength(1)
+    expect(ben.points).toBe(24)
+    expect(ben.progress).toHaveLength(6)
+  })
+
+  it('zählt die Konstrukteurswertung über alle Rennen', () => {
+    const c = constructorStandings([race('k', '2026-01-10', [['Anna', 'Rot', 10], ['Ben', 'Blau', 10], ['Cleo', 'Rot', 10]])])
+    expect(c.map((x) => [x.car, x.points])).toEqual([['Rot', 3], ['Blau', 1]])
+  })
+
+  it('verfolgt Saison-Challenges', () => {
+    const sessions = [r('a', '2026-01-10', ['Anna', 'Ben']), r('b', '2026-02-10', ['Ben', 'Anna']), r('c', '2026-03-10', ['Anna', 'Ben'])]
+    const ch = seasonChallenges(sessions, 'Anna', 0, 0)
+    expect(ch.find((c) => c.id === 'tage')!.done).toBe(true)
+    expect(ch.find((c) => c.id === 'sieg')!.done).toBe(true)
+    expect(ch.find((c) => c.id === 'gegner')!.value).toBe(1)
   })
 })

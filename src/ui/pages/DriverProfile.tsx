@@ -42,6 +42,8 @@ export function DriverProfile({ onClose }: { onClose: () => void }) {
   const rival = model.rival(driver)
   const rivalElo = rival ? model.rating.drivers.get(rival.name) : null
   const placing = model.placement(driver)
+  // Jahresrückblicke, neueste zuerst (höchstens drei)
+  const wrappedYears = model.years.filter((y) => model.season(y).some((r) => r.name === driver)).slice(0, 3)
   const goals = model.goals(driver)
   const tips = model.tips(driver)
   const fav = d.favoriteCar ? d.cars.get(d.favoriteCar) : null
@@ -104,6 +106,15 @@ export function DriverProfile({ onClose }: { onClose: () => void }) {
       </div>
 
       <CareerCard driver={driver} />
+      {wrappedYears.length > 0 && (
+        <div className="chips" style={{ marginTop: -4 }}>
+          {wrappedYears.map((y) => (
+            <Link key={y} to={`/wrapped/${y}/${encodeURIComponent(driver)}`} className="pill">
+              ✦ Rückblick {y}
+            </Link>
+          ))}
+        </div>
+      )}
 
       {current.length > 0 && (
         <div style={{ display: 'flex', gap: 8 }}>

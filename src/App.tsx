@@ -14,7 +14,9 @@ import { DriverProfile, MedalsSheet } from './ui/pages/DriverProfile'
 import { Drivers } from './ui/pages/Drivers'
 import { History, RaceView } from './ui/pages/History'
 import { Home } from './ui/pages/Home'
+import { Season } from './ui/pages/Season'
 import { Stats } from './ui/pages/Stats'
+import { Wrapped } from './ui/pages/Wrapped'
 
 function AppRoutes() {
   const location = useLocation()
@@ -44,6 +46,9 @@ function AppRoutes() {
           <Route path="statistik" element={<Stats />} />
           <Route path="statistik/:tab" element={<Stats />} />
           <Route path="vergleich" element={<Compare />} />
+          <Route path="saison" element={<Season />} />
+          <Route path="saison/:year" element={<Season />} />
+          <Route path="wrapped/:year/:name" element={<Wrapped />} />
           <Route path="*" element={<div className="state">Seite nicht gefunden.</div>} />
         </Route>
       </Routes>

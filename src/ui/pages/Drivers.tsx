@@ -1,5 +1,6 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { PLACEMENT_RUNS, SEASON_MIN_RACES, type RankRow } from '../../domain/model'
+import { PLACEMENT_RUNS, type RankRow } from '../../domain/model'
+import { SEASON_POINTS } from '../../domain/season'
 import { AREA } from '../colors'
 import { Avatar, driverPath, PageHead, PeriodTabs, Placement, Rank, SettingsHint, useData, useMyName, ViewToggle } from '../components'
 import { DataTable, type Column } from '../DataTable'
@@ -22,12 +23,11 @@ export function Drivers() {
   const open = (name: string) => navigate(driverPath(name), { state: { bg: location } })
   const d = (r: RankRow) => stats.get(r.name)
   const seasonRows = p !== 'all' ? model.season(p) : []
-  const seasonGain = new Map(seasonRows.map((r) => [r.name, r.gain]))
-  const seasonPlacing = new Set(seasonRows.filter((r) => r.placing != null).map((r) => r.name))
-  // Gesamt: nach Elo. Jahr: nach Saisonwertung – Plätze nur für Gewertete (ab 5 Rennen, Einstufung vorbei)
+  const seasonPoints = new Map(seasonRows.map((r) => [r.name, r.points]))
+  // Gesamt: nach Elo. Jahr: nach Saisonwertung (Punkte)
   const seasonOrder = new Map(seasonRows.map((r, i) => [r.name, i]))
-  const seasonRank = new Map(seasonRows.filter((r) => r.races >= SEASON_MIN_RACES && r.placing == null).map((r, i) => [r.name, i + 1]))
-  const rows = p === 'all' ? all : [...all].sort((a, b) => (seasonRank.has(b.name) ? 1 : 0) - (seasonRank.has(a.name) ? 1 : 0) || (seasonOrder.get(a.name) ?? 999) - (seasonOrder.get(b.name) ?? 999))
+  const seasonRank = new Map(seasonRows.map((r) => [r.name, r.rank]))
+  const rows = p === 'all' ? all : [...all].sort((a, b) => (seasonOrder.get(a.name) ?? 999) - (seasonOrder.get(b.name) ?? 999))
   const rankOf = (r: RankRow) => (p === 'all' ? r.rank : (seasonRank.get(r.name) ?? null))
   const medalCount = (name: string) => (model.medals.get(name) ?? []).filter((m) => !m.former).length
   const columns: Column<RankRow>[] = [
@@ -45,13 +45,9 @@ export function Drivers() {
     ...(p !== 'all'
       ? [
           {
-            key: 'season', label: `Saison ${p}`, title: 'Elo im Jahr dazugewonnen (Saisonwertung)',
-            value: (r: RankRow) => seasonGain.get(r.name) ?? null,
-            render: (r: RankRow) => {
-              if (seasonPlacing.has(r.name)) return <span style={{ color: 'var(--faint)' }}>–</span>
-              const g = seasonGain.get(r.name)
-              return g == null ? '–' : <span style={{ color: g >= 0 ? '#7BDB8A' : '#FF8A7A', fontWeight: 600 }}>{`${g >= 0 ? '+' : '−'}${Math.abs(Math.round(g))}`}</span>
-            },
+            key: 'season', label: `Saison ${p}`, title: 'Punkte der Saisonwertung (beste Renntage)', strong: true,
+            value: (r: RankRow) => seasonPoints.get(r.name) ?? null,
+            render: (r: RankRow) => (seasonPoints.has(r.name) ? `${seasonPoints.get(r.name)} P` : '–'),
           } satisfies Column<RankRow>,
         ]
       : []),
@@ -99,6 +95,11 @@ export function Drivers() {
           <input type="checkbox" checked={minRaces} onChange={(e) => setMinRaces(e.target.checked)} />
           ab 3 Rennen
         </label>
+        {p !== 'all' && (
+          <Link to={`/saison/${p}`} className="pill" style={{ marginLeft: 'auto' }}>
+            Saison {p} ›
+          </Link>
+        )}
       </div>
 
       {rows.length === 0 && <p className="muted">Keine Fahrer in diesem Zeitraum.</p>}
@@ -164,7 +165,7 @@ export function Drivers() {
           <span>Pace = Abstand der Ø sauberen Runde zur typischen Bestzeit der Strecke (Grenze der schnellsten 10 % aller Runden); minus = noch schneller</span>
           <span>Streuung = Schwankung sauberer Runden (kleiner = präziser)</span>
           <span>Abflüge nur aus Rennen ohne Tankfunktion</span>
-          {p !== 'all' && <span>Sortiert nach Saisonwertung {p}: Plätze ab {SEASON_MIN_RACES} Rennen</span>}
+          {p !== 'all' && <span>Sortiert nach Saisonwertung {p} (Punkte, beste {SEASON_POINTS.countedDays} Renntage)</span>}
           <span>Einstufung = neue Fahrer, die ersten {PLACEMENT_RUNS} Läufe pendeln die Wertung ein</span>
         </div>
       )}

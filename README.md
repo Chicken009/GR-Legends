@@ -175,8 +175,16 @@ dem Schnitt (≈ 0,75 % langsamer).
 auf der Strecke über alle Läufe. Gewicht 0,3 eines Laufs, nur als Bonus (nie Abzug). Werden alle
 schneller, steigen alle – die Wertung spiegelt so auch echte Verbesserung wider.
 
-**Saisonwertung**: Pro Jahr zählt, wer die meisten Elo-Punkte dazugewonnen hat (ab 5 Rennen).
-Neue Fahrer zählen ab dem Ende ihrer Einstufung.
+**Saisonwertung** (Seite „Saison“): Punkte statt Elo.
+- pro Rennen 1 Punkt je geschlagenem Gegner, Sieg +1 – ein Sieg gegen 5 zählt mehr als gegen 1
+- pro Renntag zählen die besten 3 Rennen (Abende mit 9 Rennen bringen nicht dreimal so viel)
+- Bonus pro Renntag: schnellste Runde +2, Pole (Schnellster im Qualifying) +1
+- der letzte Renntag im Dezember ist das Saisonfinale und zählt doppelt
+- Streichresultate: Es zählen die besten 5 Renntage – wer mal nicht kann, verliert nichts
+
+Dazu: Konstrukteurswertung (Autos sammeln die Rennpunkte ihrer Fahrer), Saison-Awards für
+abgeschlossene Jahre (Saisonsieger, Rookie, Aufsteiger, Jahresschnellster, Saubermann, Außenseiter),
+Saison-Challenges (je +20 Karriere-XP) und ein Jahresrückblick („Wrapped“) pro Fahrer.
 
 **Pace**: Abstand der durchschnittlichen sauberen Runde (Median pro Lauf) zur typischen Bestzeit
 der Strecke (Grenze der schnellsten 10 % aller Runden), in Sekunden (z. B. „+0,62 s“). Kleiner ist
