@@ -370,7 +370,7 @@ export function buildModel(input: Session[]): Model {
     const inP = sessions.filter((x) => inPeriod(x.date, period))
     const asOf = inP.reduce((m, x) => (x.date > m ? x.date : m), '')
     const crashObs = crashObservations(inP, carKey, isQuali)
-    const est = estimateCars(paceObservations(inP, carKey, isQuali, RATING.qualiWeight), crashObs, crashCost(inP), asOf, RATING.carHalfLifeDays, RATING.carPrior)
+    const est = estimateCars(paceObservations(inP, carKey, isQuali, RATING.qualiWeight), crashObs, crashCost(inP), asOf, RATING.carHalfLifeDays, RATING.carPrior, RATING.carTrendPrior)
     const paceFit = est.pace
     const crashFit = est.crash
     const baseCrash = crashObs.length ? crashObs.reduce((a, o) => a + o.y, 0) / crashObs.length : null

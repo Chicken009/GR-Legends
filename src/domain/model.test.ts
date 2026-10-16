@@ -3,6 +3,7 @@ import { applySettings, driveFileId, EMPTY_SETTINGS, parseScale, parseSettings }
 import { prepare } from '../data/useRaceDays'
 import { fixtureIds, readFixture } from '../test-utils'
 import type { Result, Session } from '../types'
+import { fitCars, type CarObs } from './carModel'
 import { classifyIncidents, hasTankFunction } from './laps'
 import { PLACEMENT_RUNS, positionTrace } from './model'
 import { computeRatings, RATING, winChances } from './rating'
@@ -234,5 +235,42 @@ describe('Rekord-Tipps', () => {
         }
       }
     }
+  })
+})
+
+describe('Autowertung über die Zeit', () => {
+  // Anna und Ben tauschen jedes Rennen die Autos; y = log(Rundenzeit)
+  const obs = (days: number[], fasterB: (day: number) => number): CarObs[] =>
+    days.flatMap((day, i) => {
+      const date = new Date(Date.UTC(2025, 0, 1 + day)).toISOString().slice(0, 10)
+      const [a, b] = i % 2 ? ['B', 'A'] : ['A', 'B']
+      return [
+        { session: `s${i}`, date, driver: 'Anna', car: `X\u0000${a}`, y: a === 'B' ? -fasterB(day) : 0, w: 1 },
+        { session: `s${i}`, date, driver: 'Ben', car: `X\u0000${b}`, y: b === 'B' ? -fasterB(day) : 0, w: 1 },
+      ]
+    })
+  const days = Array.from({ length: 40 }, (_, i) => i * 10)
+  const gap = (o: CarObs[]) => {
+    const f = fitCars(o, '2026-02-05', RATING.carHalfLifeDays, RATING.carPrior.pace, RATING.carTrendPrior.pace)
+    return f.effect.get('X\u0000A')! - f.effect.get('X\u0000B')!
+  }
+
+  it('vergisst alte Läufe nicht', () => {
+    // B war lange 2 % schneller, die letzten Läufe sind beide gleich schnell
+    const g = gap(obs(days, (d) => (d < 330 ? 0.02 : 0)))
+    expect(g).toBeGreaterThan(0.005)
+  })
+
+  it('übernimmt gleichbleibende neue Entwicklungen stärker als alte', () => {
+    const steady = gap(obs(days, () => 0.02))
+    const recent = gap(obs(days, (d) => (d >= 270 ? 0.02 : 0)))
+    const old = gap(obs(days, (d) => (d < 120 ? 0.02 : 0)))
+    expect(recent).toBeGreaterThan(old)
+    expect(recent).toBeLessThan(steady)
+  })
+
+  it('lässt sich von einem einzelnen Ausreißer kaum bewegen', () => {
+    const one = gap(obs(days, (d) => (d === 390 ? 0.05 : 0)))
+    expect(Math.abs(one)).toBeLessThan(0.005)
   })
 })

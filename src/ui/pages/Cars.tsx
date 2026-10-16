@@ -48,7 +48,7 @@ export function Cars() {
   const myFav = me ? model.stats(p).drivers.get(me)?.favoriteCar : null
   const columns: Column<CarStats>[] = [
     { key: 'name', label: 'Fahrzeug', left: true, value: (c) => c.name, render: (c) => <CarName car={c} /> },
-    { key: 'rating', label: 'Wertung', title: 'Autowertung in Elo-Punkten: fahrerbereinigtes Tempo und Abflüge, neuere Rennen zählen mehr', strong: true, value: (c) => c.rating, render: (c) => (c.rating == null ? '–' : `${c.rating >= 0 ? '+' : '−'}${Math.abs(Math.round(c.rating))}`) },
+    { key: 'rating', label: 'Wertung', title: 'Autowertung in Elo-Punkten: fahrerbereinigtes Tempo und Abflüge aus allen Rennen, gleichbleibende neue Entwicklungen zählen zusätzlich', strong: true, value: (c) => c.rating, render: (c) => (c.rating == null ? '–' : `${c.rating >= 0 ? '+' : '−'}${Math.abs(Math.round(c.rating))}`) },
     { key: 'races', label: 'Rennen', value: (c) => c.races },
     { key: 'wins', label: 'Siege', value: (c) => c.wins },
     { key: 'winRate', label: 'Siegquote', value: (c) => c.winRate, render: (c) => fmtPct(c.winRate) },
@@ -231,7 +231,7 @@ export function CarProfile() {
           </div>
         </div>
         <p style={{ margin: '-4px 2px 0', fontSize: 11, color: 'var(--muted)', lineHeight: 1.45 }}>
-          Fahrerbereinigt: verglichen wird, was dieselben Fahrer im selben Lauf mit anderen Autos fahren. Neuere Rennen zählen mehr.
+          Fahrerbereinigt: verglichen wird, was dieselben Fahrer im selben Lauf mit anderen Autos fahren. Alle Rennen zählen, gleichbleibende neue Entwicklungen (z. B. nach einem Umbau) zusätzlich.
         </p>
 
         <section className="inner" style={{ padding: 14, gap: 10 }}>
