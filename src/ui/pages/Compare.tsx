@@ -169,13 +169,9 @@ export function Compare() {
 
       {kind === 'fahrer' && <WhatIf a={a} b={b} carA={carA} carB={carB} colorA={colorA} colorB={colorB} />}
       {kind === 'auto' && (
-        <section className="card" style={{ gap: 6 }}>
+        <section className="card" style={{ gap: 8 }}>
           <span className="card-title">Auto-Bonus in der Wertung</span>
-          <p style={{ margin: 0, fontSize: 13, color: 'var(--text-2)', lineHeight: 1.45 }}>
-            Die Autowertung wird zur Fahrerwertung addiert. Mit dem <b style={{ color: colorA }}>{a}</b> ({signed(carRating(a))}) startet man{' '}
-            {Math.abs(carRating(a) - carRating(b)) < 1 ? 'praktisch gleich stark wie' : `${Math.abs(Math.round(carRating(a) - carRating(b)))} Punkte ${carRating(a) > carRating(b) ? 'stärker' : 'schwächer'} als`} mit dem{' '}
-            <b style={{ color: colorB }}>{b}</b> ({signed(carRating(b))}). Wer im schwächeren Auto gewinnt, bekommt mehr Elo.
-          </p>
+          <CarBonus a={a} b={b} rA={carRating(a)} rB={carRating(b)} colorA={colorA} colorB={colorB} />
         </section>
       )}
 
@@ -211,6 +207,34 @@ export function Compare() {
         })}
       </section>
     </div>
+  )
+}
+
+/** Autowertung beider Autos und ihr Unterschied (aus gerundeten Werten, damit die Zahlen zusammenpassen) */
+function CarBonus({ a, b, rA, rB, colorA, colorB }: { a: string; b: string; rA: number; rB: number; colorA: string; colorB: string }) {
+  const ra = Math.round(rA)
+  const rb = Math.round(rB)
+  const diff = Math.abs(ra - rb)
+  const stronger = ra > rb ? a : b
+  const weaker = ra > rb ? b : a
+  const row = (name: string, v: number, color: string) => (
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 14 }}>
+      <span style={{ fontWeight: 600, color, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
+      <span className="num" style={{ fontWeight: 700, color: v >= 0 ? '#7BDB8A' : '#FF8A7A' }}>{signed(v)}</span>
+    </div>
+  )
+  return (
+    <>
+      {row(a, ra, colorA)}
+      {row(b, rb, colorB)}
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 14, borderTop: '1px solid var(--grid)', paddingTop: 8 }}>
+        <span style={{ color: 'var(--muted)' }}>Unterschied</span>
+        <span className="num" style={{ fontWeight: 700 }}>{diff === 0 ? 'gleich stark' : `${diff} Punkte für ${stronger}`}</span>
+      </div>
+      <p style={{ margin: 0, fontSize: 12, color: 'var(--muted)', lineHeight: 1.45 }}>
+        Die Autowertung wird zur Elo des Fahrers addiert. {diff > 0 ? `Wer im ${weaker} gegen jemanden im ${stronger} gewinnt, bekommt deshalb mehr Elo.` : 'Keins der beiden Autos bringt einen Vorteil.'}
+      </p>
+    </>
   )
 }
 
@@ -257,7 +281,7 @@ function WhatIf({ a, b, carA, carB, colorA, colorB }: { a: string; b: string; ca
             </span>
             <span className="num" style={{ textAlign: 'right' }}>{fmtElo(elo as number)}</span>
             <span className="num" style={{ textAlign: 'right', color: carR(car as string) >= 0 ? '#7BDB8A' : '#FF8A7A' }}>{signed(carR(car as string))}</span>
-            <span className="num" style={{ textAlign: 'right', fontWeight: 700 }}>{fmtElo((elo as number) + carR(car as string))}</span>
+            <span className="num" style={{ textAlign: 'right', fontWeight: 700 }}>{fmtElo(Math.round(elo as number) + Math.round(carR(car as string)))}</span>
           </div>
         ))}
       </div>
