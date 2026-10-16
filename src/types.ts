@@ -50,6 +50,8 @@ export interface Session {
   heat: number
   /** Rennen mit Tankfunktion (mindestens ein Boxenstopp im Lauf) */
   tank?: boolean
+  /** Name des Wettkampf-Ordners, falls die Datei in einem liegt */
+  event?: string
   results: Result[]
 }
 
@@ -68,6 +70,8 @@ export interface SourceFile {
   name: string
   /** Name des Strecken-Unterordners, z. B. `Musterring 2364cm` */
   track: string
+  /** Wettkampf-Ordner im Streckenordner, z. B. `Sommercup 2026` */
+  event?: string
   createdTime: string
   modifiedTime: string
 }

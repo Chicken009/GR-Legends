@@ -38,15 +38,24 @@ const SHEET_MIME = 'application/vnd.google-apps.spreadsheet'
 const PHOTO_FOLDER = /(fotos?|bilder?|photos?|pictures?)$/i
 
 const isCsv = (f: DriveFile) => f.mimeType !== FOLDER_MIME && /\.csv$/i.test(f.name)
+const isJson = (f: DriveFile) => f.mimeType !== FOLDER_MIME && /\.json$/i.test(f.name)
 const isImage = (f: DriveFile) => f.mimeType.startsWith('image/')
 
-const toSource = (f: DriveFile, track: string): SourceFile => ({
+const toSource = (f: DriveFile, track: string, event?: string): SourceFile => ({
   id: f.id,
   name: f.name,
   track,
+  ...(event ? { event } : {}),
   createdTime: f.createdTime,
   modifiedTime: f.modifiedTime,
 })
+
+/** Wettkampf-Ordner im Streckenordner, mit der zuletzt geänderten `wettkampf.json` */
+export interface EventSource {
+  name: string
+  track: string
+  json: SourceFile | null
+}
 
 export interface DriveListing {
   files: SourceFile[]
@@ -54,6 +63,7 @@ export interface DriveListing {
   settingsSheetId: string | null
   /** Fahrzeugfotos aus dem Unterordner „Fotos“: vereinfachter Dateiname (`photoKey`) → Datei-ID */
   photos: Record<string, string>
+  events: EventSource[]
 }
 
 /** Vereinfachter Name für den Foto-Abgleich: „Ferrari 458.JPG“ und „ferrari_458“ → „ferrari458“ */
@@ -73,9 +83,29 @@ export async function downloadDrivePhoto(id: string, apiKey: string): Promise<st
   return URL.createObjectURL(await res.blob())
 }
 
+/** Inhalt eines Streckenordners: CSVs und Wettkampf-Ordner (eine Ebene tiefer) */
+async function listTrackFolder(folder: DriveFile, apiKey: string): Promise<{ files: SourceFile[]; events: EventSource[] }> {
+  const children = await listChildren(folder.id, apiKey)
+  const eventFolders = children.filter((f) => f.mimeType === FOLDER_MIME)
+  const events = await Promise.all(
+    eventFolders.map(async (ev) => {
+      const inner = await listChildren(ev.id, apiKey)
+      const json = inner.filter(isJson).sort((a, b) => b.modifiedTime.localeCompare(a.modifiedTime))[0]
+      return {
+        files: inner.filter(isCsv).map((f) => toSource(f, folder.name, ev.name)),
+        event: { name: ev.name.trim(), track: folder.name, json: json ? toSource(json, folder.name, ev.name) : null },
+      }
+    }),
+  )
+  return {
+    files: [...children.filter(isCsv).map((f) => toSource(f, folder.name)), ...events.flatMap((e) => e.files)],
+    events: events.map((e) => e.event),
+  }
+}
+
 /**
- * Listet alle CSVs im Hauptordner und in den Strecken-Unterordnern (eine Ebene), dazu das
- * Einstellungen-Sheet und die Fahrzeugfotos.
+ * Listet alle CSVs im Hauptordner, in den Strecken-Unterordnern und in deren Wettkampf-Ordnern,
+ * dazu das Einstellungen-Sheet und die Fahrzeugfotos.
  */
 export async function listDriveFiles(folderId: string, apiKey: string): Promise<DriveListing> {
   const root = await listChildren(folderId, apiKey)
@@ -83,20 +113,17 @@ export async function listDriveFiles(folderId: string, apiKey: string): Promise<
   const photoFolders = folders.filter((f) => PHOTO_FOLDER.test(f.name.trim()))
   const trackFolders = folders.filter((f) => !photoFolders.includes(f))
   const [nested, photoFiles] = await Promise.all([
-    Promise.all(
-      trackFolders.map(async (folder) =>
-        (await listChildren(folder.id, apiKey)).filter(isCsv).map((f) => toSource(f, folder.name)),
-      ),
-    ),
+    Promise.all(trackFolders.map((folder) => listTrackFolder(folder, apiKey))),
     Promise.all(photoFolders.map(async (folder) => (await listChildren(folder.id, apiKey)).filter(isImage))),
   ])
   const photos: Record<string, string> = {}
   for (const f of photoFiles.flat()) photos[photoKey(f.name)] = f.id
   const sheet = root.find((f) => f.mimeType === SHEET_MIME && /einstellungen/i.test(f.name))
   return {
-    files: [...root.filter(isCsv).map((f) => toSource(f, UNKNOWN_TRACK)), ...nested.flat()],
+    files: [...root.filter(isCsv).map((f) => toSource(f, UNKNOWN_TRACK)), ...nested.flatMap((n) => n.files)],
     settingsSheetId: sheet?.id ?? null,
     photos,
+    events: nested.flatMap((n) => n.events),
   }
 }
 
@@ -114,7 +141,7 @@ export async function readSettingsSheet(sheetId: string, apiKey: string) {
 
 const CACHE_PREFIX = 'gr-legends:file:'
 
-/** Lädt eine Datei; Inhalt wird pro `modifiedTime` im localStorage zwischengespeichert. */
+/** Lädt eine Datei (CSV oder JSON); Inhalt wird pro `modifiedTime` im localStorage zwischengespeichert. */
 export async function downloadDriveFile(file: SourceFile, apiKey: string): Promise<string> {
   const cacheKey = `${CACHE_PREFIX}${file.id}:${file.modifiedTime}`
   try {

@@ -9,7 +9,7 @@ const ITEMS = [
   { to: '/', label: 'Boxengasse', short: 'Start', icon: NAV_ICONS.home, color: AREA.home, match: (p: string) => p === '/' },
   { to: '/fahrer', label: 'Fahrer', short: 'Fahrer', icon: NAV_ICONS.drivers, color: AREA.drivers, match: (p: string) => p.startsWith('/fahrer') },
   { to: '/autos', label: 'Fahrzeuge', short: 'Autos', icon: NAV_ICONS.cars, color: AREA.cars, match: (p: string) => p.startsWith('/autos') },
-  { to: '/saison', label: 'Saison', short: 'Saison', icon: NAV_ICONS.season, color: AREA.season, match: (p: string) => p.startsWith('/saison') || p.startsWith('/wrapped') },
+  { to: '/saison', label: 'Saison', short: 'Saison', icon: NAV_ICONS.season, color: AREA.season, match: (p: string) => p.startsWith('/saison') || p.startsWith('/wrapped') || p.startsWith('/wettkampf') },
   { to: '/historie', label: 'Rennen', short: 'Rennen', icon: NAV_ICONS.races, color: AREA.history, match: (p: string) => /^\/(historie|statistik|lauf)/.test(p) },
 ]
 
