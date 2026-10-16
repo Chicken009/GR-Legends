@@ -1363,6 +1363,8 @@ table.dt tr.me-row td.st1 {
 .tips-slide {
   flex: 0 0 100%;
   scroll-snap-align: start;
+  /* nie mehrere Tipps auf einmal überspringen */
+  scroll-snap-stop: always;
   display: flex;
   gap: 12px;
   align-items: flex-start;

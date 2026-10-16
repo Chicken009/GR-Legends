@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import type { Tip } from '../domain/model'
 import { BulbIcon, StrokeIcon } from './icons'
+import { useOneStep } from './useOneStep'
 
 const STAR = 'M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z'
 
@@ -8,6 +9,7 @@ const STAR = 'M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1
 export function TipCarousel({ tips, accent }: { tips: Tip[]; accent: string }) {
   const ref = useRef<HTMLDivElement>(null)
   const [index, setIndex] = useState(0)
+  useOneStep(ref)
   if (tips.length === 0) return null
   const go = (i: number) => {
     const el = ref.current

@@ -9,6 +9,7 @@ import { Avatar, carPath, driverPath, useData, useMyName } from '../components'
 import { fmtDelta, fmtElo, fmtNum, formatDate, formatTime } from '../format'
 import { ChevronLeft, ShareIcon } from '../icons'
 import { MedalBadge } from '../Medal'
+import { useOneStep } from '../useOneStep'
 
 /** Hintergründe der Karten – je Karte ein eigener Farbton, Text bleibt hell */
 const BG = [
@@ -398,6 +399,7 @@ export function Wrapped() {
 function Story({ cards, w, you, onDone, onShare }: { cards: CardDef[]; w: WrappedData; you: boolean; onDone: () => void; onShare: () => void }) {
   const ref = useRef<HTMLDivElement>(null)
   const [index, setIndex] = useState(0)
+  useOneStep(ref)
   const total = cards.length + 1 // + Abschlusskarte
   const go = (i: number) => {
     const el = ref.current
@@ -440,10 +442,10 @@ function Story({ cards, w, you, onDone, onShare }: { cards: CardDef[]; w: Wrappe
       <div
         ref={ref}
         onScroll={(e) => setIndex(Math.round(e.currentTarget.scrollLeft / Math.max(1, e.currentTarget.clientWidth)))}
-        style={{ flex: 1, display: 'flex', overflowX: 'auto', overflowY: 'hidden', scrollSnapType: 'x mandatory', scrollbarWidth: 'none' }}
+        style={{ flex: 1, display: 'flex', overflowX: 'auto', overflowY: 'hidden', scrollSnapType: 'x mandatory', scrollbarWidth: 'none', overscrollBehaviorX: 'contain' }}
       >
         {cards.map((c, i) => (
-          <div key={c.key} style={{ flex: '0 0 100%', scrollSnapAlign: 'center', padding: '16px max(16px, env(safe-area-inset-left, 0px))', display: 'flex', flexDirection: 'column', justifyContent: 'center', overflowY: 'auto' }}>
+          <div key={c.key} style={{ flex: '0 0 100%', scrollSnapAlign: 'center', scrollSnapStop: 'always', padding: '16px max(16px, env(safe-area-inset-left, 0px))', display: 'flex', flexDirection: 'column', justifyContent: 'center', overflowY: 'auto' }}>
             <div style={{ maxWidth: 520, width: '100%', margin: '0 auto' }}>
               <CardFrame i={i} kicker={c.kicker} story>
                 {c.body}
@@ -451,7 +453,7 @@ function Story({ cards, w, you, onDone, onShare }: { cards: CardDef[]; w: Wrappe
             </div>
           </div>
         ))}
-        <div style={{ flex: '0 0 100%', scrollSnapAlign: 'center', padding: 16, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+        <div style={{ flex: '0 0 100%', scrollSnapAlign: 'center', scrollSnapStop: 'always', padding: 16, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
           <div style={{ maxWidth: 520, width: '100%', margin: '0 auto' }}>
             <CardFrame i={cards.length} kicker="Das war dein Jahr" story>
               <span style={{ fontSize: 28, fontWeight: 800, lineHeight: 1.15 }}>{you ? `Danke fürs Mitfahren, ${w.driver}!` : `Das war ${w.year} für ${w.driver}`}</span>

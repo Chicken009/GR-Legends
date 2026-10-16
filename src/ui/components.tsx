@@ -191,12 +191,14 @@ export function Sheet({ onClose, children, actions, label }: { onClose: () => vo
     let active = false
     let horizontal = false
     const onStart = (e: TouchEvent) => {
+      if (!e.touches[0]) return
       startY = e.touches[0].clientY
       startX = e.touches[0].clientX
       active = false
       horizontal = false
     }
     const onMove = (e: TouchEvent) => {
+      if (!e.touches[0]) return
       const y = e.touches[0].clientY
       const dx = Math.abs(e.touches[0].clientX - startX)
       // Seitliches Wischen (Tipps, Tabellen) schließt das Panel nicht
