@@ -7,7 +7,7 @@ import { NAV_ICONS, StrokeIcon } from './icons'
 /** Datei-ID des Fotos zu einem Auto (Anzeigename oder einer seiner Smartrace-Namen) */
 export function usePhotoId(car: string): string | undefined {
   const { photos, settings } = useData()
-  const names = [car, ...Object.entries(settings.cars).filter(([, e]) => e.displayName === car).map(([orig]) => orig)]
+  const names = [car, ...Object.entries(settings.cars).filter(([, e]) => e.displayName === car).map(([key, e]) => e.name ?? key)]
   return names.map((n) => photos[photoKey(n)]).find(Boolean)
 }
 

@@ -3,13 +3,15 @@ import type { Session } from '../types'
 
 /** Inhalt des Einstellungen-Sheets im Drive-Ordner (alle Angaben optional). */
 export interface Settings {
-  /** Name in Smartrace → Anzeigename (gleicher Anzeigename = gleicher Fahrer) */
+  /** Name in Smartrace (Schlüssel per `nameKey`) → Anzeigename (gleicher Anzeigename = gleicher Fahrer) */
   aliases: Record<string, string>
-  /** Zusätzliche Namen, die wie „Gast“ behandelt werden */
+  /** Zusätzliche Namen (per `nameKey`), die wie „Gast“ behandelt werden */
   guests: string[]
-  /** Fahrzeugname in Smartrace → Maßstab / Anzeigename */
-  cars: Record<string, { scale?: '1:24' | '1:32'; displayName?: string }>
+  /** Fahrzeugname in Smartrace (Schlüssel per `nameKey`) → Name wie im Sheet, Maßstab, Anzeigename */
+  cars: Record<string, { name?: string; scale?: '1:24' | '1:32'; displayName?: string }>
   corrections: Correction[]
+  /** Schreibweise im Sheet je Fahrer-Schlüssel (für Hinweise) */
+  labels?: Record<string, string>
 }
 
 export interface Correction {
@@ -19,6 +21,14 @@ export interface Correction {
 }
 
 export const EMPTY_SETTINGS: Settings = { aliases: {}, guests: [], cars: {}, corrections: [] }
+
+/**
+ * Vergleichsschlüssel für Namen aus dem Sheet und aus Smartrace: Groß-/Kleinschreibung, doppelte
+ * und geschützte Leerzeichen spielen keine Rolle. Wichtig, weil der Browser doppelte Leerzeichen
+ * einfach anzeigt – wer den Namen aus der App abschreibt, trifft sonst den Smartrace-Namen nicht.
+ */
+export const nameKey = (name: string) => name.normalize('NFKC').replace(/\s+/g, ' ').trim().toLocaleLowerCase('de-DE')
+const clean = (name: string) => name.normalize('NFKC').replace(/\s+/g, ' ').trim()
 
 const isExample = (row: string[]) => row.some((c) => /^beispiel/i.test((c ?? '').trim()))
 
@@ -42,27 +52,28 @@ export function driveFileId(link: string): string | null {
 
 /** Wertet die Zeilen der drei Tabs aus (ohne Kopfzeile). */
 export function parseSettings(tabs: { fahrer?: string[][]; fahrzeuge?: string[][]; korrekturen?: string[][] }): Settings {
-  const out: Settings = { aliases: {}, guests: [], cars: {}, corrections: [] }
+  const out: Settings = { aliases: {}, guests: [], cars: {}, corrections: [], labels: {} }
   for (const row of tabs.fahrer ?? []) {
-    const [name = '', display = '', guest = ''] = row.map((c) => (c ?? '').trim())
+    const [name = '', display = '', guest = ''] = row.map((c) => clean(c ?? ''))
     if (!name || isExample(row)) continue
-    if (display && display !== name) out.aliases[name] = display
-    if (/^x$/i.test(guest)) out.guests.push(name)
+    out.labels![nameKey(name)] = name
+    if (display && display !== name) out.aliases[nameKey(name)] = display
+    if (/^x$/i.test(guest)) out.guests.push(nameKey(name))
   }
   for (const row of tabs.fahrzeuge ?? []) {
-    const [name = '', scale = '', display = ''] = row.map((c) => (c ?? '').trim())
+    const [name = '', scale = '', display = ''] = row.map((c) => clean(c ?? ''))
     if (!name || isExample(row)) continue
     const entry: Settings['cars'][string] = {}
     const parsed = parseScale(scale)
     if (parsed) entry.scale = parsed
     if (display && display !== name) entry.displayName = display
-    if (entry.scale || entry.displayName) out.cars[name] = entry
+    if (entry.scale || entry.displayName) out.cars[nameKey(name)] = { ...entry, name }
   }
   for (const row of tabs.korrekturen ?? []) {
     const [link = '', pos = '', , correct = ''] = row.map((c) => (c ?? '').trim())
     const fileId = driveFileId(link)
     if (!fileId || !correct || isExample(row) || !Number(pos)) continue
-    out.corrections.push({ fileId, position: Number(pos), correctDriver: correct })
+    out.corrections.push({ fileId, position: Number(pos), correctDriver: clean(correct) })
   }
   return out
 }
@@ -77,10 +88,10 @@ export function applySettings(sessions: Session[], settings: Settings): Session[
     ...s,
     results: s.results.map((r) => {
       const corr = settings.corrections.find((c) => c.fileId === s.fileId && c.position === r.position)
-      let driver = corr ? corr.correctDriver : r.driver
-      if (guests.has(driver)) driver = isGuest(driver) ? driver : `Gast (${driver})`
-      else driver = settings.aliases[driver] ?? driver
-      const car = settings.cars[r.car]?.displayName ?? r.car
+      let driver = clean(corr ? corr.correctDriver : r.driver)
+      if (guests.has(nameKey(driver))) driver = isGuest(driver) ? driver : `Gast (${driver})`
+      else driver = settings.aliases[nameKey(driver)] ?? driver
+      const car = settings.cars[nameKey(r.car)]?.displayName ?? clean(r.car)
       return { ...r, driver, car }
     }),
   }))
@@ -88,8 +99,26 @@ export function applySettings(sessions: Session[], settings: Settings): Session[
 
 /** Maßstab eines Fahrzeugs (Anzeigename oder Smartrace-Name); Standard 1:32. */
 export function carScale(settings: Settings, car: string): number {
+  const key = nameKey(car)
   for (const [name, entry] of Object.entries(settings.cars)) {
-    if (name === car || entry.displayName === car) return entry.scale === '1:24' ? 24 : 32
+    if (name === key || (entry.displayName && nameKey(entry.displayName) === key)) return entry.scale === '1:24' ? 24 : 32
   }
   return 32
+}
+
+/** Einträge im Sheet, die zu keinem Namen in den Rennen passen (meist Tippfehler) */
+export function unmatchedSettings(sessions: Session[], settings: Settings): { drivers: string[]; cars: string[] } {
+  const drivers = new Set<string>()
+  const cars = new Set<string>()
+  for (const s of sessions) {
+    for (const r of s.results) {
+      drivers.add(nameKey(r.driver))
+      cars.add(nameKey(r.car))
+    }
+  }
+  for (const c of settings.corrections) drivers.add(nameKey(c.correctDriver))
+  return {
+    drivers: [...new Set([...Object.keys(settings.aliases), ...settings.guests])].filter((k) => !drivers.has(k)).map((k) => settings.labels?.[k] ?? k),
+    cars: Object.entries(settings.cars).filter(([k]) => !cars.has(k)).map(([k, e]) => e.name ?? k),
+  }
 }

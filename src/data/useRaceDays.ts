@@ -5,17 +5,19 @@ import { buildModel, type Model } from '../domain/model'
 import { buildSession, groupRaceDays } from '../domain/sessions'
 import type { RaceDay, Session } from '../types'
 import { downloadDriveFile, listDriveFiles, readSettingsSheet } from './drive'
-import { applySettings, EMPTY_SETTINGS, parseSettings, type Settings } from './settings'
+import { applySettings, EMPTY_SETTINGS, parseSettings, unmatchedSettings, type Settings } from './settings'
 
 export interface AppData {
   model: Model
   days: RaceDay[]
   settings: Settings
   photos: Record<string, string>
+  /** Einträge im Einstellungen-Sheet ohne passenden Namen in den Rennen */
+  unmatched: { drivers: string[]; cars: string[] }
   source: 'drive' | 'local' | 'fixtures'
 }
 
-async function loadRaw(): Promise<Omit<AppData, 'model' | 'days'> & { sessions: Session[] }> {
+async function loadRaw(): Promise<Omit<AppData, 'model' | 'days' | 'unmatched'> & { sessions: Session[] }> {
   if (driveEnabled) {
     const apiKey = config.googleApiKey!
     const listing = await listDriveFiles(config.driveFolderId!, apiKey)
@@ -72,7 +74,7 @@ export function useAppData() {
     queryKey: ['appData'],
     queryFn: async (): Promise<AppData> => {
       const { sessions, ...rest } = await loadRaw()
-      return { ...rest, ...prepare(sessions, rest.settings) }
+      return { ...rest, unmatched: unmatchedSettings(sessions, rest.settings), ...prepare(sessions, rest.settings) }
     },
     staleTime: 5 * 60_000,
   })

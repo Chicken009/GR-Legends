@@ -4,7 +4,7 @@ import { carScale } from '../../data/settings'
 import { quantile } from '../../domain/laps'
 import { AREA } from '../colors'
 import { CarPhoto, CarThumb, usePhotoId } from '../CarPhoto'
-import { carPath, PageHead, PeriodTabs, Tile, useData, useMyName, ViewToggle } from '../components'
+import { carPath, PageHead, PeriodTabs, SettingsHint, Tile, useData, useMyName, ViewToggle } from '../components'
 import { DataTable, type Column } from '../DataTable'
 import { LapHistogram } from '../charts/LapHistogram'
 import { CarSilhouette, Chevrons, ChevronLeft, RecordFlame } from '../icons'
@@ -35,7 +35,7 @@ export function UnderdogBonus({ bonus, compact }: { bonus: number; compact?: boo
 }
 
 export function Cars() {
-  const { model, settings } = useData()
+  const { model, settings, unmatched } = useData()
   const me = useMyName()
   const navigate = useNavigate()
   const [period, setPeriod] = useStored('cars:period', 'all')
@@ -89,6 +89,7 @@ export function Cars() {
           ))}
         </div>
       )}
+      <SettingsHint names={unmatched.cars} kind="Fahrzeug" />
       <div className="legend">
         <span>Rang nach Autowertung: Tempo und Abflüge des Autos, umgerechnet in Elo-Punkte (ab 3 Rennen)</span>
         {view === 'table' && <span>Tempo und Abflüge sind fahrerbereinigt: verglichen wird, was dieselben Fahrer im selben Lauf mit anderen Autos fahren</span>}
