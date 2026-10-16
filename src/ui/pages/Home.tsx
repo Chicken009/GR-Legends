@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { nextCareerTitle, type NewsItem } from '../../domain/model'
 import { SEASON_POINTS } from '../../domain/season'
@@ -10,7 +11,9 @@ import { MedalBadge } from '../Medal'
 import { byProgress, ChallengeItem } from '../ChallengeItem'
 import { fmtElo, formatDate, formatTime, plural, shortName } from '../format'
 import { isQuali } from '../../domain/rating'
-import { addDays, eventVisible, lastDay, todayIso } from '../../domain/event/insights'
+import { addDays, driverInsight, eventVisible, lastDay, planVisible, todayIso } from '../../domain/event/insights'
+import { computeFor, EVENT_ACCENT } from '../event/shared'
+import { CarThumb } from '../CarPhoto'
 import { EventCard } from './Events'
 import { useMe } from '../me'
 
@@ -58,6 +61,7 @@ export function Home() {
       </header>
 
       {me && <XpStrip driver={me} />}
+      {me && <NextHeatCard driver={me} />}
       <EventTeaser />
       <SeasonCard />
       <ChallengesCard />
@@ -418,4 +422,55 @@ function EventTeaser() {
     [...shown].filter((e) => e.def.start > today && e.def.start <= addDays(today, 14)).sort((a, b) => a.def.start.localeCompare(b.def.start))[0] ??
     shown.find((e) => lastDay(e.def) < today && lastDay(e.def) >= addDays(today, -3))
   return pick ? <EventCard folder={pick} me={me} /> : null
+}
+
+/** Nächster eigener Lauf in einem laufenden oder bald anstehenden Wettkampf (wenn der Ablauf schon sichtbar ist) */
+function NextHeatCard({ driver }: { driver: string }) {
+  const data = useData()
+  const today = todayIso()
+  const found = useMemo(() => {
+    const candidates = data.events
+      .filter((e) => eventVisible(e.def, today) && planVisible(e.def, today) && lastDay(e.def) >= today && e.def.drivers.includes(driver))
+      .sort((a, b) => a.def.start.localeCompare(b.def.start))
+    for (const folder of candidates) {
+      const state = computeFor(data, folder.def, folder.id)
+      const heat = driverInsight(state, driver).nextHeat
+      if (!heat) continue
+      const open = state.heats.filter((h) => h.status !== 'done')
+      return { folder, state, heat, before: open.indexOf(heat), section: state.sections.find((s) => s.def.id === heat.sectionId)?.def.name }
+    }
+    return null
+  }, [data, driver, today])
+  if (!found) return null
+  const { folder, heat, before, section } = found
+  const car = heat.cars[driver]
+  const others = heat.entrants.filter((e) => e.name !== driver)
+  const when = folder.def.start > today ? `am ${formatDate(folder.def.start)}` : heat.status === 'next' ? 'Du bist als Nächstes dran!' : before > 0 ? `Noch ${before} ${before === 1 ? 'Lauf' : 'Läufe'} vor dir` : 'Gleich'
+  return (
+    <Link to={`/wettkampf/${folder.id}`} className="card me-row" style={{ gap: 8 }}>
+      <div className="card-head">
+        <span className="kicker" style={{ color: EVENT_ACCENT }}>
+          Dein nächster Lauf
+        </span>
+        <span style={{ fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', color: heat.status === 'next' ? 'var(--me)' : 'var(--text-2)' }}>{when}</span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <span style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minWidth: 0 }}>
+          <span style={{ fontSize: 20, fontWeight: 800 }}>{heat.label}</span>
+          <span style={{ fontSize: 13, color: 'var(--muted)' }}>
+            {folder.def.name}
+            {section && section !== heat.label ? ` · ${section}` : ''}
+          </span>
+          {others.length > 0 && <span style={{ fontSize: 13, color: 'var(--text-2)' }}>gegen {others.map((e) => e.label).join(', ')}</span>}
+          {heat.note && <span style={{ fontSize: 12, color: 'var(--muted)' }}>{heat.note}</span>}
+        </span>
+        {car && (
+          <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, maxWidth: 96 }}>
+            <CarThumb car={car} size={52} />
+            <span style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center', lineHeight: 1.2 }}>{car}</span>
+          </span>
+        )}
+      </div>
+    </Link>
+  )
 }

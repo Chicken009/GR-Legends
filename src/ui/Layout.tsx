@@ -8,16 +8,16 @@ import { useStored } from './useStored'
 
 const isField = (p: string) => /^\/(fahrer|autos)/.test(p)
 
-// „Fahrer“ umfasst Fahrer und Fahrzeuge (Umschalter oben), „Rennen“ Renntage, Statistik und einzelne Läufe
+// „Stats“ umfasst Fahrer und Fahrzeuge (Umschalter oben), „Historie“ Renntage, Statistik und einzelne Läufe
 const ITEMS = [
   { to: '/', label: 'Boxengasse', short: 'Start', icon: NAV_ICONS.home, color: AREA.home, match: (p: string) => p === '/' },
-  { to: '/fahrer', label: 'Fahrer & Autos', short: 'Fahrer', icon: NAV_ICONS.drivers, color: AREA.drivers, match: isField },
+  { to: '/fahrer', label: 'Stats', short: 'Stats', icon: NAV_ICONS.stats, color: AREA.drivers, match: isField },
   { to: '/saison', label: 'Saison', short: 'Saison', icon: NAV_ICONS.season, color: AREA.season, match: (p: string) => p.startsWith('/saison') || p.startsWith('/wrapped') },
   { to: '/wettkampf', label: 'Events', short: 'Events', icon: NAV_ICONS.events, color: AREA.events, match: (p: string) => p.startsWith('/wettkampf') },
-  { to: '/historie', label: 'Rennen', short: 'Rennen', icon: NAV_ICONS.races, color: AREA.history, match: (p: string) => /^\/(historie|statistik|lauf)/.test(p) },
+  { to: '/historie', label: 'Historie', short: 'Historie', icon: NAV_ICONS.races, color: AREA.history, match: (p: string) => /^\/(historie|statistik|lauf)/.test(p) },
 ]
 
-/** Fahrer-Gruppe: führt zurück zu dem, was zuletzt offen war (Fahrer oder Autos), und zeigt das passende Symbol */
+/** Stats-Gruppe: führt zurück zu dem, was zuletzt offen war (Fahrer oder Autos), in dessen Farbe */
 function useNavItems(pathname: string) {
   const [field, setField] = useStored<'fahrer' | 'autos'>('nav:field', 'fahrer')
   const now = pathname.startsWith('/autos') ? 'autos' : pathname.startsWith('/fahrer') ? 'fahrer' : null
@@ -25,7 +25,7 @@ function useNavItems(pathname: string) {
     if (now && now !== field) setField(now)
   }, [now, field, setField])
   const cars = (now ?? field) === 'autos'
-  return ITEMS.map((it) => (it.to === '/fahrer' ? { ...it, to: cars ? '/autos' : '/fahrer', short: cars ? 'Autos' : 'Fahrer', icon: cars ? NAV_ICONS.cars : NAV_ICONS.drivers, color: cars ? AREA.cars : AREA.drivers } : it))
+  return ITEMS.map((it) => (it.to === '/fahrer' ? { ...it, to: cars ? '/autos' : '/fahrer', color: cars ? AREA.cars : AREA.drivers } : it))
 }
 
 export function Layout() {
