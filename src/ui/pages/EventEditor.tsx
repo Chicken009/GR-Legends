@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { eventSessions } from '../../data/useRaceDays'
 import { isGuest } from '../../domain/drivers'
 import { eventContext, typicalLapMs } from '../../domain/event/context'
-import { teamsAsDefs, teamSplit, type Heat } from '../../domain/event/engine'
+import { teamsAsDefs, teamSplit, type Heat, type TeamPlan } from '../../domain/event/engine'
 import { todayIso } from '../../domain/event/insights'
 import { eventSlug, normalizeEvent, serializeEvent } from '../../domain/event/normalize'
 import { newSeed } from '../../domain/event/random'
@@ -338,6 +338,7 @@ export function EventEditor() {
             index={i}
             count={def.sections.length}
             def={def}
+            plan={state.sections[i]?.teamPlan}
             onChange={(patch) => updateSection(i, patch)}
             onMove={(dir) =>
               setDef((d) => {
@@ -695,7 +696,7 @@ function TeamEditor({ def, update, teams, warnings }: { def: EventDef; update: (
   )
 }
 
-function SectionEditor({ sec, index, count, def, onChange, onMove, onRemove }: { sec: SectionDef; index: number; count: number; def: EventDef; onChange: (p: Partial<SectionDef>) => void; onMove: (dir: -1 | 1) => void; onRemove: () => void }) {
+function SectionEditor({ sec, index, count, def, plan, onChange, onMove, onRemove }: { sec: SectionDef; index: number; count: number; def: EventDef; plan?: TeamPlan; onChange: (p: Partial<SectionDef>) => void; onMove: (dir: -1 | 1) => void; onRemove: () => void }) {
   const per = sec.maxPerHeat ?? def.maxPerHeat
   return (
     <div className="inner" style={{ padding: 12, borderRadius: 14, display: 'flex', flexDirection: 'column', gap: 12, border: '1px solid var(--line-2)' }}>
@@ -760,6 +761,7 @@ function SectionEditor({ sec, index, count, def, onChange, onMove, onRemove }: {
           </Group>
         )}
       </div>
+      {sec.format === 'team' && plan && <TeamPlanHint plan={plan} sec={sec} onChange={onChange} />}
       {sec.format !== 'free' && (
         <label className="check" style={{ alignSelf: 'flex-start', background: 'var(--card)' }}>
           <input type="checkbox" checked={sec.cars != null} onChange={(e) => onChange({ cars: e.target.checked ? JSON.parse(JSON.stringify(def.cars)) : undefined })} />
@@ -768,6 +770,36 @@ function SectionEditor({ sec, index, count, def, onChange, onMove, onRemove }: {
       )}
       {sec.cars && <CarRuleEditor rule={sec.cars} onChange={(cars) => onChange({ cars })} drivers={def.drivers} />}
       {sec.format === 'custom' && <CustomHeats sec={sec} def={def} onChange={onChange} />}
+    </div>
+  )
+}
+
+const TEAM_PLAN_TEXT: Record<TeamPlan['mode'], string> = {
+  all: 'alle Teams zusammen',
+  pairs: 'jedes Team einmal gegen jedes',
+  groups: 'jedes Team einmal, Gruppen je Durchgang neu gemischt',
+  slots: 'die Nr. 1 jedes Teams gegeneinander, dann die Nr. 2 usw.',
+}
+
+/** Wie viele Rennen ein Durchgang hat; bei Paarungen optional nur ein halber Durchgang */
+function TeamPlanHint({ plan, sec, onChange }: { plan: TeamPlan; sec: SectionDef; onChange: (p: Partial<SectionDef>) => void }) {
+  const rounds = sec.rounds ?? 1
+  const half = plan.halfPossible && rounds === 1 && !!sec.half
+  const halfCount = plan.halfCount
+  const total = half ? null : plan.perRound * rounds
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <span style={{ fontSize: 12, color: 'var(--text-2)', lineHeight: 1.45 }}>
+        1 Durchgang = {plan.perRound} Rennen ({TEAM_PLAN_TEXT[plan.mode]}){total != null && rounds > 1 ? ` · insgesamt ${total} Rennen` : ''}
+        {half && ` · halber Durchgang: ${halfCount} Rennen, Gegner nach Elo ausgeglichen`}
+      </span>
+      {plan.halfPossible && rounds === 1 && (
+        <label className="check" style={{ alignSelf: 'flex-start', background: 'var(--card)' }}>
+          <input type="checkbox" checked={!!sec.half} onChange={(e) => onChange({ half: e.target.checked || undefined })} />
+          Nur halber Durchgang
+        </label>
+      )}
+      {(total ?? halfCount) > 20 && <span style={{ fontSize: 12, color: 'var(--crash)' }}>Das sind sehr viele Rennen – weniger Teams, größere Teams oder ein halber Durchgang verkürzen den Abschnitt.</span>}
     </div>
   )
 }

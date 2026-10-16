@@ -83,8 +83,10 @@ export interface SectionDef {
   cars?: CarRule
   /** Runden pro Lauf – zur Anzeige und für die Zeitschätzung */
   laps?: number
-  /** races / team: Durchgänge */
+  /** races / team: Durchgänge (team mit zwei Teams je Lauf: 1 Durchgang = jedes Team einmal gegen jedes) */
   rounds?: number
+  /** team mit zwei Teams je Lauf, 1 Durchgang: nur etwa die Hälfte der Paarungen, Gegner nach Elo ausgeglichen */
+  half?: boolean
   /** ladder / ko: so viele kommen pro Lauf weiter */
   advance?: number
   /** custom: Läufe mit festen Fahrern */

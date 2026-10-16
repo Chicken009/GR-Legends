@@ -316,7 +316,7 @@ export function rulesText(def: EventDef, state: EventState): string[] {
           : d.format === 'ko'
             ? `die besten ${d.advance ?? 1} je Lauf kommen weiter`
             : d.format === 'team'
-              ? 'jedes Team bekommt den Schnitt seiner Fahrer, alle Mitglieder die Teampunkte'
+              ? `${s.teamPlan?.mode === 'pairs' ? (d.half && (d.rounds ?? 1) === 1 ? 'ein halber Durchgang, Gegner nach Elo ausgeglichen; ' : `jedes Team ${d.rounds && d.rounds > 1 ? `${d.rounds}× ` : ''}gegen jedes; `) : ''}jedes Team bekommt den Schnitt seiner Fahrer, alle Mitglieder die Teampunkte. Läufe mit weniger Fahrern und Pausen werden hochgerechnet`
               : d.format === 'races'
                 ? `${d.rounds ?? 1} ${d.rounds === 1 ? 'Durchgang' : 'Durchgänge'}, Punkte addiert`
                 : 'Punkte addiert'
