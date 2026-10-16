@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { CAREER_XP, PLACEMENT_RUNS, type Medal } from '../../domain/model'
 import { AREA } from '../colors'
-import { Avatar, carPath, driverPath, PeriodTabs, Segment, Sheet, Tile, useData, useMyName } from '../components'
+import { Avatar, carPath, driverPath, PeriodTabs, Placement, Segment, Sheet, Tile, useData, useMyName } from '../components'
+import { isQuali } from '../../domain/rating'
 import { CarThumb } from '../CarPhoto'
 import { LineChart, type LinePoint } from '../charts/LineChart'
 import { TimeTrendChart } from '../charts/TimeTrendChart'
@@ -22,6 +23,7 @@ export function DriverProfile({ onClose }: { onClose: () => void }) {
   const [chart, setChart] = useState<'elo' | 'rank' | 'lap'>('elo')
   const [period, setPeriod] = useState('all')
   const [showOpponents, setShowOpponents] = useState(false)
+  const [showRaces, setShowRaces] = useState(false)
   const driver = decodeURIComponent(name)
   const d = model.stats('all').drivers.get(driver)
   const history = model.rating.history.get(driver) ?? []
@@ -201,7 +203,12 @@ export function DriverProfile({ onClose }: { onClose: () => void }) {
       <TipCarousel tips={tips} accent={ACCENT} />
 
       <section className="inner" style={{ gap: 2 }}>
-        <span style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Letzte Rennen</span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+          <span style={{ fontSize: 14, fontWeight: 600 }}>Letzte Rennen</span>
+          <button className="btn" style={{ minHeight: 32, padding: '4px 12px', borderRadius: 999, fontSize: 12, fontWeight: 600 }} onClick={() => setShowRaces(true)}>
+            Alle Rennen ›
+          </button>
+        </div>
         {d.raceResults
           .slice(-6)
           .reverse()
@@ -224,7 +231,76 @@ export function DriverProfile({ onClose }: { onClose: () => void }) {
             </button>
           ))}
       </section>
+
+      {showRaces && (
+        <Sheet onClose={() => setShowRaces(false)} label={`Alle Rennen von ${driver}`}>
+          <AllRaces driver={driver} />
+        </Sheet>
+      )}
     </Sheet>
+  )
+}
+
+/** Alle Läufe eines Fahrers, nach Renntag gruppiert, neueste zuerst */
+function AllRaces({ driver }: { driver: string }) {
+  const { model } = useData()
+  const navigate = useNavigate()
+  const [kind, setKind] = useState<'all' | 'race' | 'quali'>('all')
+  const delta = new Map((model.rating.history.get(driver) ?? []).map((e) => [`${e.fileId}|${e.car}`, e.delta]))
+  const runs = model.sessions
+    .flatMap((session) => session.results.filter((r) => r.driver === driver).map((result) => ({ session, result, quali: isQuali(session) })))
+    .sort((a, b) => b.session.date.localeCompare(a.session.date) || b.session.createdTime.localeCompare(a.session.createdTime))
+  const shown = runs.filter((r) => kind === 'all' || (kind === 'quali') === r.quali)
+  const races = runs.filter((r) => !r.quali)
+  const days = new Map<string, typeof shown>()
+  for (const r of shown) days.set(r.session.date, [...(days.get(r.session.date) ?? []), r])
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 800 }}>Alle Rennen</h1>
+        <span style={{ fontSize: 13, color: 'var(--muted)' }}>
+          {driver} · {races.length} Rennen · {runs.length - races.length} Qualis · {races.filter((r) => r.result.position === 1).length} Siege
+        </span>
+      </div>
+      <Segment value={kind} onChange={setKind} label="Laufart" small options={[['all', 'Alle'], ['race', 'Rennen'], ['quali', 'Qualis']]} />
+      {shown.length === 0 && <p className="muted" style={{ margin: 0, fontSize: 13 }}>Keine Läufe.</p>}
+      {[...days].map(([date, list]) => (
+        <section key={date} className="inner" style={{ gap: 2 }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)', letterSpacing: 0.5, marginBottom: 2 }}>{formatDate(date)}</span>
+          {list.map(({ session, result }) => {
+            const placing = model.placement(driver, session.fileId)
+            const dl = delta.get(`${session.fileId}|${result.car}`)
+            return (
+              <button key={session.fileId + result.car} className="row" style={{ border: 'none', background: 'none', textAlign: 'left', padding: '6px 0' }} onClick={() => navigate(`/lauf/${session.fileId}`)}>
+                <span className={`rank${result.position <= 3 ? ` r${result.position}` : ''}`} style={{ minWidth: 26 }}>
+                  P{result.position}
+                </span>
+                <span className="grow">
+                  <span className="name" style={{ fontWeight: 500 }}>
+                    {session.type} {session.heat}
+                  </span>
+                  <span className="sub">
+                    {result.car} · {session.results.length} Fahrer
+                  </span>
+                </span>
+                <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
+                  <span className="num" style={{ fontSize: 12, color: 'var(--muted)' }}>
+                    {formatTime(result.validBestLapMs)}
+                  </span>
+                  {placing != null ? (
+                    <Placement n={placing} size={11} short />
+                  ) : dl != null ? (
+                    <span className="num" style={{ fontSize: 11, fontWeight: 600, color: dl > 0.5 ? ACCENT : 'var(--muted)' }}>
+                      {fmtDelta(dl)} Elo
+                    </span>
+                  ) : null}
+                </span>
+              </button>
+            )
+          })}
+        </section>
+      ))}
+    </div>
   )
 }
 
