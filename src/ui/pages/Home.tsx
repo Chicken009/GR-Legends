@@ -2,7 +2,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { SEASON_MIN_RACES, type NewsItem } from '../../domain/model'
 import { isGuest } from '../../domain/drivers'
 import { AREA } from '../colors'
-import { driverPath, MeButton, Monogram, useData, useMyName } from '../components'
+import { driverPath, MeButton, Monogram, Placement, useData, useMyName } from '../components'
 import { Chevrons, Crown, RecordFlame, StatusIcons, Trophy } from '../icons'
 import { MedalBadge } from '../Medal'
 import { fmtElo, formatDate, formatTime, plural, shortName } from '../format'
@@ -130,11 +130,15 @@ export function Home() {
                 <span style={{ fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
                   Du · {myRow.name} <StatusIcons list={statuses.get(myRow.name)} size={16} />
                 </span>
-                {above && <span style={{ fontSize: 12, color: 'var(--muted)' }}>{gapText(above.elo - myRow.elo, above.rank)}</span>}
+                {above && model.placement(myRow.name) == null && <span style={{ fontSize: 12, color: 'var(--muted)' }}>{gapText(above.elo - myRow.elo, above.rank)}</span>}
               </div>
-              <span className="num" style={{ fontSize: 15, fontWeight: 700 }}>
-                {fmtElo(myRow.elo)}
-              </span>
+              {model.placement(myRow.name) != null ? (
+                <Placement n={model.placement(myRow.name)!} />
+              ) : (
+                <span className="num" style={{ fontSize: 15, fontWeight: 700 }}>
+                  {fmtElo(myRow.elo)}
+                </span>
+              )}
             </Link>
           )}
           {!me && (
@@ -192,15 +196,21 @@ function SeasonCard() {
       <span className="grow">
         <span className="name">{r.name === me ? `Du · ${r.name}` : r.name}</span>
         <span className="sub">
-          {pos == null
-            ? `${r.races} Rennen · noch ${SEASON_MIN_RACES - r.races} bis zur Wertung`
+          {r.placing != null
+            ? `${r.races} Rennen · Einstufung läuft, zählt danach`
+            : pos == null
+            ? `${r.races} Rennen · noch ${Math.max(1, SEASON_MIN_RACES - r.races)} bis zur Wertung`
             : `${r.races} Rennen · ${fmtElo(r.start)} → ${fmtElo(r.end)}`}
         </span>
       </span>
-      <span className="num" style={{ fontSize: 15, fontWeight: 800, color: r.gain >= 0 ? '#7BDB8A' : 'var(--muted)' }}>
-        {r.gain >= 0 ? '+' : '−'}
-        {Math.abs(Math.round(r.gain))}
-      </span>
+      {r.placing != null ? (
+        <Placement n={r.placing} short />
+      ) : (
+        <span className="num" style={{ fontSize: 15, fontWeight: 800, color: r.gain >= 0 ? '#7BDB8A' : 'var(--muted)' }}>
+          {r.gain >= 0 ? '+' : '−'}
+          {Math.abs(Math.round(r.gain))}
+        </span>
+      )}
     </Link>
   )
   const top = ranked.slice(0, 3)
@@ -216,7 +226,7 @@ function SeasonCard() {
       {top.length === 0 && <p style={{ margin: 0, fontSize: 13, color: 'var(--muted)' }}>Noch niemand hat {SEASON_MIN_RACES} Rennen in dieser Saison.</p>}
       {mine && !top.includes(mine) && line(mine, myPos > 0 ? myPos : null)}
       <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--muted)', lineHeight: 1.45 }}>
-        Jede Saison startet bei null: Wer im Jahr die meisten Punkte dazugewinnt, wird Saisonsieger. Gewertet wird ab {SEASON_MIN_RACES} Rennen.
+        Jede Saison startet bei null: Wer im Jahr die meisten Punkte dazugewinnt, wird Saisonsieger. Gewertet wird ab {SEASON_MIN_RACES} Rennen, bei neuen Fahrern ab dem Ende der Einstufung.
       </p>
     </section>
   )

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { CAREER_XP, type Medal } from '../../domain/model'
+import { CAREER_XP, PLACEMENT_RUNS, type Medal } from '../../domain/model'
 import { AREA } from '../colors'
 import { Avatar, carPath, driverPath, PeriodTabs, Segment, Sheet, Tile, useData, useMyName } from '../components'
 import { CarThumb } from '../CarPhoto'
@@ -9,7 +9,7 @@ import { TimeTrendChart } from '../charts/TimeTrendChart'
 import { ShareIcon, StatusIcons } from '../icons'
 import { TipCarousel } from '../TipCarousel'
 import { MedalBadge, TIERS } from '../Medal'
-import { fmtDelta, fmtElo, fmtNum, fmtPct, formatDate, formatMonth, formatTime } from '../format'
+import { fmtDelta, fmtElo, fmtGapSec, fmtNum, fmtPct, formatDate, formatMonth, formatTime } from '../format'
 import { quantile } from '../../domain/laps'
 
 const ACCENT = AREA.drivers
@@ -39,6 +39,7 @@ export function DriverProfile({ onClose }: { onClose: () => void }) {
   const current = medals.filter((m) => !m.former)
   const rival = model.rival(driver)
   const rivalElo = rival ? model.rating.drivers.get(rival.name) : null
+  const placing = model.placement(driver)
   const goals = model.goals(driver)
   const tips = model.tips(driver)
   const fav = d.favoriteCar ? d.cars.get(d.favoriteCar) : null
@@ -94,7 +95,7 @@ export function DriverProfile({ onClose }: { onClose: () => void }) {
       </div>
 
       <div className="tiles">
-        <Tile value={fmtElo(model.rating.drivers.get(driver))} label="Elo" color={ACCENT} />
+        {placing != null ? <Tile value={`${placing}/${PLACEMENT_RUNS}`} label="Einstufung" color={ACCENT} /> : <Tile value={fmtElo(model.rating.drivers.get(driver))} label="Elo" color={ACCENT} />}
         <Tile value={d.races} label="Rennen" />
         <Tile value={d.wins} label="Siege" />
         <Tile value={fmtPct(d.beatShare)} label="Ø geschlagen" />
@@ -139,12 +140,12 @@ export function DriverProfile({ onClose }: { onClose: () => void }) {
           {rival && (
             <span className="s">
               {rival.wins} : {rival.losses}
-              {rivalElo != null && ` · ${rivalText(rivalElo - (model.rating.drivers.get(driver) ?? 0))}`}
+              {rivalElo != null && placing == null && ` · ${rivalText(rivalElo - (model.rating.drivers.get(driver) ?? 0))}`}
             </span>
           )}
         </Link>
         <button className="inner" onClick={() => setShowOpponents(!showOpponents)} aria-expanded={showOpponents} style={{ border: 'none', textAlign: 'left' }}>
-          <span className="l">Gegner schon besiegt {showOpponents ? '▴' : '▾'}</span>
+          <span className="l">Gegner schon besiegt ›</span>
           <span className="v">
             {d.opponentsBeaten.size} von {d.opponentsMet.size}
           </span>
@@ -159,8 +160,8 @@ export function DriverProfile({ onClose }: { onClose: () => void }) {
         </div>
         <div className="inner">
           <span className="l">Pace</span>
-          <span className="v">{d.pace != null ? `${fmtNum(d.pace)} %` : '–'}</span>
-          <span className="s">der typischen Bestzeit</span>
+          <span className="v">{fmtGapSec(d.paceGap)}</span>
+          <span className="s">{d.paceGap != null && d.paceGap < 0 ? 'pro Runde schneller' : 'pro Runde langsamer'} als die typische Bestzeit</span>
         </div>
         <div className="inner">
           <span className="l">Abflüge</span>
@@ -169,10 +170,14 @@ export function DriverProfile({ onClose }: { onClose: () => void }) {
         </div>
       </div>
       <p style={{ margin: '-4px 2px 0', fontSize: 11, color: 'var(--muted)', lineHeight: 1.45 }}>
-        <b>Ø geschlagen</b>: Anteil des Feldes, den du im Schnitt hinter dir lässt (Platz 2 von 5 = 75 %). <b>Gegner schon besiegt</b>: wie viele verschiedene Gegner du mindestens einmal geschlagen hast – antippen für die Liste.
+        <b>Ø geschlagen</b>: Anteil des Feldes, den du im Schnitt hinter dir lässt (Platz 2 von 5 = 75 %). <b>Gegner schon besiegt</b>: wie viele verschiedene Gegner du mindestens einmal geschlagen hast – antippen für die Übersicht.
       </p>
 
-      {showOpponents && <OpponentList driver={driver} />}
+      {showOpponents && (
+        <Sheet onClose={() => setShowOpponents(false)} label={`Gegner von ${driver}`}>
+          <OpponentList driver={driver} />
+        </Sheet>
+      )}
 
       <CarBests driver={driver} />
 
@@ -249,12 +254,22 @@ function DriverChart({ driver, kind, period }: { driver: string; kind: 'elo' | '
   const history = (model.rating.history.get(driver) ?? []).filter((e) => inP(e.date))
   if (history.length === 0) return <p className="muted" style={{ margin: 0, fontSize: 13 }}>Keine Läufe in diesem Zeitraum.</p>
   if (kind === 'elo') {
-    const ups = [...history.keys()].filter((i) => history[i].delta > 0).sort((a, b) => history[b].delta - history[a].delta).slice(0, 2)
-    const downs = [...history.keys()].filter((i) => history[i].delta < 0).sort((a, b) => history[a].delta - history[b].delta).slice(0, 2)
+    const all = model.rating.history.get(driver) ?? []
+    if (all.length < PLACEMENT_RUNS)
+      return (
+        <p className="muted" style={{ margin: 0, fontSize: 13, lineHeight: 1.45 }}>
+          Noch in der Einstufung ({all.length}/{PLACEMENT_RUNS} Läufe). Die ersten Läufe pendeln die Wertung ein – der Elo-Verlauf erscheint danach.
+        </p>
+      )
+    const placingRun = (e: (typeof history)[number]) => all.indexOf(e) < PLACEMENT_RUNS
+    const ups = [...history.keys()].filter((i) => !placingRun(history[i]) && history[i].delta > 0).sort((a, b) => history[b].delta - history[a].delta).slice(0, 2)
+    const downs = [...history.keys()].filter((i) => !placingRun(history[i]) && history[i].delta < 0).sort((a, b) => history[a].delta - history[b].delta).slice(0, 2)
     const turning = new Set([...ups, ...downs, history.length - 1])
     const points: LinePoint[] = history.map((e, i) => ({
       y: e.after,
-      tip: turning.has(i) ? { title: `${fmtDelta(e.delta)} Elo`, text: e.reason, sub: `${formatDate(e.date)} · ${e.type} · ${e.position}. von ${e.field}`, color: e.delta >= 0 ? ACCENT : '#C5CCD3' } : undefined,
+      tip: placingRun(e)
+        ? { title: `Einstufungslauf ${all.indexOf(e) + 1}/${PLACEMENT_RUNS}`, text: 'Die ersten Läufe pendeln die Wertung ein.', sub: `${formatDate(e.date)} · ${e.type} · ${e.position}. von ${e.field}`, color: '#C5CCD3' }
+        : turning.has(i) ? { title: `${fmtDelta(e.delta)} Elo`, text: e.reason, sub: `${formatDate(e.date)} · ${e.type} · ${e.position}. von ${e.field}`, color: e.delta >= 0 ? ACCENT : '#C5CCD3' } : undefined,
     }))
     const mid = Math.floor(history.length / 2)
     return (
@@ -339,7 +354,7 @@ function DriverChart({ driver, kind, period }: { driver: string; kind: 'elo' | '
           persönliche Bestzeit
         </span>
         <span>
-          <span style={{ width: 14, height: 10, borderRadius: 3, background: 'linear-gradient(180deg, rgba(59,188,74,.4), rgba(59,188,74,.06))' }} />
+          <span style={{ width: 14, height: 10, borderRadius: 3, background: 'linear-gradient(180deg, rgba(59,188,74,0), rgba(59,188,74,.45), rgba(59,188,74,0))' }} />
           deine Spanne (80 % der Runden)
         </span>
         <span>↑ schneller</span>
@@ -426,8 +441,8 @@ function OpponentList({ driver }: { driver: string }) {
     </button>
   )
   return (
-    <section className="inner" style={{ gap: 2 }}>
-      <span style={{ fontSize: 14, fontWeight: 600 }}>Gegner</span>
+    <section style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <h1 style={{ fontSize: 22, fontWeight: 800 }}>Gegner von {driver}</h1>
       <span style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Siege : Niederlagen in gemeinsamen Rennen · antippen zum Vergleichen</span>
       {open.length > 0 && (
         <>

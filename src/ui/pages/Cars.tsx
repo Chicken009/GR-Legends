@@ -8,7 +8,7 @@ import { carPath, PageHead, PeriodTabs, Tile, useData, useMyName, ViewToggle } f
 import { DataTable, type Column } from '../DataTable'
 import { LapHistogram } from '../charts/LapHistogram'
 import { CarSilhouette, Chevrons, ChevronLeft, RecordFlame } from '../icons'
-import { fmtNum, fmtPct, formatTime } from '../format'
+import { fmtGapSec, fmtNum, fmtPct, formatTime } from '../format'
 import { useStored } from '../useStored'
 import { isGuest } from '../../domain/drivers'
 
@@ -57,7 +57,7 @@ export function Cars() {
     { key: 'beat', label: 'Ø geschlagen', title: 'Anteil des Feldes, den man mit diesem Auto im Schnitt hinter sich lässt', value: (c) => c.beatShare, render: (c) => fmtPct(c.beatShare) },
     { key: 'best', label: 'Bestzeit', asc: true, value: (c) => c.bestLapMs, render: (c) => formatTime(c.bestLapMs) },
     { key: 'bestBy', label: 'von', left: true, value: (c) => c.bestBy },
-    { key: 'pace', label: 'Pace', title: 'Ø saubere Runde in % der typischen Streckenbestzeit', asc: true, value: (c) => c.pace, render: (c) => (c.pace != null ? `${fmtNum(c.pace)} %` : '–') },
+    { key: 'pace', label: 'Pace', title: 'Abstand der Ø sauberen Runde zur typischen Bestzeit der Strecke (schnellste 10 % aller Runden); kleiner = schneller', asc: true, value: (c) => c.paceGap, render: (c) => fmtGapSec(c.paceGap) },
     { key: 'spread', label: 'Streuung', title: 'Ø Schwankung der Fahrer mit diesem Auto', asc: true, value: (c) => c.spread, render: (c) => fmtPct(c.spread, 1) },
     { key: 'drivers', label: 'Fahrer', title: 'Verschiedene Fahrer mit diesem Auto', value: (c) => [...c.drivers.keys()].filter((n) => !isGuest(n)).length },
     { key: 'laps', label: 'Runden', value: (c) => c.laps, render: (c) => fmtNum(c.laps, 0) },
@@ -90,6 +90,7 @@ export function Cars() {
       )}
       <div className="legend">
         <span>Rang nach Autowertung: wie stark das Auto die Ergebnisse beeinflusst (ab 3 Rennen)</span>
+        {view === 'table' && <span>Pace = Abstand der Ø sauberen Runde zur typischen Bestzeit der Strecke (Grenze der schnellsten 10 % aller Runden); minus = noch schneller</span>}
         <span>
           <UnderdogBonus bonus={1} compact /> Underdog-Bonus: schwaches Auto, Siege zählen mehr
         </span>

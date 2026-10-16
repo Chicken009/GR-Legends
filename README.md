@@ -141,6 +141,8 @@ Elo-Skala (200 Punkte = Siegchance 10 : 1), damit die Zahlen dreistellig und nah
 bleiben. Das Duell-Ergebnis hängt vom Abstand ab (Runden bzw. Zeit). Die Erwartung kommt aus
 Fahrer- **plus** Autowertung (pro Strecke) – wer im schwächeren Auto gewinnt, bekommt mehr Punkte
 (Underdog-Bonus). Qualifyings zählen halb, Gäste gar nicht, die ersten 5 Läufe doppelt so stark.
+Diese 5 Läufe sind die **Einstufung**: Neue Fahrer sehen statt Elo-Zahl und Veränderung nur
+„Einstufung n/5“, damit niemand mit einem Minus unter dem Startwert einsteigt.
 Die Autowertung hat einen Recency Bias: Ältere Ergebnisse verblassen mit 120 Tagen Halbwertszeit,
 damit sich mechanische Änderungen schnell im Auto-Bonus zeigen.
 
@@ -150,6 +152,11 @@ auf der Strecke über alle Läufe. Gewicht 0,3 eines Laufs, nur als Bonus (nie A
 schneller, steigen alle – die Wertung spiegelt so auch echte Verbesserung wider.
 
 **Saisonwertung**: Pro Jahr zählt, wer die meisten Elo-Punkte dazugewonnen hat (ab 5 Rennen).
+Neue Fahrer zählen ab dem Ende ihrer Einstufung.
+
+**Pace**: Abstand der durchschnittlichen sauberen Runde (Median pro Lauf) zur typischen Bestzeit
+der Strecke (Grenze der schnellsten 10 % aller Runden), in Sekunden (z. B. „+0,62 s“). Kleiner ist
+schneller, ein Minus heißt: im Schnitt sogar schneller als diese Grenze.
 Abgeschlossene Jahre ergeben die Medaille „Saisonsieger“.
 
 **Karriere-Level**: Erfahrungspunkte, die nie verloren gehen – Rennen 10, Renntag 15, Qualifying 4,

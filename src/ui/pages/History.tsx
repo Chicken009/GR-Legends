@@ -4,7 +4,7 @@ import { isGuest } from '../../domain/drivers'
 import { isQuali } from '../../domain/rating'
 import type { RaceDay, Result, Session } from '../../types'
 import { AREA, seriesColors } from '../colors'
-import { carPath, driverPath, PageHead, Rank, useData, useMyName } from '../components'
+import { carPath, driverPath, PageHead, Placement, Rank, useData, useMyName } from '../components'
 import { LapChart, PositionChart } from '../charts/RaceCharts'
 import { ChevronLeft, ChevronRight, Trophy } from '../icons'
 import { fmtDelta, formatDate, formatGap, formatTime, formatTrack, plural, sessionTitle, shortName } from '../format'
@@ -168,7 +168,8 @@ export function RaceView() {
       <section className="card" style={{ padding: 8, gap: 0 }}>
         {session.results.map((r) => {
           const guest = isGuest(r.driver)
-          const d = elo.get(r.driver)
+          const placing = model.placement(r.driver, session.fileId)
+          const d = placing != null ? null : elo.get(r.driver)
           const isMe = r.driver === me
           return (
             <div key={r.driver + r.position} className={`row${isMe ? ' me-row' : ''}`}>
@@ -186,8 +187,8 @@ export function RaceView() {
                   {isQuali(session) ? formatTime(r.validBestLapMs) : gapOf(session, r)}
                 </span>
                 <span className="num" style={{ fontSize: 11, fontWeight: 600, color: d != null && d > 0.5 ? '#7BDB8A' : 'var(--muted)' }}>
-                  {d != null ? `${fmtDelta(d)} Elo` : guest ? 'Gast' : ''}
-                  {!isQuali(session) && r.validBestLapMs === best ? (d != null ? ' · ' : '') : ''}
+                  {placing != null ? <Placement n={placing} size={11} /> : d != null ? `${fmtDelta(d)} Elo` : guest ? 'Gast' : ''}
+                  {!isQuali(session) && r.validBestLapMs === best ? (d != null || placing != null ? ' · ' : '') : ''}
                   {!isQuali(session) && r.validBestLapMs === best && <span style={{ color: 'var(--best)' }}>Bestzeit</span>}
                 </span>
               </div>

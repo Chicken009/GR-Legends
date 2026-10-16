@@ -4,7 +4,7 @@ import { prepare } from '../data/useRaceDays'
 import { fixtureIds, readFixture } from '../test-utils'
 import type { Result, Session } from '../types'
 import { classifyIncidents, hasTankFunction } from './laps'
-import { positionTrace } from './model'
+import { PLACEMENT_RUNS, positionTrace } from './model'
 import { computeRatings, RATING, winChances } from './rating'
 import { buildSession } from './sessions'
 
@@ -178,5 +178,34 @@ describe('Einstellungen', () => {
     const [s] = applySettings([race('abcdefghijk12', '2026-01-01', [['Jo', 'Ferrari 458 Italia', 10], ['Jo', 'X', 9], ['Oma', 'X', 8], ['Gast 2', 'X', 7]])], settings)
     expect(s.results.map((r) => r.driver)).toEqual(['Mika', 'Anton Berger', 'Gast (Oma)', 'Gast 2'])
     expect(s.results[0].car).toBe('Ferrari 458')
+  })
+})
+
+describe('Einstufung und Pace', () => {
+  const { model } = prepare(fixtureSessions(), EMPTY_SETTINGS)
+
+  it('meldet die Einstufung nur für die ersten Läufe', () => {
+    for (const [name, h] of model.rating.history) {
+      expect(model.placement(name)).toBe(h.length < PLACEMENT_RUNS ? h.length : null)
+      expect(model.placement(name, h[0].fileId)).toBe(1)
+      if (h.length > PLACEMENT_RUNS) expect(model.placement(name, h[h.length - 1].fileId)).toBeNull()
+    }
+  })
+
+  it('lässt neue Fahrer in der Saison erst nach der Einstufung zählen', () => {
+    for (const y of model.years) {
+      for (const r of model.season(y)) {
+        if (r.placing != null) expect(r.gain).toBe(0)
+        const h = model.rating.history.get(r.name)!
+        const placed = h[PLACEMENT_RUNS - 1]
+        if (placed && placed.date.startsWith(y)) expect(r.start).toBe(placed.after)
+      }
+    }
+  })
+
+  it('gibt die Pace als Abstand in Millisekunden an', () => {
+    const paces = [...model.stats('all').drivers.values()].map((d) => d.paceGap).filter((v): v is number => v != null)
+    expect(paces.length).toBeGreaterThan(0)
+    for (const g of paces) expect(Math.abs(g)).toBeLessThan(10_000)
   })
 })

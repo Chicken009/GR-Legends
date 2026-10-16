@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { careerTitle as titleFor, TIER_ORDER, type Medal } from '../domain/model'
-import { useData, useMyName } from './components'
+import { Placement, useData, useMyName } from './components'
 import { Chevrons } from './icons'
 import { MedalArt, TIERS } from './Medal'
 import { fmtDelta, fmtElo } from './format'
@@ -60,6 +60,7 @@ export function Celebration() {
   const hist = model.rating.history.get(me) ?? []
   const last = hist[hist.length - 1]
   const rank = model.ranking('all').find((r) => r.name === me)?.rank
+  const placing = model.placement(me)
   const next = () => {
     const seen = readSeen(me) ?? new Set<string>()
     seen.add(medal.id)
@@ -96,13 +97,19 @@ export function Celebration() {
       </div>
       {last && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--nav)', border: '1px solid #262B33', borderRadius: 16, padding: '10px 14px', boxShadow: 'var(--sh1)' }}>
-          <span style={{ fontSize: 13, color: 'var(--muted)' }}>Elo</span>
-          <span className="num" style={{ fontSize: 18, fontWeight: 800 }}>
-            {fmtElo(last.after)}
-          </span>
-          <span style={{ fontSize: 14, fontWeight: 700, color: last.delta >= 0 ? 'var(--me)' : 'var(--muted)' }}>{fmtDelta(last.delta)}</span>
-          {last.delta > 0 && <Chevrons value={1} size={20} />}
-          {rank && <span style={{ fontSize: 13, color: 'var(--muted)' }}>Platz {rank}</span>}
+          {placing != null ? (
+            <Placement n={placing} size={14} />
+          ) : (
+            <>
+              <span style={{ fontSize: 13, color: 'var(--muted)' }}>Elo</span>
+              <span className="num" style={{ fontSize: 18, fontWeight: 800 }}>
+                {fmtElo(last.after)}
+              </span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: last.delta >= 0 ? 'var(--me)' : 'var(--muted)' }}>{fmtDelta(last.delta)}</span>
+              {last.delta > 0 && <Chevrons value={1} size={20} />}
+              {rank && <span style={{ fontSize: 13, color: 'var(--muted)' }}>Platz {rank}</span>}
+            </>
+          )}
         </div>
       )}
       <div style={{ display: 'flex', gap: 10, width: '100%', maxWidth: 400, marginTop: 8 }}>

@@ -1,5 +1,7 @@
-import { createContext, useContext, useEffect, useRef, type CSSProperties, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useId, useRef, type CSSProperties, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import type { AppData } from '../data/useRaceDays'
+import { PLACEMENT_RUNS } from '../domain/model'
 import { ChevronDown, StrokeIcon } from './icons'
 import { initials } from './format'
 import { useMe } from './me'
@@ -134,16 +136,20 @@ export function Sheet({ onClose, children, actions, label }: { onClose: () => vo
   const drag = useRef<{ startY: number; startT: number; dy: number } | null>(null)
   const closing = useRef(false)
 
+  const id = useId()
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    // Mehrere Panels übereinander: Esc schließt nur das oberste
+    sheetStack.push(id)
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && sheetStack[sheetStack.length - 1] === id && onClose()
     window.addEventListener('keydown', onKey)
     const prev = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     return () => {
+      sheetStack.splice(sheetStack.indexOf(id), 1)
       window.removeEventListener('keydown', onKey)
       document.body.style.overflow = prev
     }
-  }, [onClose])
+  }, [onClose, id])
 
   // Ziehen: Panel folgt dem Finger, Hintergrund wird heller; weit oder schnell genug → schließen
   const begin = (y: number) => {
@@ -220,7 +226,8 @@ export function Sheet({ onClose, children, actions, label }: { onClose: () => vo
     }
   })
 
-  return (
+  // Über ein Portal direkt in <body>, damit Panels auch in anderen Panels richtig liegen
+  return createPortal(
     <div ref={backdropRef} className="sheet-backdrop" onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div ref={sheetRef} className="sheet" role="dialog" aria-modal="true" aria-label={label}>
         <div
@@ -248,7 +255,19 @@ export function Sheet({ onClose, children, actions, label }: { onClose: () => vo
           {children}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
+  )
+}
+
+const sheetStack: string[] = []
+
+/** Neue Fahrer: statt Elo-Zahl und Veränderung nur der Fortschritt der Einstufung */
+export function Placement({ n, size = 12, short }: { n: number; size?: number; short?: boolean }) {
+  return (
+    <span title="Die ersten Läufe dienen der Einstufung – die Wertung pendelt sich erst ein" style={{ fontSize: size, fontWeight: 600, color: 'var(--muted)', whiteSpace: 'nowrap' }}>
+      {short ? 'Einst.' : 'Einstufung'} {n}/{PLACEMENT_RUNS}
+    </span>
   )
 }
 
