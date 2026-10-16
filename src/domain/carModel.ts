@@ -7,8 +7,9 @@ import { isGuest } from './drivers'
  * Jedes Ergebnis liefert eine Beobachtung y (z. B. log der Ø Rundenzeit). Modell:
  *   y = Lauf + Fahrer + Auto
  * Der Lauf fängt Bahnzustand und Tagesform ab, der Fahrer sein Können. Übrig bleibt, was das Auto
- * ausmacht – gelernt vor allem aus Fahrern, die verschiedene Autos gefahren sind. Neuere Läufe
- * zählen stärker (Halbwertszeit), Autos mit wenig Daten werden Richtung Durchschnitt gezogen.
+ * ausmacht – gelernt vor allem aus Fahrern, die verschiedene Autos gefahren sind. Alle Läufe zählen,
+ * gleichbleibende neue Entwicklungen zusätzlich als Trend. Autos mit wenig Daten werden Richtung
+ * Durchschnitt gezogen.
  */
 export interface CarObs {
   session: string
@@ -30,16 +31,21 @@ export interface CarFit {
 
 const daysBetween = (a: string, b: string) => (Date.parse(b) - Date.parse(a)) / 86_400_000
 
-export function fitCars(obs: CarObs[], asOf: string, halfLifeDays: number, prior: number, iterations = 40): CarFit {
-  const rows = obs
-    .filter((o) => o.date <= asOf)
-    .map((o) => ({ ...o, w: o.w * 0.5 ** (Math.max(0, daysBetween(o.date, asOf)) / halfLifeDays) }))
+/**
+ * Zwei Stufen:
+ * 1. Grundwert aus allen Läufen, alle gleich gewichtet – alte Daten zählen weiter voll.
+ * 2. Trend: Was das Auto in neueren Läufen (Halbwertszeit) anders macht als sein Grundwert.
+ *    Der Trend wird stark zum Grundwert gezogen (`trendPrior`): Ein einzelner Ausreißer bewegt
+ *    kaum etwas, erst eine über mehrere Rennen gleichbleibende Entwicklung setzt sich durch.
+ */
+export function fitCars(obs: CarObs[], asOf: string, halfLifeDays: number, prior: number, trendPrior: number, iterations = 40): CarFit {
+  const rows = obs.filter((o) => o.date <= asOf)
   const S = new Map<string, number>()
   const D = new Map<string, number>()
   const C = new Map<string, number>()
   const weight = new Map<string, number>()
   for (const o of rows) weight.set(o.car, (weight.get(o.car) ?? 0) + o.w)
-  const step = (key: (o: (typeof rows)[number]) => string, M: Map<string, number>, rest: (o: (typeof rows)[number]) => number, shrink: number) => {
+  const step = (key: (o: CarObs) => string, M: Map<string, number>, rest: (o: CarObs) => number, shrink: number) => {
     const acc = new Map<string, [number, number]>()
     for (const o of rows) {
       const a = acc.get(key(o)) ?? [0, 0]
@@ -54,18 +60,31 @@ export function fitCars(obs: CarObs[], asOf: string, halfLifeDays: number, prior
     step((o) => o.driver, D, (o) => (S.get(o.session) ?? 0) + (C.get(o.car) ?? 0), 0)
     step((o) => o.car, C, (o) => (S.get(o.session) ?? 0) + (D.get(o.driver) ?? 0), prior)
   }
+  // Trend: Restabweichung der neueren Läufe, zeitlich gewichtet und stark geglättet
+  const trend = new Map<string, [number, number]>()
+  for (const o of rows) {
+    const w = o.w * 0.5 ** (Math.max(0, daysBetween(o.date, asOf)) / halfLifeDays)
+    const a = trend.get(o.car) ?? [0, 0]
+    a[0] += w * (o.y - (S.get(o.session) ?? 0) - (D.get(o.driver) ?? 0) - (C.get(o.car) ?? 0))
+    a[1] += w
+    trend.set(o.car, a)
+  }
+  const total = new Map([...C].map(([k, v]) => {
+    const [sum, w] = trend.get(k) ?? [0, 0]
+    return [k, v + sum / (w + trendPrior)] as const
+  }))
   // Durchschnittliches Auto je Strecke = 0 (gewichtet nach Einsatz)
   const track = (key: string) => key.split('\u0000')[0]
   const mean = new Map<string, [number, number]>()
   for (const o of rows) {
     const t = track(o.car)
     const a = mean.get(t) ?? [0, 0]
-    a[0] += o.w * (C.get(o.car) ?? 0)
+    a[0] += o.w * (total.get(o.car) ?? 0)
     a[1] += o.w
     mean.set(t, a)
   }
   const effect = new Map<string, number>()
-  for (const [k, v] of C) {
+  for (const [k, v] of total) {
     const [sum, w] = mean.get(track(k)) ?? [0, 1]
     effect.set(k, v - sum / w)
   }
@@ -142,10 +161,11 @@ export function estimateCars(
   asOf: string,
   halfLifeDays: number,
   prior: { pace: number; crash: number },
+  trendPrior: { pace: number; crash: number },
 ): CarEstimate {
-  const p = fitCars(pace, asOf, halfLifeDays, prior.pace)
+  const p = fitCars(pace, asOf, halfLifeDays, prior.pace, trendPrior.pace)
   // Abflüge streuen stark und hängen kaum am Auto – deshalb deutlich stärker zum Schnitt gezogen
-  const c = fitCars(crash, asOf, halfLifeDays, prior.crash)
+  const c = fitCars(crash, asOf, halfLifeDays, prior.crash, trendPrior.crash)
   const total = new Map<string, number>()
   for (const key of new Set([...p.effect.keys(), ...c.effect.keys()])) {
     const k = cost.get(key.split('\u0000')[0]) ?? 0

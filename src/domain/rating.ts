@@ -28,10 +28,16 @@ export const RATING = {
    */
   carPrior: { pace: 2, crash: 15 },
   /**
-   * Recency Bias der Autowertung: Ältere Läufe verblassen mit dieser Halbwertszeit (Tage).
-   * So zeigen sich mechanische Verbesserungen oder Verschleiß schnell im Auto-Bonus.
+   * Trend der Autowertung: Neuere Läufe können den Grundwert (aus allen Läufen) verschieben, aber
+   * erst, wenn die Entwicklung über mehrere Rennen gleich bleibt – so viele Läufe braucht ein Trend
+   * für die halbe Wirkung.
    */
-  carHalfLifeDays: 180,
+  carTrendPrior: { pace: 4, crash: 30 },
+  /**
+   * Halbwertszeit (Tage) für den Trend der Autowertung: So zeigen sich mechanische Verbesserungen
+   * oder Verschleiß, ohne dass alte Läufe verloren gehen.
+   */
+  carHalfLifeDays: 120,
   /**
    * Duell gegen die Bahn: Zusätzlich zu den Duellen gegeneinander fährt jeder gegen einen festen
    * Maßstab (Startwert) – gewonnen, wenn die eigene saubere Runde schneller ist als die typische
@@ -143,7 +149,7 @@ export function computeRatings(sessions: Session[], cfg = RATING): RatingResult 
   const refit = (asOf: string, inclusive: boolean) => {
     const before = (o: CarObs) => (inclusive ? o.date <= asOf : o.date < asOf)
     cars.clear()
-    const est = estimateCars(paceObs.filter(before), crashObs.filter(before), cost, asOf, cfg.carHalfLifeDays, cfg.carPrior)
+    const est = estimateCars(paceObs.filter(before), crashObs.filter(before), cost, asOf, cfg.carHalfLifeDays, cfg.carPrior, cfg.carTrendPrior)
     for (const [k, e] of est.total) cars.set(k, -e * 100 * cfg.carEloPerPct)
   }
   let fittedFor = ''

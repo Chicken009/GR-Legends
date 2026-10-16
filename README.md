@@ -154,8 +154,10 @@ sind. Zwei Teile:
   Schnitt gezogen.
 
 1 % schnellere Runden ≈ 8 Elo-Punkte (abgeleitet aus Tempo und Wertung der Fahrer). Vor jedem
-Renntag wird nur aus früheren Läufen geschätzt. Recency Bias: Ältere Läufe verblassen mit 180 Tagen
-Halbwertszeit, damit sich mechanische Änderungen schnell zeigen. Underdog-Bonus ab 6 Punkten unter
+Renntag wird nur aus früheren Läufen geschätzt. Über die Zeit: Der Grundwert kommt aus allen Läufen
+(alte zählen voll), dazu ein Trend aus den neueren Läufen (Halbwertszeit 120 Tage). Der Trend setzt
+sich erst durch, wenn er über mehrere Rennen gleich bleibt (halbe Wirkung nach ca. 4 Läufen) –
+so zeigen sich mechanische Änderungen, einzelne Ausreißer aber kaum. Underdog-Bonus ab 6 Punkten unter
 dem Schnitt (≈ 0,75 % langsamer).
 
 **Duell gegen die Bahn**: Zusätzlich fährt jeder in jedem Lauf gegen einen festen Maßstab (Startwert
