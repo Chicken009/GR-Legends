@@ -10,8 +10,9 @@ import { Avatar, carPath, driverPath, PageHead, Segment, useData, useMyName } fr
 import { formatDate } from '../format'
 import { MedalBadge } from '../Medal'
 import { useStored } from '../useStored'
+import { byProgress, ChallengeItem } from '../ChallengeItem'
 
-const ACCENT = AREA.drivers
+const ACCENT = AREA.season
 const CURRENT_YEAR = String(new Date().getFullYear())
 
 type Tab = 'fahrer' | 'autos' | 'awards' | 'challenges'
@@ -21,7 +22,15 @@ export function Season() {
   const { model } = useData()
   const navigate = useNavigate()
   const year = model.years.includes(yearParam) ? yearParam : model.years[0]
-  const [tab, setTab] = useStored<Tab>('season:tab', 'fahrer')
+  const location = useLocation()
+  const [storedTab, setStoredTab] = useStored<Tab>('season:tab', 'fahrer')
+  // Link mit state { tab } (z. B. von der Startseite) öffnet direkt diesen Reiter
+  const stateTab = (location.state as { tab?: Tab } | null)?.tab
+  const tab = stateTab ?? storedTab
+  const setTab = (t: Tab) => {
+    setStoredTab(t)
+    if (stateTab) navigate(location.pathname, { replace: true, state: null })
+  }
   if (!year) return <div className="page"><p className="muted">Noch keine Rennen.</p></div>
   const running = year >= CURRENT_YEAR
   return (
@@ -257,41 +266,31 @@ function Challenges({ year }: { year: string }) {
   const drivers = model.season(year).map((r) => r.name)
   const mine = me && drivers.includes(me) ? model.challenges(me, year) : null
   const all = drivers.map((n) => ({ n, list: model.challenges(n, year) }))
-  const ref = mine ?? all[0]?.list ?? []
+  const doneBy = (id: string) => all.filter((x) => x.list.find((c) => c.id === id)?.done).map((x) => x.n)
+  // mit Namen: nach eigenem Fortschritt, sonst danach, wie viele es geschafft haben
+  const list = mine ? [...mine].sort(byProgress) : [...(all[0]?.list ?? [])].sort((a, b) => doneBy(b.id).length - doneBy(a.id).length)
+  const doneCount = mine?.filter((c) => c.done).length ?? 0
   return (
-    <>
-      <section className="card" style={{ gap: 10 }}>
-        <div className="card-head">
-          <span className="card-title">{mine ? 'Deine Challenges' : 'Challenges'}</span>
-          <span className="hint">je +{CHALLENGE_XP} XP</span>
-        </div>
-        {!me && <p style={{ margin: 0, fontSize: 12, color: 'var(--muted)' }}>Oben rechts auswählen, wer du bist – dann siehst du deinen Fortschritt.</p>}
-        {ref.map((c, i) => {
-          const doneBy = all.filter((x) => x.list[i]?.done).map((x) => x.n)
-          return (
-            <div key={c.id} style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'baseline' }}>
-                <span style={{ fontSize: 14, fontWeight: 700 }}>
-                  {mine && c.done ? '✓ ' : ''}
-                  {c.label}
-                </span>
-                {mine && (
-                  <span className="num" style={{ fontSize: 12, color: c.done ? ACCENT : 'var(--muted)' }}>
-                    {c.value} / {c.target}
-                  </span>
-                )}
-              </div>
-              <span style={{ fontSize: 12, color: 'var(--muted)' }}>{c.detail}</span>
-              {mine && (
-                <span className="bar" style={{ width: '100%', height: 6 }}>
-                  <span style={{ width: `${(c.value / c.target) * 100}%`, borderRadius: 3, background: c.done ? ACCENT : '#5B6573' }} />
-                </span>
-              )}
+    <section className="card" style={{ gap: 10 }}>
+      <div className="card-head">
+        <span className="card-title">{mine ? 'Deine Challenges' : 'Challenges'}</span>
+        <span className="hint">{mine ? `${doneCount} von ${mine.length} geschafft · ${doneCount * CHALLENGE_XP} XP` : `je +${CHALLENGE_XP} XP`}</span>
+      </div>
+      {!me && <p style={{ margin: 0, fontSize: 12, color: 'var(--muted)' }}>Oben rechts auswählen, wer du bist – dann siehst du deinen Fortschritt.</p>}
+      {list.map((c) => {
+        const names = doneBy(c.id)
+        return (
+          <ChallengeItem
+            key={c.id}
+            c={mine ? c : { ...c, done: false }}
+            accent={ACCENT}
+            showProgress={!!mine}
+            footer={
               <span style={{ fontSize: 11, color: 'var(--faint)' }}>
-                {doneBy.length ? (
+                {names.length ? (
                   <>
                     Geschafft:{' '}
-                    {doneBy.map((n, k) => (
+                    {names.map((n, k) => (
                       <span key={n}>
                         {k > 0 && ', '}
                         <Link to={driverPath(n)} state={{ bg: location }} style={{ color: n === me ? 'var(--me)' : 'var(--text-2)' }}>
@@ -304,10 +303,10 @@ function Challenges({ year }: { year: string }) {
                   'Noch niemand geschafft'
                 )}
               </span>
-            </div>
-          )
-        })}
-      </section>
-    </>
+            }
+          />
+        )
+      })}
+    </section>
   )
 }

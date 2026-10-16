@@ -61,6 +61,8 @@ export const NAV_ICONS = {
   cars: 'M22.2 17.6h-3M14.6 17.2h-5.4M20.4 15.4l-3.8-2.2h-5.4l-1.9-1.6h-3.5l-.9-3.6h-3.2v7.4M12.4 13.2c-.5-1-1.4-1.7-2.5-1.7M17.4 14.5a2.6 2.6 0 1 1-.01 0M6.6 14.5a2.6 2.6 0 1 1-.01 0',
   history: 'M9 6h11M9 12h11M9 18h11M4 6h1M4 12h1M4 18h1',
   stats: 'M6 20V10M12 20V4M18 20v-7M3 20h18',
+  season: 'M8 4h8v5a4 4 0 0 1-8 0zM8 6H5v1a3 3 0 0 0 3 3M16 6h3v1a3 3 0 0 1-3 3M12 13v4M9 20h6M10 17h4',
+  races: 'M5 21V4M5 4h12l-2.5 4L17 12H5',
 }
 
 export function StrokeIcon({ d, size = 22, color = 'currentColor', width = 2 }: { d: string; size?: number; color?: string; width?: number }) {
