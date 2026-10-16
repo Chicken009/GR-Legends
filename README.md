@@ -143,8 +143,20 @@ Fahrer- **plus** Autowertung (pro Strecke) – wer im schwächeren Auto gewinnt,
 (Underdog-Bonus). Qualifyings zählen halb, Gäste gar nicht, die ersten 5 Läufe doppelt so stark.
 Diese 5 Läufe sind die **Einstufung**: Neue Fahrer sehen statt Elo-Zahl und Veränderung nur
 „Einstufung n/5“, damit niemand mit einem Minus unter dem Startwert einsteigt.
-Die Autowertung hat einen Recency Bias: Ältere Ergebnisse verblassen mit 120 Tagen Halbwertszeit,
-damit sich mechanische Änderungen schnell im Auto-Bonus zeigen.
+
+**Autowertung**: Sie kommt aus den Runden, nicht aus den Ergebnissen. Modell je Strecke:
+Rundenzeit = Lauf + Fahrer + Auto. Der Lauf fängt Bahnzustand und Tagesform ab, der Fahrer sein
+Können – übrig bleibt, was das Auto ausmacht, gelernt aus Fahrern, die verschiedene Autos gefahren
+sind. Zwei Teile:
+- **Tempo**: Ø saubere Runde gegenüber dem Ø Auto.
+- **Abflüge** pro 100 Runden (Rennen ohne Tank), eingerechnet mit dem typischen Zeitverlust eines
+  Abflugs. Abflüge sind pro Auto kaum verlässlich messbar (viel Zufall) und werden deshalb stark zum
+  Schnitt gezogen.
+
+1 % schnellere Runden ≈ 8 Elo-Punkte (abgeleitet aus Tempo und Wertung der Fahrer). Vor jedem
+Renntag wird nur aus früheren Läufen geschätzt. Recency Bias: Ältere Läufe verblassen mit 180 Tagen
+Halbwertszeit, damit sich mechanische Änderungen schnell zeigen. Underdog-Bonus ab 6 Punkten unter
+dem Schnitt (≈ 0,75 % langsamer).
 
 **Duell gegen die Bahn**: Zusätzlich fährt jeder in jedem Lauf gegen einen festen Maßstab (Startwert
 500): gewonnen, wenn die eigene typische saubere Runde schneller ist als die typische Runde des Autos

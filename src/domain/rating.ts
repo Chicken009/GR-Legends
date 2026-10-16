@@ -1,5 +1,6 @@
 import type { Result, Session } from '../types'
 import { isGuest } from './drivers'
+import { crashCost, crashObservations, estimateCars, paceObservations, type CarObs } from './carModel'
 import { cleanReference, quantile } from './laps'
 
 export const RATING = {
@@ -15,13 +16,22 @@ export const RATING = {
   /** Höhere Bewegung in den ersten Läufen, damit sich neue Fahrer schnell einpendeln */
   kProvisional: 48,
   provisionalRaces: 5,
-  /** Bewegung der Autowertung (pro Strecke) */
-  kCar: 16,
   /**
-   * Recency Bias der Autowertung: Ältere Ergebnisse verblassen mit dieser Halbwertszeit (Tage).
+   * Autowertung aus den Runden (pro Strecke): fahrer- und laufbereinigtes Tempo plus Abflugneigung
+   * (über den typischen Zeitverlust eines Abflugs), umgerechnet in Elo-Punkte. 1 % schnellere
+   * Runden ≈ so viele Punkte – abgeleitet aus dem Zusammenhang von Tempo und Wertung bei den Fahrern.
+   */
+  carEloPerPct: 8,
+  /**
+   * Wie stark Autos mit wenig Daten zum Durchschnitt gezogen werden (in Läufen). Abflüge sind pro
+   * Auto kaum verlässlich messbar (viel Zufall), deshalb zählen sie erst mit vielen Läufen.
+   */
+  carPrior: { pace: 2, crash: 15 },
+  /**
+   * Recency Bias der Autowertung: Ältere Läufe verblassen mit dieser Halbwertszeit (Tage).
    * So zeigen sich mechanische Verbesserungen oder Verschleiß schnell im Auto-Bonus.
    */
-  carHalfLifeDays: 120,
+  carHalfLifeDays: 180,
   /**
    * Duell gegen die Bahn: Zusätzlich zu den Duellen gegeneinander fährt jeder gegen einen festen
    * Maßstab (Startwert) – gewonnen, wenn die eigene saubere Runde schneller ist als die typische
@@ -68,7 +78,6 @@ export interface RatingResult {
 
 export const carKey = (track: string, car: string) => `${track}\u0000${car}`
 
-const daysBetween = (a: string, b: string) => (Date.parse(b) - Date.parse(a)) / 86_400_000
 
 export function isQuali(s: Session) {
   return /quali/i.test(s.type)
@@ -127,24 +136,23 @@ export function computeRatings(sessions: Session[], cfg = RATING): RatingResult 
   const history = new Map<string, RatingEvent[]>()
   const events: RatingEvent[] = []
 
-  const carDate = new Map<string, string>()
-  /** Autowertung verblasst Richtung 0 (= durchschnittliches Auto), je länger das letzte Rennen her ist */
-  const decayCar = (key: string, date: string) => {
-    const last = carDate.get(key)
-    if (last && last < date && cars.has(key)) cars.set(key, cars.get(key)! * 0.5 ** (daysBetween(last, date) / cfg.carHalfLifeDays))
-    carDate.set(key, date)
+  // Autowertung: vor jedem Renntag aus allen früheren Läufen geschätzt (nie aus dem Ergebnis selbst)
+  const paceObs = paceObservations(sessions, carKey, isQuali, cfg.qualiWeight)
+  const crashObs = crashObservations(sessions, carKey, isQuali)
+  const cost = crashCost(sessions)
+  const refit = (asOf: string, inclusive: boolean) => {
+    const before = (o: CarObs) => (inclusive ? o.date <= asOf : o.date < asOf)
+    cars.clear()
+    const est = estimateCars(paceObs.filter(before), crashObs.filter(before), cost, asOf, cfg.carHalfLifeDays, cfg.carPrior)
+    for (const [k, e] of est.total) cars.set(k, -e * 100 * cfg.carEloPerPct)
   }
-  let currentDate = ''
+  let fittedFor = ''
   const carRating = (track: string, car: string) => {
-    const key = carKey(track, car)
-    if (!cars.has(key)) {
-      // Neues Auto auf dieser Strecke: Schnitt desselben Autos auf anderen Strecken
-      const others = [...cars].filter(([k]) => k.endsWith(`\u0000${car}`)).map(([, v]) => v)
-      cars.set(key, others.length ? others.reduce((a, b) => a + b, 0) / others.length : 0)
-      carDate.set(key, currentDate)
-    }
-    decayCar(key, currentDate)
-    return cars.get(key)!
+    const own = cars.get(carKey(track, car))
+    if (own != null) return own
+    // Neu auf dieser Strecke: Schnitt desselben Autos auf anderen Strecken
+    const others = [...cars].filter(([k]) => k.endsWith(`\u0000${car}`)).map(([, v]) => v)
+    return others.length ? others.reduce((a, b) => a + b, 0) / others.length : 0
   }
 
   // Typische saubere Runde je Auto und Strecke über alle Läufe (fester Maßstab für das Duell gegen die Bahn)
@@ -159,7 +167,10 @@ export function computeRatings(sessions: Session[], cfg = RATING): RatingResult 
   const benchRef = (track: string, car: string) => typical.get(carKey(track, car)) ?? typical.get(track) ?? null
 
   for (const s of sortSessions(sessions)) {
-    currentDate = s.date
+    if (s.date !== fittedFor) {
+      refit(s.date, false)
+      fittedFor = s.date
+    }
     const players = s.results.filter((r) => !isGuest(r.driver))
     if (players.length < 2) continue
     const quali = isQuali(s)
@@ -169,7 +180,6 @@ export function computeRatings(sessions: Session[], cfg = RATING): RatingResult 
     const strength = (r: Result) => (drivers.get(r.driver) ?? cfg.start) + carRating(s.track, r.car)
 
     const dDriver = new Map<string, number>()
-    const dCar = new Map<string, number>()
     const details = new Map<string, { opp: Result; diff: number; e: number; s: number }[]>()
     for (const a of players) {
       for (const b of players) {
@@ -178,7 +188,6 @@ export function computeRatings(sessions: Session[], cfg = RATING): RatingResult 
         const E = 1 / (1 + 10 ** ((strength(b) - strength(a)) / cfg.scale))
         const diff = (S - E) / (players.length - 1)
         dDriver.set(a.driver, (dDriver.get(a.driver) ?? 0) + diff)
-        dCar.set(a.car, (dCar.get(a.car) ?? 0) + diff)
         const list = details.get(a.driver) ?? []
         list.push({ opp: b, diff, e: E, s: S })
         details.set(a.driver, list)
@@ -233,13 +242,10 @@ export function computeRatings(sessions: Session[], cfg = RATING): RatingResult 
       h.push(ev)
       history.set(a.driver, h)
     }
-    for (const [car, d] of dCar) {
-      const key = carKey(s.track, car)
-      cars.set(key, carRating(s.track, car) + cfg.kCar * w * d)
-    }
   }
-  // Stand am letzten Renntag: auch selten gefahrene Autos auf denselben Zeitpunkt bringen
-  for (const key of cars.keys()) decayCar(key, currentDate)
+  // Stand am letzten Renntag, inklusive dieses Tages
+  const last = sessions.reduce((m, s) => (s.date > m ? s.date : m), '')
+  if (last) refit(last, true)
   return { drivers, cars, history, events }
 }
 

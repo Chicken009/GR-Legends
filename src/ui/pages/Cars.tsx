@@ -48,7 +48,7 @@ export function Cars() {
   const myFav = me ? model.stats(p).drivers.get(me)?.favoriteCar : null
   const columns: Column<CarStats>[] = [
     { key: 'name', label: 'Fahrzeug', left: true, value: (c) => c.name, render: (c) => <CarName car={c} /> },
-    { key: 'rating', label: 'Wertung', title: 'Autowertung: Einfluss des Autos auf die Ergebnisse', strong: true, value: (c) => c.rating, render: (c) => (c.rating == null ? '–' : `${c.rating >= 0 ? '+' : '−'}${Math.abs(Math.round(c.rating))}`) },
+    { key: 'rating', label: 'Wertung', title: 'Autowertung in Elo-Punkten: fahrerbereinigtes Tempo und Abflüge, neuere Rennen zählen mehr', strong: true, value: (c) => c.rating, render: (c) => (c.rating == null ? '–' : `${c.rating >= 0 ? '+' : '−'}${Math.abs(Math.round(c.rating))}`) },
     { key: 'races', label: 'Rennen', value: (c) => c.races },
     { key: 'wins', label: 'Siege', value: (c) => c.wins },
     { key: 'winRate', label: 'Siegquote', value: (c) => c.winRate, render: (c) => fmtPct(c.winRate) },
@@ -57,7 +57,8 @@ export function Cars() {
     { key: 'beat', label: 'Ø geschlagen', title: 'Anteil des Feldes, den man mit diesem Auto im Schnitt hinter sich lässt', value: (c) => c.beatShare, render: (c) => fmtPct(c.beatShare) },
     { key: 'best', label: 'Bestzeit', asc: true, value: (c) => c.bestLapMs, render: (c) => formatTime(c.bestLapMs) },
     { key: 'bestBy', label: 'von', left: true, value: (c) => c.bestBy },
-    { key: 'pace', label: 'Pace', title: 'Abstand der Ø sauberen Runde zur typischen Bestzeit der Strecke (schnellste 10 % aller Runden); kleiner = schneller', asc: true, value: (c) => c.paceGap, render: (c) => fmtGapSec(c.paceGap) },
+    { key: 'tempo', label: 'Tempo', title: 'Saubere Runde gegenüber dem Ø Auto, fahrer- und laufbereinigt (minus = schneller)', asc: true, value: (c) => c.tempo, render: (c) => fmtGapSec(c.tempo) },
+    { key: 'crash', label: 'Abflüge/100', title: 'Abflüge pro 100 Runden, fahrer- und laufbereinigt (nur Rennen ohne Tankfunktion)', asc: true, value: (c) => c.crashRate, render: (c) => fmtNum(c.crashRate) },
     { key: 'spread', label: 'Streuung', title: 'Ø Schwankung der Fahrer mit diesem Auto', asc: true, value: (c) => c.spread, render: (c) => fmtPct(c.spread, 1) },
     { key: 'drivers', label: 'Fahrer', title: 'Verschiedene Fahrer mit diesem Auto', value: (c) => [...c.drivers.keys()].filter((n) => !isGuest(n)).length },
     { key: 'laps', label: 'Runden', value: (c) => c.laps, render: (c) => fmtNum(c.laps, 0) },
@@ -89,8 +90,8 @@ export function Cars() {
         </div>
       )}
       <div className="legend">
-        <span>Rang nach Autowertung: wie stark das Auto die Ergebnisse beeinflusst (ab 3 Rennen)</span>
-        {view === 'table' && <span>Pace = Abstand der Ø sauberen Runde zur typischen Bestzeit der Strecke (Grenze der schnellsten 10 % aller Runden); minus = noch schneller</span>}
+        <span>Rang nach Autowertung: Tempo und Abflüge des Autos, umgerechnet in Elo-Punkte (ab 3 Rennen)</span>
+        {view === 'table' && <span>Tempo und Abflüge sind fahrerbereinigt: verglichen wird, was dieselben Fahrer im selben Lauf mit anderen Autos fahren</span>}
         <span>
           <UnderdogBonus bonus={1} compact /> Underdog-Bonus: schwaches Auto, Siege zählen mehr
         </span>
@@ -216,6 +217,22 @@ export function CarProfile() {
           <Tile value={fmtNum(c.km)} label="km" />
           <Tile value={fmtNum(c.laps, 0)} label="Runden" />
         </div>
+
+        <div className="grid-2">
+          <div className="inner">
+            <span className="l">Tempo</span>
+            <span className="v">{fmtGapSec(c.tempo)}</span>
+            <span className="s">pro Runde {c.tempo != null && c.tempo < 0 ? 'schneller' : 'langsamer'} als das Ø Auto</span>
+          </div>
+          <div className="inner">
+            <span className="l">Abflüge</span>
+            <span className="v">{c.crashRate != null ? `${fmtNum(c.crashRate)} / 100 Runden` : '–'}</span>
+            <span className="s">Autowertung {c.rating == null ? '–' : `${c.rating >= 0 ? '+' : '−'}${Math.abs(Math.round(c.rating))}`}</span>
+          </div>
+        </div>
+        <p style={{ margin: '-4px 2px 0', fontSize: 11, color: 'var(--muted)', lineHeight: 1.45 }}>
+          Fahrerbereinigt: verglichen wird, was dieselben Fahrer im selben Lauf mit anderen Autos fahren. Neuere Rennen zählen mehr.
+        </p>
 
         <section className="inner" style={{ padding: 14, gap: 10 }}>
           <div className="card-head">

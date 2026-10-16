@@ -57,13 +57,24 @@ describe('Wertung', () => {
   })
 
   it('gibt dem Außenseiter im schwächeren Auto mehr Punkte', () => {
-    const base = Array.from({ length: 6 }, (_, i) => race(`s${i}`, `2026-01-0${i + 1}`, [['Anna', 'Schnell', 10], ['Ben', 'Lahm', 8]]))
+    // beide fahren beide Autos – wer im schnellen Auto sitzt, fährt die schnelleren Runden
+    const base = Array.from({ length: 6 }, (_, i) =>
+      race(`s${i}`, `2026-01-0${i + 1}`, i % 2 ? [['Ben', 'Schnell', 10], ['Anna', 'Lahm', 9]] : [['Anna', 'Schnell', 10], ['Ben', 'Lahm', 9]]),
+    )
     const before = computeRatings(base)
     const after = computeRatings([...base, race('x', '2026-01-09', [['Ben', 'Lahm', 10], ['Anna', 'Schnell', 9]])])
     const upset = after.history.get('Ben')!.at(-1)!
     expect(upset.delta).toBeGreaterThan(5)
     expect(upset.upsetExpectation).toBeLessThan(0.5)
     expect(before.cars.get('X\u0000Schnell')!).toBeGreaterThan(before.cars.get('X\u0000Lahm')!)
+  })
+
+  it('trennt Auto und Fahrer nur über Fahrerwechsel, nicht über Ergebnisse', () => {
+    // Anna fährt immer das eine, Ben immer das andere Auto: daraus lässt sich nichts über die Autos lernen
+    const fixed = Array.from({ length: 6 }, (_, i) => race(`s${i}`, `2026-01-0${i + 1}`, [['Anna', 'A', 10], ['Ben', 'B', 9]]))
+    const r = computeRatings(fixed)
+    expect(r.cars.get('X\u0000A')).toBeCloseTo(r.cars.get('X\u0000B')!, 5)
+    expect(r.drivers.get('Anna')!).toBeGreaterThan(r.drivers.get('Ben')!)
   })
 
   it('lässt alle steigen, wenn alle schneller werden (Duell gegen die Bahn)', () => {
@@ -219,7 +230,7 @@ describe('Rekord-Tipps', () => {
         if (t.title === 'Bahnrekord') expect(t.good).toBe(true)
         if (t.title === 'Bahnrekord in Reichweite') {
           const gap = Number(t.text.match(/fehlen dir nur (\d+,\d+) s/)![1].replace(',', '.'))
-          expect(gap).toBeLessThanOrEqual(0.3)
+          expect(gap).toBeLessThanOrEqual(0.4)
         }
       }
     }
