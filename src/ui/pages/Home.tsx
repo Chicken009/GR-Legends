@@ -1,5 +1,6 @@
 import { Link, useLocation } from 'react-router-dom'
-import { SEASON_MIN_RACES, type NewsItem } from '../../domain/model'
+import type { NewsItem } from '../../domain/model'
+import { SEASON_POINTS } from '../../domain/season'
 import { isGuest } from '../../domain/drivers'
 import { AREA } from '../colors'
 import { driverPath, MeButton, Monogram, Placement, useData, useMyName } from '../components'
@@ -175,7 +176,7 @@ export function Home() {
 
 const CURRENT_YEAR = String(new Date().getFullYear())
 
-/** Saisonwertung des aktuellen Jahres: wer am meisten Elo dazugewonnen hat (ab 5 Rennen) */
+/** Saisonwertung des aktuellen Jahres: Punkte mit Streichresultaten */
 function SeasonCard() {
   const { model } = useData()
   const me = useMyName()
@@ -184,49 +185,40 @@ function SeasonCard() {
   if (!year) return null
   const rows = model.season(year)
   if (!rows.length) return null
-  const ranked = rows.filter((r) => r.races >= SEASON_MIN_RACES)
   const mine = me ? rows.find((r) => r.name === me) : undefined
-  const myPos = mine ? ranked.indexOf(mine) + 1 : 0
   const running = year >= CURRENT_YEAR
-  const line = (r: (typeof rows)[number], pos: number | null) => (
+  const line = (r: (typeof rows)[number]) => (
     <Link key={r.name} to={driverPath(r.name)} state={{ bg: location }} className={`row${r.name === me ? ' me-row' : ''}`} style={{ padding: '7px 8px' }}>
-      <span className={`rank${pos != null && pos <= 3 ? ` r${pos}` : ''}`} style={{ minWidth: 20, fontSize: 15 }}>
-        {pos ?? '–'}
+      <span className={`rank${r.rank <= 3 ? ` r${r.rank}` : ''}`} style={{ minWidth: 20, fontSize: 15 }}>
+        {r.rank}
       </span>
       <span className="grow">
         <span className="name">{r.name === me ? `Du · ${r.name}` : r.name}</span>
         <span className="sub">
-          {r.placing != null
-            ? `${r.races} Rennen · Einstufung läuft, zählt danach`
-            : pos == null
-            ? `${r.races} Rennen · noch ${Math.max(1, SEASON_MIN_RACES - r.races)} bis zur Wertung`
-            : `${r.races} Rennen · ${fmtElo(r.start)} → ${fmtElo(r.end)}`}
+          {r.days.length} {r.days.length === 1 ? 'Renntag' : 'Renntage'} · {r.wins} {r.wins === 1 ? 'Sieg' : 'Siege'}
         </span>
       </span>
-      {r.placing != null ? (
-        <Placement n={r.placing} short />
-      ) : (
-        <span className="num" style={{ fontSize: 15, fontWeight: 800, color: r.gain >= 0 ? '#7BDB8A' : 'var(--muted)' }}>
-          {r.gain >= 0 ? '+' : '−'}
-          {Math.abs(Math.round(r.gain))}
-        </span>
-      )}
+      <span className="num" style={{ fontSize: 15, fontWeight: 800 }}>
+        {r.points}
+        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', marginLeft: 3 }}>P</span>
+      </span>
     </Link>
   )
-  const top = ranked.slice(0, 3)
+  const top = rows.slice(0, 3)
   return (
     <section className="card" style={{ gap: 4 }}>
       <div className="card-head">
         <span className="kicker" style={{ color: AREA.drivers }}>
           Saison {year}
         </span>
-        <span style={{ fontSize: 12, color: 'var(--muted)' }}>{running ? 'läuft · ' : ''}Elo dazugewonnen</span>
+        <Link to={`/saison/${year}`} style={{ fontSize: 12, color: 'var(--muted)' }}>
+          {running ? 'läuft · ' : ''}Zur Saison ›
+        </Link>
       </div>
-      {top.map((r, i) => line(r, i + 1))}
-      {top.length === 0 && <p style={{ margin: 0, fontSize: 13, color: 'var(--muted)' }}>Noch niemand hat {SEASON_MIN_RACES} Rennen in dieser Saison.</p>}
-      {mine && !top.includes(mine) && line(mine, myPos > 0 ? myPos : null)}
+      {top.map(line)}
+      {mine && !top.includes(mine) && line(mine)}
       <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--muted)', lineHeight: 1.45 }}>
-        Jede Saison startet bei null: Wer im Jahr die meisten Punkte dazugewinnt, wird Saisonsieger. Gewertet wird ab {SEASON_MIN_RACES} Rennen, bei neuen Fahrern ab dem Ende der Einstufung.
+        Punkte pro Rennen für jeden geschlagenen Gegner, Bonus für Sieg, schnellste Runde und Pole. Es zählen die besten {SEASON_POINTS.countedDays} Renntage.
       </p>
     </section>
   )

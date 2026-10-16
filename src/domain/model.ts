@@ -4,6 +4,8 @@ import { isGuest } from './drivers'
 import { crashCost, crashObservations, estimateCars, paceObservations, type CarFit } from './carModel'
 import { carTraits, radarAxes, type RadarAxis } from './carProfile'
 import { quantile } from './laps'
+import { constructorStandings, seasonStandings, type ConstructorStanding, type SeasonStanding } from './season'
+import { CHALLENGE_XP, seasonChallenges, type Challenge } from './challenges'
 import { carKey, computeRatings, isQuali, RATING, sortSessions, type RatingEvent, type RatingResult } from './rating'
 
 /** „all“ oder ein Jahr wie „2025“ */
@@ -169,15 +171,37 @@ const levelXp = (level: number) => 25 * level * (level - 1)
 const CAREER_TITLES: [number, string][] = [[15, 'Legende'], [10, 'Profi'], [7, 'Routinier'], [5, 'Stammfahrer'], [3, 'Hobbyfahrer'], [1, 'Rookie']]
 export const careerTitle = (level: number) => CAREER_TITLES.find(([min]) => level >= min)![1]
 
-export interface SeasonRow {
-  name: string
-  /** Elo zu Saisonbeginn (bzw. Startwert bei neuen Fahrern) */
-  start: number
-  end: number
-  gain: number
+export type { ConstructorStanding, SeasonStanding } from './season'
+export type { Challenge } from './challenges'
+
+/** Jahresrückblick eines Fahrers */
+export interface Wrapped {
+  driver: string
+  year: string
   races: number
-  /** Neu und am Saisonende noch in der Einstufung (Zahl der Läufe): zählt erst danach, Gewinn ist 0 */
-  placing?: number
+  qualis: number
+  days: number
+  laps: number
+  km: number | null
+  wins: number
+  podiums: number
+  season: SeasonStanding | null
+  seasonSize: number
+  favoriteCar: { name: string; races: number } | null
+  /** Bestes Rennen: Sieg mit den meisten geschlagenen Gegnern bzw. bestes Ergebnis */
+  bestRace: { session: Session; result: Result; beaten: number } | null
+  /** Am häufigsten geschlagener Gegner und wer einen am häufigsten geschlagen hat */
+  victim: { name: string; count: number } | null
+  nemesis: { name: string; count: number } | null
+  bestLap: { ms: number; car: string; date: string } | null
+  /** Verbesserung der persönlichen Bestzeit im Jahr (ms), null = keine */
+  pbGain: number | null
+  eloStart: number | null
+  eloEnd: number | null
+  crashes: number
+  crashRate: number | null
+  medals: Medal[]
+  challenges: Challenge[]
 }
 
 export interface NewsItem {
@@ -210,8 +234,14 @@ export interface Model {
   rankTimeline: () => { dates: string[]; ranks: Map<string, (number | null)[]> }
   /** Was am letzten Renntag passiert ist */
   news: () => NewsItem[]
-  /** Saisonwertung: Elo-Gewinn im Jahr, sortiert (wer in der Saison gefahren ist) */
-  season: (year: string) => SeasonRow[]
+  /** Saisonwertung mit Punkten und Streichresultaten */
+  season: (year: string) => SeasonStanding[]
+  /** Konstrukteurswertung: Punkte der Autos im Jahr */
+  constructors: (year: string) => ConstructorStanding[]
+  /** Saison-Challenges eines Fahrers */
+  challenges: (driver: string, year: string) => Challenge[]
+  /** Jahresrückblick („Wrapped“) */
+  wrapped: (driver: string, year: string) => Wrapped | null
   /** Karriere-Level aus Erfahrungspunkten (steigt nur) */
   career: (driver: string) => Career | null
   /**
@@ -227,8 +257,6 @@ export const PLACEMENT_RUNS = RATING.provisionalRaces
 /** Rekord-Tipps nur in Reichweite: Rückstand höchstens so viel (Anteil der Rekordzeit) */
 const RECORD_REACH = { track: 0.025, car: 0.05 }
 
-/** Mindestzahl Rennen für den Titel „Saisonsieger“ */
-export const SEASON_MIN_RACES = 5
 
 function emptyDriver(name: string): DriverStats {
   return {
@@ -536,32 +564,22 @@ export function buildModel(input: Session[]): Model {
   }
 
   // ---- Saisonwertung ---------------------------------------------------------------------
-  const seasonCache = new Map<string, SeasonRow[]>()
-  const season = (year: string): SeasonRow[] => {
-    const cached = seasonCache.get(year)
-    if (cached) return cached
-    const before = dates.filter((dt) => dt < `${year}-01-01`)
-    const startDate = before[before.length - 1]
-    const end = periodEnd(year)
-    const st = stats(year).drivers
-    const rows: SeasonRow[] = []
-    for (const [name, h] of rating.history) {
-      const inYear = h.filter((e) => e.date.startsWith(year))
-      if (!inYear.length) continue
-      const last = eloAt(name, end) ?? inYear[inYear.length - 1].after
-      const races = st.get(name)?.races ?? 0
-      // Neue Fahrer zählen ab dem Ende ihrer Einstufung, damit niemand mit einem Minus einsteigt
-      const placed = h[PLACEMENT_RUNS - 1]
-      if (!placed || placed.date > end) {
-        rows.push({ name, start: last, end: last, gain: 0, races, placing: h.filter((e) => e.date <= end).length })
-        continue
-      }
-      const start = placed.date >= `${year}-01-01` ? placed.after : ((startDate ? eloAt(name, startDate) : null) ?? inYear[0].before)
-      rows.push({ name, start, end: last, gain: last - start, races })
+  const inYear = (year: string) => sessions.filter((x) => x.date.startsWith(year))
+  const seasonCache = new Map<string, SeasonStanding[]>()
+  const season = (year: string): SeasonStanding[] => {
+    if (!seasonCache.has(year)) seasonCache.set(year, seasonStandings(inYear(year)))
+    return seasonCache.get(year)!
+  }
+  const constructors = (year: string) => constructorStandings(inYear(year))
+  const challengeCache = new Map<string, Challenge[]>()
+  const challenges = (driver: string, year: string): Challenge[] => {
+    const key = `${driver}|${year}`
+    if (!challengeCache.has(key)) {
+      const pbs = pbEvents.filter((p) => p.driver === driver && p.prevExisted && p.date.startsWith(year)).length
+      const st = season(year).find((r) => r.name === driver)
+      challengeCache.set(key, seasonChallenges(inYear(year), driver, pbs, st ? st.poles + st.fastestLaps : 0))
     }
-    rows.sort((a, b) => b.gain - a.gain)
-    seasonCache.set(year, rows)
-    return rows
+    return challengeCache.get(key)!
   }
 
   // ---- Karriere-Level ---------------------------------------------------------------------
@@ -573,6 +591,7 @@ export function buildModel(input: Session[]): Model {
     const days = new Set(sessions.filter((x) => x.results.some((r) => r.driver === driver)).map((x) => x.date)).size
     const pbs = pbEvents.filter((p) => p.driver === driver && p.prevExisted).length
     const km = Math.floor(d.km ?? 0)
+    const done = years.reduce((n, y) => n + challenges(driver, y).filter((c) => c.done).length, 0)
     const breakdown = [
       { label: 'Rennen', count: d.races, xp: d.races * CAREER_XP.race },
       { label: 'Qualifyings', count: d.qualis, xp: d.qualis * CAREER_XP.quali },
@@ -581,6 +600,7 @@ export function buildModel(input: Session[]): Model {
       { label: 'Podien', count: d.podiums, xp: d.podiums * CAREER_XP.podium },
       { label: 'Kilometer', count: km, xp: km * CAREER_XP.km },
       { label: 'Neue Bestzeiten', count: pbs, xp: pbs * CAREER_XP.personalBest },
+      { label: 'Saison-Challenges', count: done, xp: done * CHALLENGE_XP },
     ]
     const xp = breakdown.reduce((a, b) => a + b.xp, 0)
     let level = 1
@@ -856,6 +876,51 @@ export function buildModel(input: Session[]): Model {
     return out.sort((a, b) => order[a.kind] - order[b.kind])
   }
 
+  // ---- Jahresrückblick -------------------------------------------------------------------
+  const wrapped = (driver: string, year: string): Wrapped | null => {
+    const d = stats(year).drivers.get(driver)
+    if (!d || d.races + d.qualis === 0) return null
+    const standings = season(year)
+    const fav = d.favoriteCar ? d.cars.get(d.favoriteCar) : null
+    let bestRace: Wrapped['bestRace'] = null
+    for (const { session, result } of d.raceResults) {
+      const beaten = session.results.filter((r) => r.position > result.position).length
+      const better = !bestRace || result.position < bestRace.result.position || (result.position === bestRace.result.position && beaten > bestRace.beaten)
+      if (better) bestRace = { session, result, beaten }
+    }
+    const h2h = [...d.h2h].filter(([n]) => !isGuest(n))
+    const top = (i: 0 | 1) => h2h.filter(([, v]) => v[i] > 0).sort((a, b) => b[1][i] - a[1][i])[0]
+    const victim = top(0)
+    const nemesis = top(1)
+    let bestLap: Wrapped['bestLap'] = null
+    for (const x of inYear(year)) {
+      for (const r of x.results) {
+        if (r.driver !== driver || r.validBestLapMs == null) continue
+        if (!bestLap || r.validBestLapMs < bestLap.ms) bestLap = { ms: r.validBestLapMs, car: r.car, date: x.date }
+      }
+    }
+    const pbsYear = pbEvents.filter((p) => p.driver === driver && p.date.startsWith(year))
+    const before = pbEvents.filter((p) => p.driver === driver && p.date < `${year}-01-01`).pop()
+    const pbGain = before && pbsYear.length ? before.ms - pbsYear[pbsYear.length - 1].ms : null
+    const datesBefore = dates.filter((dt) => dt < `${year}-01-01`)
+    const yearDates = dates.filter((dt) => dt.startsWith(year))
+    return {
+      driver, year, races: d.races, qualis: d.qualis, days: new Set(inYear(year).filter((x) => x.results.some((r) => r.driver === driver)).map((x) => x.date)).size,
+      laps: d.laps, km: d.km, wins: d.wins, podiums: d.podiums,
+      season: standings.find((r) => r.name === driver) ?? null, seasonSize: standings.length,
+      favoriteCar: d.favoriteCar && fav ? { name: d.favoriteCar, races: fav.races } : null,
+      bestRace,
+      victim: victim ? { name: victim[0], count: victim[1][0] } : null,
+      nemesis: nemesis ? { name: nemesis[0], count: nemesis[1][1] } : null,
+      bestLap, pbGain: pbGain != null && pbGain > 0 ? pbGain : null,
+      eloStart: datesBefore.length ? eloAt(driver, datesBefore[datesBefore.length - 1]) : null,
+      eloEnd: yearDates.length ? eloAt(driver, yearDates[yearDates.length - 1]) : null,
+      crashes: d.crashes, crashRate: d.crashRate,
+      medals: (medals.get(driver) ?? []).filter((m) => !m.former && m.date.startsWith(year) && !m.title),
+      challenges: challenges(driver, year),
+    }
+  }
+
   // ---- Einstufung ------------------------------------------------------------------------
   const placement = (driver: string, fileId?: string): number | null => {
     const h = rating.history.get(driver) ?? []
@@ -866,7 +931,7 @@ export function buildModel(input: Session[]): Model {
 
   return {
     sessions, years, tracks, rating, drivers, stats, ranking, statuses, medals,
-    trackRecords, carRecords, goals, rival, tips, eloAt, rankTimeline, news, season, career, placement,
+    trackRecords, carRecords, goals, rival, tips, eloAt, rankTimeline, news, season, constructors, challenges, wrapped, career, placement,
   }
 }
 
@@ -935,7 +1000,7 @@ function computeMedals(
   years: string[],
   rankingAt: (date: string) => Map<string, number>,
   dates: string[],
-  season: (year: string) => SeasonRow[],
+  season: (year: string) => SeasonStanding[],
 ): Map<string, Medal[]> {
   const out = new Map<string, Medal[]>()
   const add = (driver: string, m: Medal) => {
@@ -1010,14 +1075,45 @@ function computeMedals(
     if (best) add(best.driver, { id: `jahr-${y}`, kind: 'jahresschnellster', name: `Jahresschnellster ${y}`, description: 'Schnellste Runde des Jahres', tier: 'platinum', icon: 'clock', date: best.date })
   }
 
-  // Saisonsieger: die meisten Elo-Punkte im Jahr dazugewonnen (abgeschlossene Jahre, ab 5 Rennen)
+  // Saison-Awards (abgeschlossene Jahre)
   const thisYear = String(new Date().getFullYear())
+  const firstSeen = new Map<string, string>()
+  for (const s of sessions) for (const r of s.results) if (!firstSeen.has(r.driver)) firstSeen.set(r.driver, s.date)
   for (const y of years) {
     if (y >= thisYear) continue
-    const winner = season(y).find((r) => r.races >= SEASON_MIN_RACES && r.gain > 0)
-    if (winner) {
-      const lastInYear = dates.filter((dt) => dt.startsWith(y)).pop() ?? `${y}-12-31`
-      add(winner.name, { id: `saison-${y}`, kind: 'saisonsieger', name: `Saisonsieger ${y}`, description: `Die meisten Elo-Punkte der Saison dazugewonnen (+${Math.round(winner.gain)})`, tier: 'platinum', icon: 'trophy', date: lastInYear })
+    const lastInYear = dates.filter((dt) => dt.startsWith(y)).pop() ?? `${y}-12-31`
+    const standings = season(y)
+    // Saisonsieger: die meisten Punkte (mit Streichresultaten)
+    for (const w of standings.filter((r) => r.rank === 1 && r.points > 0)) {
+      add(w.name, { id: `saison-${y}`, kind: 'saisonsieger', name: `Saisonsieger ${y}`, description: `Saisonwertung gewonnen mit ${w.points} Punkten`, tier: 'platinum', icon: 'trophy', date: lastInYear })
+    }
+    // Rookie des Jahres: bester Neuling der Saison
+    const rookies = standings.filter((r) => firstSeen.get(r.name)?.startsWith(y) && r.points > 0)
+    if (rookies.length && rookies[0].rank > 1) {
+      add(rookies[0].name, { id: `rookie-${y}`, kind: 'rookie-jahr', name: `Rookie ${y}`, description: `Bester Neuling der Saison (Platz ${rookies[0].rank}, ${rookies[0].points} Punkte)`, tier: 'gold', icon: 'star', date: lastInYear })
+    }
+    // Saubermann des Jahres: die wenigsten Abflüge pro 100 Runden (Rennen ohne Tank, ab 40 Runden)
+    const crash = new Map<string, [number, number]>()
+    for (const s of sessions) {
+      if (!s.date.startsWith(y) || s.tank || /quali/i.test(s.type)) continue
+      for (const r of s.results) {
+        if (isGuest(r.driver)) continue
+        const a = crash.get(r.driver) ?? [0, 0]
+        crash.set(r.driver, [a[0] + r.lapTimes.filter((l) => l.status === 'crash').length, a[1] + r.laps])
+      }
+    }
+    const clean = [...crash].filter(([, [, laps]]) => laps >= 40).map(([n, [c, laps]]) => ({ n, rate: (c / laps) * 100 })).sort((a, b) => a.rate - b.rate)
+    if (clean.length >= 3) {
+      for (const x of clean.filter((x) => x.rate === clean[0].rate)) {
+        add(x.n, { id: `sauber-${y}`, kind: 'saubermann-jahr', name: `Saubermann ${y}`, description: `Die wenigsten Abflüge der Saison (${x.rate.toLocaleString('de-DE', { maximumFractionDigits: 1 })} pro 100 Runden)`, tier: 'gold', icon: 'shield', date: lastInYear })
+      }
+    }
+    // Außenseiter des Jahres: die meisten Siege gegen klar stärkere Gegner
+    const upsetWins = new Map<string, number>()
+    for (const e of rating.events) if (e.date.startsWith(y) && e.position === 1 && e.upsetExpectation != null && e.upsetExpectation < 0.35) upsetWins.set(e.driver, (upsetWins.get(e.driver) ?? 0) + 1)
+    const maxUp = Math.max(0, ...upsetWins.values())
+    if (maxUp > 0) {
+      for (const [n, c] of upsetWins) if (c === maxUp) add(n, { id: `aussenseiter-${y}`, kind: 'aussenseiter-jahr', name: `Außenseiter ${y}`, description: `Die meisten Siege als Außenseiter (${c})`, tier: 'gold', icon: 'sword', date: lastInYear })
     }
   }
 
