@@ -23,10 +23,25 @@ import { Season } from './ui/pages/Season'
 import { Stats } from './ui/pages/Stats'
 import { Wrapped } from './ui/pages/Wrapped'
 
+const ASKED_KEY = 'gr-legends:me-asked'
+
 function AppRoutes() {
   const location = useLocation()
   const navigate = useNavigate()
-  const { pickerOpen } = useMe()
+  const { me, pickerOpen, openPicker } = useMe()
+  // Beim allerersten Öffnen fragen „Wer bist du?“ (einmal pro Gerät, nicht auf der Leinwand)
+  useEffect(() => {
+    if (me || location.pathname.endsWith('/leinwand')) return
+    try {
+      if (localStorage.getItem(ASKED_KEY)) return
+      localStorage.setItem(ASKED_KEY, '1')
+    } catch {
+      return
+    }
+    openPicker()
+    // nur beim Start
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   // Fahrer- und Fahrzeugprofile öffnen sich als Panel über der vorherigen Seite;
   // bei direktem Link über der Fahrer- bzw. Fahrzeugliste
   const state = location.state as { bg?: Location } | null
