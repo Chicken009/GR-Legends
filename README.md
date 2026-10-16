@@ -184,7 +184,7 @@ schneller, steigen alle – die Wertung spiegelt so auch echte Verbesserung wide
 
 Dazu: Konstrukteurswertung (Autos sammeln die Rennpunkte ihrer Fahrer), Saison-Awards für
 abgeschlossene Jahre (Saisonsieger, Rookie, Aufsteiger, Jahresschnellster, Saubermann, Außenseiter),
-Saison-Challenges (je +20 Karriere-XP) und ein Jahresrückblick („Wrapped“) pro Fahrer.
+Saison-Challenges (je +20 Karriere-XP; jede Saison 7 zufällig aus einem Pool von 20, für alle gleich, mindestens 3 neue gegenüber dem Vorjahr) und ein Jahresrückblick („Wrapped“) pro Fahrer.
 
 **Pace**: Abstand der durchschnittlichen sauberen Runde (Median pro Lauf) zur typischen Bestzeit
 der Strecke (Grenze der schnellsten 10 % aller Runden), in Sekunden (z. B. „+0,62 s“). Kleiner ist
