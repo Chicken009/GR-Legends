@@ -68,6 +68,18 @@ export interface RankRow {
   detail: string
 }
 
+/** Wie ein Teamrennen-Abschnitt aufgeteilt wird (für den Editor) */
+export interface TeamPlan {
+  /** all = alle zusammen · pairs = zwei Teams je Lauf · groups = mehrere Teams je Lauf · slots = Positionsduelle */
+  mode: 'all' | 'pairs' | 'groups' | 'slots'
+  /** Läufe in einem vollen Durchgang */
+  perRound: number
+  /** Halber Durchgang möglich (pairs mit mindestens 4 Teams) */
+  halfPossible: boolean
+  /** Läufe in einem halben Durchgang */
+  halfCount: number
+}
+
 export interface SectionState {
   def: SectionDef
   heats: Heat[]
@@ -75,6 +87,7 @@ export interface SectionState {
   teamRanking: RankRow[] | null
   started: boolean
   complete: boolean
+  teamPlan?: TeamPlan
 }
 
 export interface Bonus {
@@ -606,10 +619,55 @@ function roundRobin<T>(list: T[]): [T, T][][] {
 }
 
 /**
- * Teamrennen. Passen alle Teams auf die Bahn: alle zusammen. Passen zwei: jedes Team gegen jedes.
+ * Halber Durchgang: so viele Runden des Kreis-Verfahrens, dass jedes Team gegen etwa die Hälfte
+ * der anderen fährt – ausgewählt so, dass die Gegner aller Teams im Schnitt möglichst gleich stark sind.
+ */
+function balancedHalf<T>(rounds: [T, T][][], strength: (t: T) => number): [T, T][][] {
+  const want = Math.ceil(rounds.length / 2)
+  if (rounds.length > 13) return rounds.slice(0, want)
+  let best: number[] = []
+  let bestScore = Infinity
+  const pick: number[] = []
+  const score = () => {
+    const opp = new Map<T, number[]>()
+    for (const i of pick) for (const [a, b] of rounds[i]) {
+      opp.set(a, [...(opp.get(a) ?? []), strength(b)])
+      opp.set(b, [...(opp.get(b) ?? []), strength(a)])
+    }
+    const means = [...opp.values()].map((xs) => xs.reduce((x, y) => x + y, 0) / xs.length)
+    const avg = means.reduce((x, y) => x + y, 0) / Math.max(1, means.length)
+    return means.reduce((x, m) => x + (m - avg) ** 2, 0)
+  }
+  const walk = (from: number) => {
+    if (pick.length === want) {
+      const sc = score()
+      if (sc < bestScore - 1e-9) {
+        bestScore = sc
+        best = [...pick]
+      }
+      return
+    }
+    for (let i = from; i <= rounds.length - (want - pick.length); i++) {
+      pick.push(i)
+      walk(i + 1)
+      pick.pop()
+    }
+  }
+  walk(0)
+  return best.map((i) => rounds[i])
+}
+
+/** Erwartete Punkte je Fahrer in einem Lauf mit n Fahrern (absolute Wertung) */
+const expectedPoints = (env: Env, n: number) => (n > 1 ? (env.def.scoring.perBeaten * (n - 1)) / 2 + env.def.scoring.win / n : 0)
+
+/**
+ * Teamrennen. Passen alle Teams auf die Bahn: alle zusammen. Passen zwei: jedes Team gegen jedes
+ * (ein Durchgang = alle Paarungen einmal). Passen mehrere: Gruppen, je Durchgang neu gemischt.
  * Sonst „Positionsduelle“: die Stärksten jedes Teams gegeneinander, dann die Zweiten usw. – ist ein
  * Team kleiner, fährt sein Schwächster doppelt (Joker). Jedes Team bekommt pro Lauf den Schnitt
  * der Punkte seiner Fahrer; alle Mitglieder bekommen die Teampunkte – Zusammenarbeit lohnt sich.
+ * Damit es fair bleibt, werden Läufe mit weniger Fahrern auf die größte Laufgröße hochgerechnet
+ * und Teams mit weniger Läufen (Pause bei ungerader Teamzahl) auf die meisten Läufe.
  */
 function sectionTeam(env: Env, sec: SectionDef, teams: TeamState[], per: number): Omit<SectionState, 'def'> {
   const heats: Heat[] = []
@@ -626,32 +684,48 @@ function sectionTeam(env: Env, sec: SectionDef, teams: TeamState[], per: number)
     for (const n of entrants) teamOf[n] = teamOfAll[n]
     heats.push(addHeat(env, sec, { id: `${sec.id}-${k}`, label: `Teamrennen ${k}`, kind: 'race', entrants: entrants.map(named), teamOf, note: note ?? ts.map((t) => t.name).join(' gegen ') }))
   }
+  let plan: TeamPlan
   if (total <= per) {
+    plan = { mode: 'all', perRound: 1, halfPossible: false, halfCount: 1 }
     for (let r = 0; r < rounds; r++) add(teams, teams.flatMap((t) => members.get(t.id)!), rounds > 1 ? `Durchgang ${r + 1}` : null)
+  } else if (maxSize * 2 <= per && Math.floor(per / maxSize) === 2) {
+    const rr = roundRobin(teams)
+    const perRound = rr.reduce((a, p) => a + p.length, 0)
+    plan = { mode: 'pairs', perRound, halfPossible: rr.length >= 3, halfCount: Math.ceil(rr.length / 2) * (rr[0]?.length ?? 0) }
+    const strength = (t: TeamState) => t.drivers.reduce((a, d) => a + env.ctx.elo(d), 0) / t.drivers.length
+    const list = plan.halfPossible && sec.half && rounds === 1 ? balancedHalf(rr, strength) : Array.from({ length: rounds }, () => rr).flat()
+    list.forEach((pairs, i) => {
+      const r = Math.floor(i / rr.length)
+      for (const [a, b] of pairs) add([a, b], [...members.get(a.id)!, ...members.get(b.id)!], rounds > 1 ? `${a.name} gegen ${b.name} · Durchgang ${r + 1}` : null)
+    })
   } else if (maxSize * 2 <= per) {
-    const perHeat = Math.max(2, Math.floor(per / maxSize))
-    if (perHeat === 2) {
-      const rr = roundRobin(teams)
-      const list = sec.rounds ? rr.slice(0, sec.rounds) : rr
-      for (const pairs of list) for (const [a, b] of pairs) add([a, b], [...members.get(a.id)!, ...members.get(b.id)!], null)
-    } else {
-      for (let r = 0; r < rounds; r++) {
-        const order = r === 0 ? teams : shuffle(teams, `${env.def.seed}|${sec.id}|${r}`)
-        for (const g of chunkEven(order, perHeat)) add(g, g.flatMap((t) => members.get(t.id)!), null)
-      }
+    const perHeat = Math.floor(per / maxSize)
+    plan = { mode: 'groups', perRound: Math.ceil(teams.length / perHeat), halfPossible: false, halfCount: 0 }
+    for (let r = 0; r < rounds; r++) {
+      const order = r === 0 ? teams : shuffle(teams, `${env.def.seed}|${sec.id}|${r}`)
+      // Ein Team allein wäre kein Rennen: Pause, wird über die Zahl der Läufe ausgeglichen
+      for (const g of chunkEven(order, perHeat)) if (g.length > 1) add(g, g.flatMap((t) => members.get(t.id)!), null)
     }
   } else {
+    plan = { mode: 'slots', perRound: maxSize * Math.ceil(teams.length / per), halfPossible: false, halfCount: 0 }
     for (let r = 0; r < rounds; r++) {
       for (let slot = 0; slot < maxSize; slot++) {
-        const pick = teams.map((t) => {
+        // Passen nicht alle Teams in einen Lauf, wird für jede Position neu gemischt – so trifft jedes Team mal auf jedes
+        const order = teams.length <= per || (r === 0 && slot === 0) ? teams : shuffle(teams, `${env.def.seed}|${sec.id}|${r}|${slot}`)
+        const pick = order.map((t) => {
           const m = members.get(t.id)!
           return { t, driver: m[Math.min(slot, m.length - 1)] }
         })
-        for (const g of chunkEven(pick, per)) add(g.map((x) => x.t), g.map((x) => x.driver), g.length === teams.length ? `Die Nr. ${slot + 1} jedes Teams` : `Nr. ${slot + 1}: ${g.map((x) => x.t.name).join(' gegen ')}`)
+        for (const g of chunkEven(pick, per)) if (g.length > 1) add(g.map((x) => x.t), g.map((x) => x.driver), g.length === teams.length ? `Die Nr. ${slot + 1} jedes Teams` : `Nr. ${slot + 1}: ${g.map((x) => x.t.name).join(' gegen ')}`)
       }
     }
   }
-  // Teampunkte je Lauf: Schnitt der Fahrerpunkte
+  // Teampunkte je Lauf: Schnitt der Fahrerpunkte, auf die größte Laufgröße hochgerechnet
+  const biggest = Math.max(0, ...heats.map((h) => h.entrants.length))
+  const ref = expectedPoints(env, biggest)
+  const planned = new Map(teams.map((t) => [t.id, 0]))
+  for (const h of heats) for (const t of new Set(Object.values(h.teamOf ?? {}))) planned.set(t, (planned.get(t) ?? 0) + 1)
+  const most = Math.max(0, ...planned.values())
   const teamSum = new Map(teams.map((t) => [t.id, 0]))
   for (const h of heats) {
     if (h.status !== 'done') continue
@@ -660,15 +734,17 @@ function sectionTeam(env: Env, sec: SectionDef, teams: TeamState[], per: number)
       const t = h.teamOf?.[n] ?? teamOfAll[n]
       if (t) byTeam.set(t, [...(byTeam.get(t) ?? []), p])
     }
-    h.teamPoints = new Map([...byTeam].map(([t, ps]) => [t, Math.round((ps.reduce((a, b) => a + b, 0) / ps.length) * 10) / 10]))
-    for (const [t, p] of h.teamPoints) teamSum.set(t, (teamSum.get(t) ?? 0) + p)
+    const e = expectedPoints(env, h.order.length)
+    const scale = e > 0 && ref > 0 ? ref / e : 1
+    h.teamPoints = new Map([...byTeam].map(([t, ps]) => [t, Math.round((ps.reduce((a, b) => a + b, 0) / ps.length) * scale * 10) / 10]))
+    for (const [t, p] of h.teamPoints) teamSum.set(t, (teamSum.get(t) ?? 0) + p * (most / Math.max(1, planned.get(t) ?? most)))
   }
   const teamRows = [...teamSum].sort((a, b) => b[1] - a[1]).map(([id, points], i) => ({ name: id, rank: i + 1, points: Math.round(points * 10) / 10, detail: teams.find((t) => t.id === id)!.name }))
   const ranking = teams
     .flatMap((t) => t.drivers.map((d) => ({ name: d, points: teamSum.get(t.id) ?? 0, detail: t.name })))
     .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name))
     .map((r, i) => ({ ...r, rank: i + 1, points: Math.round(r.points * 10) / 10 }))
-  return { heats, ranking, teamRanking: teamRows, started: heats.some((h) => h.status === 'done'), complete: heats.every((h) => h.status === 'done') }
+  return { heats, ranking, teamRanking: teamRows, started: heats.some((h) => h.status === 'done'), complete: heats.every((h) => h.status === 'done'), teamPlan: plan }
 }
 
 function sectionCustom(env: Env, sec: SectionDef, drivers: string[]): Omit<SectionState, 'def'> {

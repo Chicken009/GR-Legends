@@ -192,6 +192,50 @@ describe('Rennen, K.-o. und Teams', () => {
   })
 })
 
+describe('Teamrennen: Paarungen und Ausgleich', () => {
+  const teamsOf = (names: string[][]) => names.map((drivers, i) => ({ name: `T${i + 1}`, drivers }))
+  const pairsOf = (s: ReturnType<typeof computeEvent>) => s.heats.map((h) => [...new Set(Object.values(h.teamOf ?? {}))].sort().join('-'))
+
+  it('ein Durchgang = jedes Team einmal gegen jedes, halber Durchgang mit ausgeglichenen Gegnern', () => {
+    const teams = teamsOf([['A', 'H'], ['B', 'G'], ['C', 'F'], ['D', 'E']])
+    const d = def({ drivers: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'], maxPerHeat: 4, teams: { mode: 'manual', size: 2, teams }, sections: [newSection('team', { id: 't' })] })
+    const full = computeEvent(d, ctx())
+    expect(new Set(pairsOf(full))).toEqual(new Set(['t1-t2', 't1-t3', 't1-t4', 't2-t3', 't2-t4', 't3-t4']))
+    expect(full.sections[0].teamPlan).toMatchObject({ mode: 'pairs', perRound: 6, halfPossible: true, halfCount: 4 })
+    const twice = computeEvent({ ...d, sections: [newSection('team', { id: 't', rounds: 2 })] }, ctx())
+    expect(twice.heats).toHaveLength(12)
+    const half = computeEvent({ ...d, sections: [newSection('team', { id: 't', half: true })] }, ctx())
+    expect(half.heats).toHaveLength(4)
+    const count = new Map<string, number>()
+    for (const p of pairsOf(half)) for (const t of p.split('-')) count.set(t, (count.get(t) ?? 0) + 1)
+    expect([...count.values()]).toEqual([2, 2, 2, 2])
+  })
+
+  it('rechnet kleinere Läufe hoch und gleicht Pausen aus', () => {
+    // 3 Einzelteams bei 2 Spuren: jeder gegen jeden mit Pause, jedes Team fährt 2 von 3 Läufen
+    const teams = teamsOf([['A'], ['B'], ['C']])
+    const d = def({ drivers: ['A', 'B', 'C'], maxPerHeat: 2, teams: { mode: 'manual', size: 1, teams }, sections: [newSection('team', { id: 't' })] })
+    const s = computeEvent(d, ctx())
+    expect(s.heats.every((h) => h.entrants.length === 2)).toBe(true)
+    expect(new Set(pairsOf(s))).toEqual(new Set(['t1-t2', 't1-t3', 't2-t3']))
+    // 5 Einzelteams bei 4 Spuren: Läufe mit 3 und 2 Fahrern – Punkte des kleineren Laufs hochgerechnet
+    const five = def({ drivers: ['A', 'B', 'C', 'D', 'E'], maxPerHeat: 4, teams: { mode: 'manual', size: 1, teams: teamsOf([['A'], ['B'], ['C'], ['D'], ['E']]) }, sections: [newSection('team', { id: 't' })] })
+    const plan = computeEvent(five, ctx())
+    expect(plan.heats.map((h) => h.entrants.length)).toEqual([3, 2])
+    const played = computeEvent(five, ctx([run('race', plan.heats[0].entrants.map((e) => e.name!)), run('race', plan.heats[1].entrants.map((e) => e.name!))]))
+    expect(played.heats[0].teamPoints!.get('t1')).toBe(3) // 2 geschlagen + Sieg
+    expect(played.heats[1].teamPoints!.get('t4')).toBe(2.7) // (1 + Sieg) × (4/3) / 1
+  })
+
+  it('mischt Positionsduelle, wenn nicht alle Teams in einen Lauf passen', () => {
+    const teams = teamsOf([['A', 'E'], ['B', 'F'], ['C', 'G'], ['D', 'H']])
+    const d = def({ drivers: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'], maxPerHeat: 3, teams: { mode: 'manual', size: 2, teams }, sections: [newSection('team', { id: 't', rounds: 3 })] })
+    const s = computeEvent(d, ctx())
+    expect(s.sections[0].teamPlan?.mode).toBe('slots')
+    expect(new Set(pairsOf(s)).size).toBeGreaterThan(2)
+  })
+})
+
 describe('Wertung und Autos', () => {
   it('fair: Sieg gegen Stärkere bringt mehr', () => {
     const d = def({ drivers: ['A', 'G'], scoring: { method: 'fair', perBeaten: 1, win: 0 }, sections: [newSection('races', { id: 'r', rounds: 1 })] } as never)
