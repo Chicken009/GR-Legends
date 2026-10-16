@@ -62,7 +62,9 @@ async function loadRaw(): Promise<Omit<AppData, 'model' | 'days'> & { sessions: 
 /** Alle Läufe → Einstellungen → Rundenklassifizierung → Wertung und Kennzahlen. */
 export function prepare(sessions: Session[], settings: Settings) {
   const classified = classifyAllLaps(applySettings(sessions, settings))
-  return { model: buildModel(classified), days: groupRaceDays(classified) }
+  // Erst gruppieren: dabei bekommen die Läufe ihre Nummer (Rennen 1, 2, …)
+  const days = groupRaceDays(classified)
+  return { model: buildModel(days.flatMap((d) => d.sessions)), days }
 }
 
 export function useAppData() {

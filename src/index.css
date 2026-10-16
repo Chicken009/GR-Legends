@@ -53,6 +53,17 @@ body {
 body {
   min-height: 100dvh;
   -webkit-tap-highlight-color: transparent;
+  /* Antippen soll nichts markieren (verhindert z. B. die Such-Leiste in Chrome) */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+input,
+textarea,
+.selectable {
+  -webkit-user-select: text;
+  user-select: text;
 }
 
 a {

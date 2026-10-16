@@ -3,10 +3,10 @@ import type { CarStats } from '../../domain/model'
 import { carScale } from '../../data/settings'
 import { quantile } from '../../domain/laps'
 import { AREA } from '../colors'
-import { CarPhoto, usePhotoId } from '../CarPhoto'
+import { CarPhoto, CarThumb, usePhotoId } from '../CarPhoto'
 import { carPath, PageHead, PeriodTabs, Tile, useData, useMyName, ViewToggle } from '../components'
 import { DataTable, type Column } from '../DataTable'
-import { CarSilhouette, Chevrons, ChevronLeft, NAV_ICONS, RecordFlame, StrokeIcon } from '../icons'
+import { CarSilhouette, Chevrons, ChevronLeft, RecordFlame } from '../icons'
 import { fmtNum, fmtPct, formatTime } from '../format'
 import { useStored } from '../useStored'
 import { isGuest } from '../../domain/drivers'
@@ -53,7 +53,7 @@ export function Cars() {
     { key: 'winRate', label: 'Siegquote', value: (c) => c.winRate, render: (c) => fmtPct(c.winRate) },
     { key: 'podiums', label: 'Podien', value: (c) => c.podiums },
     { key: 'avgPos', label: 'Ø Platz', asc: true, value: (c) => c.avgPosition, render: (c) => fmtNum(c.avgPosition) },
-    { key: 'beat', label: 'Geschlagen', title: 'Anteil geschlagener Gegner', value: (c) => c.beatShare, render: (c) => fmtPct(c.beatShare) },
+    { key: 'beat', label: 'Ø geschlagen', title: 'Anteil des Feldes, den man mit diesem Auto im Schnitt hinter sich lässt', value: (c) => c.beatShare, render: (c) => fmtPct(c.beatShare) },
     { key: 'best', label: 'Bestzeit', asc: true, value: (c) => c.bestLapMs, render: (c) => formatTime(c.bestLapMs) },
     { key: 'bestBy', label: 'von', left: true, value: (c) => c.bestBy },
     { key: 'pace', label: 'Pace', title: 'Ø saubere Runde in % der typischen Streckenbestzeit', asc: true, value: (c) => c.pace, render: (c) => (c.pace != null ? `${fmtNum(c.pace)} %` : '–') },
@@ -105,13 +105,6 @@ function CarName({ car }: { car: CarStats }) {
       <UnderdogBonus bonus={car.bonus} compact />
     </span>
   )
-}
-
-/** Kleines Bild für die Liste: Foto oder Auto-Symbol */
-function CarThumb({ car }: { car: string }) {
-  const photo = usePhotoId(car)
-  const icon = <StrokeIcon d={NAV_ICONS.cars} size={20} color="#6B7480" />
-  return <span className="thumb">{photo ? <CarPhoto key={photo} fileId={photo} alt="" width={120} fallback={icon} /> : icon}</span>
 }
 
 function CarCard({ car, rank, mine }: { car: CarStats; rank: number | null; mine: boolean }) {
