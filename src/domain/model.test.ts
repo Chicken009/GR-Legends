@@ -4,7 +4,7 @@ import { prepare } from '../data/useRaceDays'
 import { fixtureIds, readFixture } from '../test-utils'
 import type { Result, Session } from '../types'
 import { estimateCars, fitCars, type CarObs } from './carModel'
-import { seasonChallenges } from './challenges'
+import { CHALLENGE_POOL, CHALLENGES_PER_SEASON, NEW_PER_SEASON, seasonChallengeIds, seasonChallenges } from './challenges'
 import { constructorStandings, seasonStandings } from './season'
 import { classifyIncidents, hasTankFunction } from './laps'
 import { buildModel, PLACEMENT_RUNS, positionTrace } from './model'
@@ -357,10 +357,37 @@ describe('Saisonwertung mit Punkten', () => {
 
   it('verfolgt Saison-Challenges', () => {
     const sessions = [r('a', '2026-01-10', ['Anna', 'Ben']), r('b', '2026-02-10', ['Ben', 'Anna']), r('c', '2026-03-10', ['Anna', 'Ben'])]
-    const ch = seasonChallenges(sessions, 'Anna', 0, 0)
-    expect(ch.find((c) => c.id === 'tage')!.done).toBe(true)
-    expect(ch.find((c) => c.id === 'sieg')!.done).toBe(true)
-    expect(ch.find((c) => c.id === 'gegner')!.value).toBe(1)
+    const ch = seasonChallenges('2026', { sessions, driver: 'Anna', personalBests: [], dayBonus: 0, upsetWins: 0, carsBefore: new Set() })
+    expect(ch).toHaveLength(CHALLENGES_PER_SEASON)
+    for (const c of ch) expect(c.value).toBeLessThanOrEqual(c.target)
+    const byId = new Map(CHALLENGE_POOL.map((d) => [d.id, d]))
+    expect(ch.every((c) => byId.has(c.id))).toBe(true)
+  })
+
+  it('zieht jede Saison zufällig, aber fest, mit mindestens 3 neuen Challenges', () => {
+    for (let y = 2021; y <= 2035; y++) {
+      const ids = seasonChallengeIds(y)
+      expect(new Set(ids).size).toBe(CHALLENGES_PER_SEASON)
+      expect(seasonChallengeIds(y)).toEqual(ids)
+      const prev = new Set(seasonChallengeIds(y - 1))
+      expect(ids.filter((id) => !prev.has(id)).length).toBeGreaterThanOrEqual(NEW_PER_SEASON)
+    }
+  })
+
+  it('wertet einzelne Challenges richtig aus', () => {
+    // alle Challenges des Pools auf denselben Läufen prüfen, unabhängig von der Auswahl
+    const sessions = [r('a', '2026-01-10', ['Anna', 'Ben', 'Cleo', 'Dora', 'Emil']), r('b', '2026-01-10', ['Anna', 'Ben']), r('c', '2026-02-10', ['Anna', 'Ben'])]
+    const ctx = { sessions, driver: 'Anna', personalBests: [{ car: 'X' }], dayBonus: 1, upsetWins: 0, carsBefore: new Set<string>() }
+    const val = (id: string) => {
+      const d = CHALLENGE_POOL.find((c) => c.id === id)!
+      const races = sessions.map((s) => ({ s, r: s.results.find((x) => x.driver === 'Anna')! }))
+      return d.value(ctx, { races, qualis: [], days: 2, wins: races })
+    }
+    expect(val('serie')).toBe(3)
+    expect(val('grossesfeld')).toBe(1)
+    expect(val('tagessieger')).toBe(2)
+    expect(val('gegner')).toBe(4)
+    expect(val('neuesauto')).toBe(1)
   })
 })
 

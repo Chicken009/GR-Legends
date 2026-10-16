@@ -584,9 +584,19 @@ export function buildModel(input: Session[]): Model {
   const challenges = (driver: string, year: string): Challenge[] => {
     const key = `${driver}|${year}`
     if (!challengeCache.has(key)) {
-      const pbs = pbEvents.filter((p) => p.driver === driver && p.prevExisted && p.date.startsWith(year)).length
       const st = season(year).find((r) => r.name === driver)
-      challengeCache.set(key, seasonChallenges(inYear(year), driver, pbs, st ? st.poles + st.fastestLaps : 0))
+      const carsBefore = new Set(sessions.filter((x) => x.date < `${year}-01-01`).flatMap((x) => x.results.filter((r) => r.driver === driver).map((r) => r.car)))
+      challengeCache.set(
+        key,
+        seasonChallenges(year, {
+          sessions: inYear(year),
+          driver,
+          personalBests: pbEvents.filter((p) => p.driver === driver && p.prevExisted && p.date.startsWith(year)).map((p) => ({ car: p.car })),
+          dayBonus: st ? st.poles + st.fastestLaps : 0,
+          upsetWins: rating.events.filter((e) => e.driver === driver && e.date.startsWith(year) && e.position === 1 && e.upsetExpectation != null && e.upsetExpectation < 0.35).length,
+          carsBefore,
+        }),
+      )
     }
     return challengeCache.get(key)!
   }
