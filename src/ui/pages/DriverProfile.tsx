@@ -5,6 +5,7 @@ import { AREA } from '../colors'
 import { Avatar, carPath, driverPath, PeriodTabs, Segment, Sheet, Tile, useData, useMyName } from '../components'
 import { CarThumb } from '../CarPhoto'
 import { LineChart, type LinePoint } from '../charts/LineChart'
+import { TimeTrendChart } from '../charts/TimeTrendChart'
 import { ShareIcon, StatusIcons } from '../icons'
 import { TipCarousel } from '../TipCarousel'
 import { MedalBadge, TIERS } from '../Medal'
@@ -114,7 +115,7 @@ export function DriverProfile({ onClose }: { onClose: () => void }) {
       <section className="inner" style={{ padding: '14px 14px 10px', gap: 8 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 14, fontWeight: 600 }}>Entwicklung</span>
-          <Segment small label="Diagramm wählen" value={chart} onChange={setChart} options={[['elo', 'Elo'], ['rank', 'Rang'], ['lap', 'Ø Runde']]} />
+          <Segment small label="Diagramm wählen" value={chart} onChange={setChart} options={[['elo', 'Elo'], ['rank', 'Rang'], ['lap', 'Rundenzeiten']]} />
         </div>
         {driverYears.length > 1 && (
           <div style={{ ['--accent' as string]: ACCENT }}>
@@ -282,25 +283,52 @@ function DriverChart({ driver, kind, period }: { driver: string; kind: 'elo' | '
       />
     )
   }
-  // Ø saubere Runde pro Rennen
+  // Rundenzeiten: gleitender Median der letzten Rennen und persönliche Bestzeit
+  const WINDOW = 5
   const st = model.stats('all').drivers.get(driver)
-  const pts = (st?.raceResults ?? [])
-    .filter(({ session }) => inP(session.date))
-    .map(({ session, result }) => {
-      const nl = result.lapTimes.filter((l) => l.status === 'normal').map((l) => l.ms).sort((a, b) => a - b)
-      return nl.length >= 3 ? { session, result, y: quantile(nl, 0.5) } : null
-    })
-    .filter((p): p is NonNullable<typeof p> => p != null)
-  if (pts.length < 2) return <p className="muted" style={{ margin: 0, fontSize: 13 }}>Noch zu wenige Rennen.</p>
+  const races = st?.raceResults ?? []
+  const normal = races.map(({ result }) => result.lapTimes.filter((l) => l.status === 'normal').map((l) => l.ms))
+  const rows = races.map(({ session, result }, i) => {
+    const pool = normal.slice(Math.max(0, i - WINDOW + 1), i + 1).flat().sort((a, b) => a - b)
+    const pb = Math.min(...races.slice(0, i + 1).map((r) => r.result.validBestLapMs ?? Infinity))
+    return { session, result, median: pool.length >= 5 ? quantile(pool, 0.5) : null, pb: isFinite(pb) ? pb : null }
+  })
+  const shown = rows.filter((r) => inP(r.session.date))
+  if (shown.length < 2) return <p className="muted" style={{ margin: 0, fontSize: 13 }}>Noch zu wenige Rennen.</p>
+  const s2 = (ms: number | null) => (ms == null ? '–' : (ms / 1000).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }))
   return (
-    <LineChart
-      invert
-      points={pts.map((p) => ({ y: p.y, tip: { title: formatTime(Math.round(p.y)), text: `Ø saubere Runde · P${p.result.position} im ${p.result.car}`, sub: `${formatDate(p.session.date)} · ${p.session.type} ${p.session.heat}` } }))}
-      color={ACCENT}
-      format={(v) => (v / 1000).toLocaleString('de-DE', { maximumFractionDigits: 1 })}
-      label="Durchschnittliche saubere Runde pro Rennen"
-      xLabels={[{ index: 0, text: formatDate(pts[0].session.date) }, { index: pts.length - 1, text: formatDate(pts[pts.length - 1].session.date) }]}
-    />
+    <>
+      <TimeTrendChart
+        label={`Rundenzeiten: Median der letzten ${WINDOW} Rennen und persönliche Bestzeit`}
+        series={[
+          { name: 'Median', color: ACCENT, values: shown.map((r) => r.median) },
+          { name: 'Bestzeit', color: '#B98CFF', values: shown.map((r) => r.pb), dashed: true, step: true },
+        ]}
+        tips={shown.map((r) => ({
+          title: `${formatDate(r.session.date)} · ${r.session.type} ${r.session.heat}`,
+          text: (
+            <>
+              <span style={{ color: ACCENT }}>Median {s2(r.median)} s</span> · <span style={{ color: '#B98CFF' }}>Bestzeit {s2(r.pb)} s</span>
+              <br />
+              In diesem Rennen: P{r.result.position}, Best {s2(r.result.validBestLapMs)} s
+            </>
+          ),
+          sub: r.result.car,
+        }))}
+        xLabels={[{ index: 0, text: formatDate(shown[0].session.date) }, { index: shown.length - 1, text: formatDate(shown[shown.length - 1].session.date) }]}
+      />
+      <div className="legend">
+        <span>
+          <span style={{ width: 14, height: 3, borderRadius: 2, background: ACCENT }} />
+          Median der letzten {WINDOW} Rennen
+        </span>
+        <span>
+          <span style={{ width: 14, height: 0, borderTop: '2px dashed #B98CFF' }} />
+          persönliche Bestzeit
+        </span>
+        <span>↑ schneller</span>
+      </div>
+    </>
   )
 }
 
