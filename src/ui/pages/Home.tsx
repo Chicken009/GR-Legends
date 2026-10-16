@@ -2,7 +2,8 @@ import { Link, useLocation } from 'react-router-dom'
 import type { NewsItem } from '../../domain/model'
 import { SEASON_POINTS } from '../../domain/season'
 import { isGuest } from '../../domain/drivers'
-import { AREA } from '../colors'
+import { AREA, ME } from '../colors'
+import { Sparkline } from '../charts/Sparkline'
 import { driverPath, MeButton, Monogram, Placement, useData, useMyName } from '../components'
 import { Chevrons, Crown, RecordFlame, StatusIcons, Trophy } from '../icons'
 import { MedalBadge } from '../Medal'
@@ -204,6 +205,7 @@ function SeasonCard() {
         {r.points}
         <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', marginLeft: 3 }}>P</span>
       </span>
+      <Sparkline values={r.progress} color={r.name === me ? ME : '#8A94A0'} label={`Punkteverlauf ${r.name}`} width={48} />
     </Link>
   )
   const top = rows.slice(0, 3)

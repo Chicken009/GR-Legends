@@ -4,8 +4,9 @@ import { SEASON_POINTS } from '../../domain/season'
 import { CHALLENGE_XP } from '../../domain/challenges'
 import { CarThumb } from '../CarPhoto'
 import { PointsChart } from '../charts/PointsChart'
+import { Sparkline } from '../charts/Sparkline'
 import { BumpChart } from '../charts/StatsCharts'
-import { AREA, seriesColors } from '../colors'
+import { AREA, ME, seriesColors } from '../colors'
 import { Avatar, carPath, driverPath, PageHead, Segment, useData, useMyName } from '../components'
 import { formatDate } from '../format'
 import { MedalBadge } from '../Medal'
@@ -168,6 +169,9 @@ function StandingRow({ row: r, me, bg }: { row: SeasonStanding; me: string | nul
       <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', paddingTop: 4 }}>
         <span className="num" style={{ fontSize: 20, fontWeight: 800 }}>{r.points}</span>
         <span style={{ fontSize: 10, color: 'var(--muted)' }}>Punkte</span>
+      </span>
+      <span style={{ paddingTop: 8 }}>
+        <Sparkline values={r.progress} color={r.name === me ? ME : '#8A94A0'} label={`Punkteverlauf ${r.name}`} />
       </span>
     </Link>
   )

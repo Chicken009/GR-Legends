@@ -557,9 +557,15 @@ select.select {
   min-height: 44px;
 }
 
-a.row:hover,
-a.list-item:hover {
-  background: rgba(255, 255, 255, 0.03);
+/* Hover nur mit Maus: am Handy bleibt der Hover-Zustand nach dem Antippen sonst hängen */
+@media (hover: hover) {
+  a.row:hover,
+  a.list-item:hover {
+    background: rgba(255, 255, 255, 0.03);
+  }
+  a.row.me-row:hover {
+    background: linear-gradient(90deg, rgba(59, 188, 74, 0.38) 0%, rgba(59, 188, 74, 0.12) 60%, transparent 100%);
+  }
 }
 
 .row .grow {
