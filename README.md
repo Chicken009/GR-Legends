@@ -146,8 +146,8 @@ damit sich mechanische Änderungen schnell im Auto-Bonus zeigen.
 
 **Duell gegen die Bahn**: Zusätzlich fährt jeder in jedem Lauf gegen einen festen Maßstab (Startwert
 500): gewonnen, wenn die eigene typische saubere Runde schneller ist als die typische Runde des Autos
-auf der Strecke über alle Läufe. Gewicht 0,3 eines Laufs. Werden alle schneller, steigen alle – die
-Wertung spiegelt so auch echte Verbesserung wider.
+auf der Strecke über alle Läufe. Gewicht 0,3 eines Laufs, nur als Bonus (nie Abzug). Werden alle
+schneller, steigen alle – die Wertung spiegelt so auch echte Verbesserung wider.
 
 **Saisonwertung**: Pro Jahr zählt, wer die meisten Elo-Punkte dazugewonnen hat (ab 5 Rennen).
 Abgeschlossene Jahre ergeben die Medaille „Saisonsieger“.
