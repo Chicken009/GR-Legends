@@ -21,6 +21,7 @@ export function Drivers() {
   const rows = model.ranking(p).filter((r) => !minRaces || r.races >= 3 || r.name === me)
   const open = (name: string) => navigate(driverPath(name), { state: { bg: location } })
   const d = (r: RankRow) => stats.get(r.name)
+  const seasonGain = new Map(p !== 'all' ? model.season(p).map((r) => [r.name, r.gain]) : [])
   const medalCount = (name: string) => (model.medals.get(name) ?? []).filter((m) => !m.former).length
   const columns: Column<RankRow>[] = [
     {
@@ -33,6 +34,18 @@ export function Drivers() {
       ),
     },
     { key: 'elo', label: 'Elo', strong: true, value: (r) => r.elo, render: (r) => fmtElo(r.elo) },
+    ...(p !== 'all'
+      ? [
+          {
+            key: 'season', label: `Saison ${p}`, title: 'Elo im Jahr dazugewonnen (Saisonwertung)',
+            value: (r: RankRow) => seasonGain.get(r.name) ?? null,
+            render: (r: RankRow) => {
+              const g = seasonGain.get(r.name)
+              return g == null ? '–' : <span style={{ color: g >= 0 ? '#7BDB8A' : '#FF8A7A', fontWeight: 600 }}>{`${g >= 0 ? '+' : '−'}${Math.abs(Math.round(g))}`}</span>
+            },
+          } satisfies Column<RankRow>,
+        ]
+      : []),
     { key: 'trend', label: 'Trend', title: 'Plätze gewonnen oder verloren im Zeitraum', value: (r) => (r.rankStart != null ? r.rankStart - r.rank : null), render: (r) => <Trend row={r} /> },
     { key: 'races', label: 'Rennen', value: (r) => d(r)?.races ?? 0 },
     { key: 'wins', label: 'Siege', value: (r) => d(r)?.wins ?? 0 },

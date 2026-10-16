@@ -291,7 +291,14 @@ function DriverChart({ driver, kind, period }: { driver: string; kind: 'elo' | '
   const rows = races.map(({ session, result }, i) => {
     const pool = normal.slice(Math.max(0, i - WINDOW + 1), i + 1).flat().sort((a, b) => a - b)
     const pb = Math.min(...races.slice(0, i + 1).map((r) => r.result.validBestLapMs ?? Infinity))
-    return { session, result, median: pool.length >= 5 ? quantile(pool, 0.5) : null, pb: isFinite(pb) ? pb : null }
+    const enough = pool.length >= 5
+    return {
+      session, result, pb: isFinite(pb) ? pb : null,
+      median: enough ? quantile(pool, 0.5) : null,
+      // eigene Spanne: schnellste 10 % bis langsamste 10 % der sauberen Runden
+      fast: enough ? quantile(pool, 0.1) : null,
+      slow: enough ? quantile(pool, 0.9) : null,
+    }
   })
   const shown = rows.filter((r) => inP(r.session.date))
   if (shown.length < 2) return <p className="muted" style={{ margin: 0, fontSize: 13 }}>Noch zu wenige Rennen.</p>
@@ -304,11 +311,14 @@ function DriverChart({ driver, kind, period }: { driver: string; kind: 'elo' | '
           { name: 'Median', color: ACCENT, values: shown.map((r) => r.median) },
           { name: 'Bestzeit', color: '#B98CFF', values: shown.map((r) => r.pb), dashed: true, step: true },
         ]}
+        band={{ lo: shown.map((r) => r.fast), hi: shown.map((r) => r.slow), color: ACCENT }}
         tips={shown.map((r) => ({
           title: `${formatDate(r.session.date)} · ${r.session.type} ${r.session.heat}`,
           text: (
             <>
               <span style={{ color: ACCENT }}>Median {s2(r.median)} s</span> · <span style={{ color: '#B98CFF' }}>Bestzeit {s2(r.pb)} s</span>
+              <br />
+              Spanne {s2(r.fast)}–{s2(r.slow)} s
               <br />
               In diesem Rennen: P{r.result.position}, Best {s2(r.result.validBestLapMs)} s
             </>
@@ -325,6 +335,10 @@ function DriverChart({ driver, kind, period }: { driver: string; kind: 'elo' | '
         <span>
           <span style={{ width: 14, height: 0, borderTop: '2px dashed #B98CFF' }} />
           persönliche Bestzeit
+        </span>
+        <span>
+          <span style={{ width: 14, height: 10, borderRadius: 3, background: 'linear-gradient(180deg, rgba(59,188,74,.4), rgba(59,188,74,.06))' }} />
+          deine Spanne (80 % der Runden)
         </span>
         <span>↑ schneller</span>
       </div>

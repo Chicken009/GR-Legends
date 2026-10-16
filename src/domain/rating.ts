@@ -16,7 +16,12 @@ export const RATING = {
   kProvisional: 48,
   provisionalRaces: 5,
   /** Bewegung der Autowertung (pro Strecke) */
-  kCar: 10,
+  kCar: 16,
+  /**
+   * Recency Bias der Autowertung: Ältere Ergebnisse verblassen mit dieser Halbwertszeit (Tage).
+   * So zeigen sich mechanische Verbesserungen oder Verschleiß schnell im Auto-Bonus.
+   */
+  carHalfLifeDays: 120,
   /** Qualifyings zählen halb */
   qualiWeight: 0.5,
   /** Abstand → Duell-Ergebnis: S = 0.5 + 0.5·tanh(Vorsprung / Skala) */
@@ -51,6 +56,8 @@ export interface RatingResult {
 }
 
 export const carKey = (track: string, car: string) => `${track}\u0000${car}`
+
+const daysBetween = (a: string, b: string) => (Date.parse(b) - Date.parse(a)) / 86_400_000
 
 export function isQuali(s: Session) {
   return /quali/i.test(s.type)
@@ -109,17 +116,28 @@ export function computeRatings(sessions: Session[], cfg = RATING): RatingResult 
   const history = new Map<string, RatingEvent[]>()
   const events: RatingEvent[] = []
 
+  const carDate = new Map<string, string>()
+  /** Autowertung verblasst Richtung 0 (= durchschnittliches Auto), je länger das letzte Rennen her ist */
+  const decayCar = (key: string, date: string) => {
+    const last = carDate.get(key)
+    if (last && last < date && cars.has(key)) cars.set(key, cars.get(key)! * 0.5 ** (daysBetween(last, date) / cfg.carHalfLifeDays))
+    carDate.set(key, date)
+  }
+  let currentDate = ''
   const carRating = (track: string, car: string) => {
     const key = carKey(track, car)
     if (!cars.has(key)) {
       // Neues Auto auf dieser Strecke: Schnitt desselben Autos auf anderen Strecken
       const others = [...cars].filter(([k]) => k.endsWith(`\u0000${car}`)).map(([, v]) => v)
       cars.set(key, others.length ? others.reduce((a, b) => a + b, 0) / others.length : 0)
+      carDate.set(key, currentDate)
     }
+    decayCar(key, currentDate)
     return cars.get(key)!
   }
 
   for (const s of sortSessions(sessions)) {
+    currentDate = s.date
     const players = s.results.filter((r) => !isGuest(r.driver))
     if (players.length < 2) continue
     const quali = isQuali(s)
@@ -187,6 +205,8 @@ export function computeRatings(sessions: Session[], cfg = RATING): RatingResult 
       cars.set(key, carRating(s.track, car) + cfg.kCar * w * d)
     }
   }
+  // Stand am letzten Renntag: auch selten gefahrene Autos auf denselben Zeitpunkt bringen
+  for (const key of cars.keys()) decayCar(key, currentDate)
   return { drivers, cars, history, events }
 }
 
