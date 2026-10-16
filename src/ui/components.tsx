@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useId, useRef, type CSSProperties
 import { createPortal } from 'react-dom'
 import type { AppData } from '../data/useRaceDays'
 import { PLACEMENT_RUNS } from '../domain/model'
-import { ChevronDown, StrokeIcon } from './icons'
+import { StrokeIcon } from './icons'
 import { initials } from './format'
 import { useMe } from './me'
 
@@ -244,12 +244,15 @@ export function Sheet({ onClose, children, actions, label }: { onClose: () => vo
           <div className="grip" aria-hidden="true">
             <span />
           </div>
-          <div className="sheet-bar">
-            <button className="icon-btn" aria-label="Schließen" onClick={onClose}>
-              <ChevronDown />
-            </button>
-            <div style={{ display: 'flex', gap: 4 }}>{actions}</div>
-          </div>
+          {/* Schließen per Runterziehen, Tipp daneben oder Esc; der Knopf ist nur für Screenreader */}
+          <button className="sr-only" onClick={onClose}>
+            Schließen
+          </button>
+          {actions && (
+            <div className="sheet-bar">
+              <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>{actions}</div>
+            </div>
+          )}
         </div>
         <div ref={bodyRef} className="sheet-body">
           {children}

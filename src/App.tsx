@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { HashRouter, Route, Routes, useLocation, useNavigate, useNavigationType, type Location } from 'react-router-dom'
 import { useAppData } from './data/useRaceDays'
 import { Celebration } from './ui/Celebration'
@@ -22,11 +22,18 @@ function AppRoutes() {
   const location = useLocation()
   const navigate = useNavigate()
   const { pickerOpen } = useMe()
-  // Profile öffnen sich als Panel über der vorherigen Seite; bei direktem Link über der Fahrerliste
+  // Fahrer- und Fahrzeugprofile öffnen sich als Panel über der vorherigen Seite;
+  // bei direktem Link über der Fahrer- bzw. Fahrzeugliste
   const state = location.state as { bg?: Location } | null
-  const isSheet = /^\/fahrer\/[^/]+/.test(location.pathname)
-  const background = isSheet ? (state?.bg ?? ({ ...location, pathname: '/fahrer' } as Location)) : location
-  const close = () => (state?.bg ? navigate(-1) : navigate('/fahrer'))
+  const isSheet = /^\/(fahrer|autos)\/[^/]+/.test(location.pathname)
+  const listPath = location.pathname.startsWith('/autos') ? '/autos' : '/fahrer'
+  const lastPage = useRef<Location | null>(null)
+  useEffect(() => {
+    if (!isSheet) lastPage.current = location
+  })
+  const bg = state?.bg ?? lastPage.current
+  const background = isSheet ? (bg ?? ({ ...location, pathname: listPath } as Location)) : location
+  const close = () => (bg ? navigate(-1) : navigate(listPath))
   const navType = useNavigationType()
   // Neue Seite beginnt oben (außer Profil-Panels und Zurück)
   useEffect(() => {
@@ -40,7 +47,6 @@ function AppRoutes() {
           <Route index element={<Home />} />
           <Route path="fahrer" element={<Drivers />} />
           <Route path="autos" element={<Cars />} />
-          <Route path="autos/:name" element={<CarProfile />} />
           <Route path="historie" element={<History />} />
           <Route path="lauf/:fileId" element={<RaceView />} />
           <Route path="statistik" element={<Stats />} />
@@ -56,6 +62,7 @@ function AppRoutes() {
         <Routes>
           <Route path="/fahrer/:name" element={<DriverProfile onClose={close} />} />
           <Route path="/fahrer/:name/medaillen" element={<MedalsSheet onClose={close} />} />
+          <Route path="/autos/:name" element={<CarProfile onClose={close} />} />
         </Routes>
       )}
       {pickerOpen && <MePicker />}
