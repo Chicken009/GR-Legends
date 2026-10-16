@@ -16,12 +16,15 @@ export interface TrendSeries {
  */
 export function TimeTrendChart({
   series,
+  band,
   tips,
   xLabels,
   label,
   height = 160,
 }: {
   series: TrendSeries[]
+  /** Spanne im Hintergrund (z. B. eigene Rundenzeiten von schnell bis langsam) */
+  band?: { lo: (number | null)[]; hi: (number | null)[]; color: string }
   tips: TipContent[]
   xLabels: { index: number; text: string }[]
   label: string
@@ -30,7 +33,7 @@ export function TimeTrendChart({
   const [ref, width] = useWidth<HTMLDivElement>()
   const [open, setOpen] = useState<number | null>(null)
   const n = Math.max(0, ...series.map((s) => s.values.length))
-  const vals = series.flatMap((s) => s.values.filter((v): v is number => v != null))
+  const vals = [...series.flatMap((s) => s.values), ...(band ? [...band.lo, ...band.hi] : [])].filter((v): v is number => v != null)
   if (n < 2 || vals.length === 0) return <p className="muted" style={{ margin: 0, fontSize: 13 }}>Noch zu wenige Rennen.</p>
   const lo = Math.min(...vals)
   const hi = Math.max(...vals)
@@ -59,9 +62,28 @@ export function TimeTrendChart({
     return segs.map((seg) => linePath(seg)).join(' ')
   }
   const hitW = Math.max(12, Math.min(32, width / n))
+  // Fläche der Spanne: oben die schnellen, unten die langsamen Runden
+  const bandPath = (() => {
+    if (!band) return ''
+    const idx = band.lo.map((v, i) => (v != null && band.hi[i] != null ? i : -1)).filter((i) => i >= 0)
+    if (idx.length < 2) return ''
+    const upper = idx.map((i) => [sx(i), sy(band.lo[i]!)] as [number, number])
+    const lower = idx.map((i) => [sx(i), sy(band.hi[i]!)] as [number, number]).reverse()
+    return `${linePath(upper)} ${lower.map(([x, y]) => `L${x.toFixed(1)} ${y.toFixed(1)}`).join(' ')} Z`
+  })()
+  const gid = `band-${label.length}`
   return (
     <div ref={ref} className="chart" style={{ height }}>
       <svg width={width} height={height} role="img" aria-label={label}>
+        {band && (
+          <defs>
+            <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor={band.color} stopOpacity="0.32" />
+              <stop offset="1" stopColor={band.color} stopOpacity="0.04" />
+            </linearGradient>
+          </defs>
+        )}
+        {bandPath && <path d={bandPath} fill={`url(#${gid})`} />}
         {ticks.map((t) => (
           <g key={t}>
             <path d={`M30 ${sy(t * 1000)}H${width}`} stroke={GRID} />

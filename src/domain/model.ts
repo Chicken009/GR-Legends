@@ -141,6 +141,15 @@ export interface Tip {
   good?: boolean
 }
 
+export interface SeasonRow {
+  name: string
+  /** Elo zu Saisonbeginn (bzw. Startwert bei neuen Fahrern) */
+  start: number
+  end: number
+  gain: number
+  races: number
+}
+
 export interface NewsItem {
   kind: 'medal' | 'record-track' | 'record-car' | 'record-personal' | 'climb'
   driver: string
@@ -171,7 +180,12 @@ export interface Model {
   rankTimeline: () => { dates: string[]; ranks: Map<string, (number | null)[]> }
   /** Was am letzten Renntag passiert ist */
   news: () => NewsItem[]
+  /** Saisonwertung: Elo-Gewinn im Jahr, sortiert (wer in der Saison gefahren ist) */
+  season: (year: string) => SeasonRow[]
 }
+
+/** Mindestzahl Rennen für den Titel „Saisonsieger“ */
+export const SEASON_MIN_RACES = 5
 
 function emptyDriver(name: string): DriverStats {
   return {
@@ -437,8 +451,30 @@ export function buildModel(input: Session[]): Model {
     return out
   }
 
+  // ---- Saisonwertung ---------------------------------------------------------------------
+  const seasonCache = new Map<string, SeasonRow[]>()
+  const season = (year: string): SeasonRow[] => {
+    const cached = seasonCache.get(year)
+    if (cached) return cached
+    const before = dates.filter((dt) => dt < `${year}-01-01`)
+    const startDate = before[before.length - 1]
+    const end = periodEnd(year)
+    const st = stats(year).drivers
+    const rows: SeasonRow[] = []
+    for (const [name, h] of rating.history) {
+      const inYear = h.filter((e) => e.date.startsWith(year))
+      if (!inYear.length) continue
+      const start = (startDate ? eloAt(name, startDate) : null) ?? inYear[0].before
+      const last = eloAt(name, end) ?? inYear[inYear.length - 1].after
+      rows.push({ name, start, end: last, gain: last - start, races: st.get(name)?.races ?? 0 })
+    }
+    rows.sort((a, b) => b.gain - a.gain)
+    seasonCache.set(year, rows)
+    return rows
+  }
+
   // ---- Medaillen -------------------------------------------------------------------------
-  const medals = computeMedals(sessions, rating, stats('all').drivers, recordTimeline, years, rankingAt, dates)
+  const medals = computeMedals(sessions, rating, stats('all').drivers, recordTimeline, years, rankingAt, dates, season)
 
   // ---- Ziele, Rivale, Tipps --------------------------------------------------------------
   const rival = (driver: string) => {
@@ -673,7 +709,7 @@ export function buildModel(input: Session[]): Model {
 
   return {
     sessions, years, tracks, rating, drivers, stats, ranking, statuses, medals,
-    trackRecords, carRecords, goals, rival, tips, eloAt, rankTimeline, news,
+    trackRecords, carRecords, goals, rival, tips, eloAt, rankTimeline, news, season,
   }
 }
 
@@ -742,6 +778,7 @@ function computeMedals(
   years: string[],
   rankingAt: (date: string) => Map<string, number>,
   dates: string[],
+  season: (year: string) => SeasonRow[],
 ): Map<string, Medal[]> {
   const out = new Map<string, Medal[]>()
   const add = (driver: string, m: Medal) => {
@@ -814,6 +851,17 @@ function computeMedals(
       if (!best || r.validBestLapMs < best.ms) best = { ms: r.validBestLapMs, driver: r.driver, date: s.date }
     }
     if (best) add(best.driver, { id: `jahr-${y}`, kind: 'jahresschnellster', name: `Jahresschnellster ${y}`, description: 'Schnellste Runde des Jahres', tier: 'platinum', icon: 'clock', date: best.date })
+  }
+
+  // Saisonsieger: die meisten Elo-Punkte im Jahr dazugewonnen (abgeschlossene Jahre, ab 5 Rennen)
+  const thisYear = String(new Date().getFullYear())
+  for (const y of years) {
+    if (y >= thisYear) continue
+    const winner = season(y).find((r) => r.races >= SEASON_MIN_RACES && r.gain > 0)
+    if (winner) {
+      const lastInYear = dates.filter((dt) => dt.startsWith(y)).pop() ?? `${y}-12-31`
+      add(winner.name, { id: `saison-${y}`, kind: 'saisonsieger', name: `Saisonsieger ${y}`, description: `Die meisten Elo-Punkte der Saison dazugewonnen (+${Math.round(winner.gain)})`, tier: 'platinum', icon: 'trophy', date: lastInYear })
+    }
   }
 
   // Aufsteiger des Jahres: die meisten Plätze in der Wertung gewonnen (Stand vor dem Jahr → Jahresende)

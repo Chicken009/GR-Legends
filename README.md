@@ -141,3 +141,8 @@ Elo-Skala (200 Punkte = Siegchance 10 : 1), damit die Zahlen dreistellig und nah
 bleiben. Das Duell-Ergebnis hängt vom Abstand ab (Runden bzw. Zeit). Die Erwartung kommt aus
 Fahrer- **plus** Autowertung (pro Strecke) – wer im schwächeren Auto gewinnt, bekommt mehr Punkte
 (Underdog-Bonus). Qualifyings zählen halb, Gäste gar nicht, die ersten 5 Läufe doppelt so stark.
+Die Autowertung hat einen Recency Bias: Ältere Ergebnisse verblassen mit 120 Tagen Halbwertszeit,
+damit sich mechanische Änderungen schnell im Auto-Bonus zeigen.
+
+**Saisonwertung**: Pro Jahr zählt, wer die meisten Elo-Punkte dazugewonnen hat (ab 5 Rennen).
+Abgeschlossene Jahre ergeben die Medaille „Saisonsieger“.

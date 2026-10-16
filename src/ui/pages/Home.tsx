@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
-import type { NewsItem } from '../../domain/model'
+import { SEASON_MIN_RACES, type NewsItem } from '../../domain/model'
 import { isGuest } from '../../domain/drivers'
 import { AREA } from '../colors'
 import { driverPath, MeButton, Monogram, useData, useMyName } from '../components'
@@ -145,6 +145,8 @@ export function Home() {
         </section>
       </div>
 
+      <SeasonCard />
+
       {news.length > 0 && (
         <section style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <span className="kicker" style={{ padding: '4px 4px 0' }}>
@@ -164,6 +166,59 @@ export function Home() {
         </section>
       )}
     </div>
+  )
+}
+
+const CURRENT_YEAR = String(new Date().getFullYear())
+
+/** Saisonwertung des aktuellen Jahres: wer am meisten Elo dazugewonnen hat (ab 5 Rennen) */
+function SeasonCard() {
+  const { model } = useData()
+  const me = useMyName()
+  const location = useLocation()
+  const year = model.years[0]
+  if (!year) return null
+  const rows = model.season(year)
+  if (!rows.length) return null
+  const ranked = rows.filter((r) => r.races >= SEASON_MIN_RACES)
+  const mine = me ? rows.find((r) => r.name === me) : undefined
+  const myPos = mine ? ranked.indexOf(mine) + 1 : 0
+  const running = year >= CURRENT_YEAR
+  const line = (r: (typeof rows)[number], pos: number | null) => (
+    <Link key={r.name} to={driverPath(r.name)} state={{ bg: location }} className={`row${r.name === me ? ' me-row' : ''}`} style={{ padding: '7px 8px' }}>
+      <span className={`rank${pos != null && pos <= 3 ? ` r${pos}` : ''}`} style={{ minWidth: 20, fontSize: 15 }}>
+        {pos ?? '–'}
+      </span>
+      <span className="grow">
+        <span className="name">{r.name === me ? `Du · ${r.name}` : r.name}</span>
+        <span className="sub">
+          {pos == null
+            ? `${r.races} Rennen · noch ${SEASON_MIN_RACES - r.races} bis zur Wertung`
+            : `${r.races} Rennen · ${fmtElo(r.start)} → ${fmtElo(r.end)}`}
+        </span>
+      </span>
+      <span className="num" style={{ fontSize: 15, fontWeight: 800, color: r.gain >= 0 ? '#7BDB8A' : 'var(--muted)' }}>
+        {r.gain >= 0 ? '+' : '−'}
+        {Math.abs(Math.round(r.gain))}
+      </span>
+    </Link>
+  )
+  const top = ranked.slice(0, 3)
+  return (
+    <section className="card" style={{ gap: 4 }}>
+      <div className="card-head">
+        <span className="kicker" style={{ color: AREA.drivers }}>
+          Saison {year}
+        </span>
+        <span style={{ fontSize: 12, color: 'var(--muted)' }}>{running ? 'läuft · ' : ''}Elo dazugewonnen</span>
+      </div>
+      {top.map((r, i) => line(r, i + 1))}
+      {top.length === 0 && <p style={{ margin: 0, fontSize: 13, color: 'var(--muted)' }}>Noch niemand hat {SEASON_MIN_RACES} Rennen in dieser Saison.</p>}
+      {mine && !top.includes(mine) && line(mine, myPos > 0 ? myPos : null)}
+      <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--muted)', lineHeight: 1.45 }}>
+        Jede Saison startet bei null: Wer im Jahr die meisten Punkte dazugewinnt, wird Saisonsieger. Gewertet wird ab {SEASON_MIN_RACES} Rennen.
+      </p>
+    </section>
   )
 }
 
