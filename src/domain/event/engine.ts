@@ -40,6 +40,8 @@ export interface Heat {
   cars: Record<string, string>
   /** Hinweis bei freier Wahl („Freie Wahl aus: …“) */
   carHint: string | null
+  /** Freie Wahl aus dieser Liste (für Bilder in der Ansicht) */
+  carChoice: string[] | null
   /** Teamrennen: Fahrer → Team-ID */
   teamOf: Record<string, string> | null
   /** Was der Lauf entscheidet („Top 2 steigen auf“) */
@@ -287,6 +289,11 @@ function carsFor(env: Env, rule: CarRule, names: string[], heatId: string): { ca
   return { cars, hint }
 }
 
+/** Höchstzahl gleichzeitig wegen der Autoliste (freie Wahl, nach Können, zufällig) – null = keine Grenze */
+export function carCap(rule: CarRule): number | null {
+  return (rule.mode === 'list' || rule.mode === 'skill' || rule.mode === 'random') && rule.pool.length ? rule.pool.length : null
+}
+
 const driverSet = (s: Session) => s.results.filter((r) => !isGuest(r.driver)).map((r) => r.driver)
 
 /** Passende CSV zu einem Lauf suchen (manuell zugeordnet > gleiche Besetzung > ähnliche Besetzung) */
@@ -343,6 +350,7 @@ function addHeat(
     entrants,
     cars,
     carHint: hint,
+    carChoice: rule.mode === 'list' && rule.pool.length ? rule.pool : null,
     teamOf: init.teamOf ?? null,
     note: init.note ?? null,
     session: null,
@@ -534,10 +542,49 @@ export function ladderSizes(n: number, per: number, advance: number): number[] {
   return [n - upper * step, ...Array.from({ length: upper }, () => step)]
 }
 
+/**
+ * Automatische Aufstiegsleiter: In jedem Rennen steigt die Hälfte auf (abgerundet, mindestens einer).
+ * Alle Rennen sind voll; fehlen Fahrer, werden die untersten Rennen um je zwei kleiner – so bleiben
+ * die Rennen möglichst gleich groß. Ergebnis von unten nach oben: direkt gesetzte Fahrer und Aufsteiger je Rennen.
+ */
+export function ladderAuto(n: number, per: number): { direct: number[]; advance: number[] } {
+  if (n <= per) return { direct: [n], advance: [0] }
+  const up = (size: number) => Math.max(1, Math.floor(size / 2))
+  const directOf = (sizes: number[]) => sizes.map((sz, i) => sz - (i ? up(sizes[i - 1]) : 0))
+  for (let levels = 2; levels <= n; levels++) {
+    const sizes = Array.from({ length: levels }, () => per)
+    let missing = directOf(sizes).reduce((a, b) => a + b, 0) - n
+    if (missing < 0) continue
+    // Von unten nach oben reihum um zwei verkleinern (das Finale bleibt voll), zum Schluss
+    // notfalls um einen (bei ungerader Spurzahl)
+    for (const step of [2, 1]) {
+      let changed = true
+      while (missing > 0 && changed) {
+        changed = false
+        for (let i = 0; i < levels - 1 && missing > 0; i++) {
+          const next = [...sizes]
+          next[i] -= step
+          const d = directOf(next)
+          const left = d.reduce((a, b) => a + b, 0) - n
+          if (next[i] >= 2 && d.every((x) => x >= 1) && left < missing) {
+            sizes[i] = next[i]
+            missing = left
+            changed = true
+          }
+        }
+      }
+    }
+    if (missing === 0) return { direct: directOf(sizes), advance: sizes.map((sz, i) => (i === levels - 1 ? 0 : up(sz))) }
+  }
+  const direct = ladderSizes(n, per, up(per))
+  return { direct, advance: direct.map((_, i) => (i === direct.length - 1 ? 0 : up(per))) }
+}
+
 function sectionLadder(env: Env, sec: SectionDef, seeds: Entrant[], per: number): Omit<SectionState, 'def'> {
   if (!seeds.length) return { heats: [], ranking: [], teamRanking: null, started: false, complete: false }
-  const advance = Math.min(sec.advance ?? 2, per - 1)
-  const sizes = ladderSizes(seeds.length, per, advance)
+  const fixed = Math.min(sec.advance ?? 2, per - 1)
+  const auto = sec.advanceAuto ? ladderAuto(seeds.length, per) : null
+  const sizes = auto ? auto.direct : ladderSizes(seeds.length, per, fixed)
   const heats: Heat[] = []
   // Setzliste: beste zuerst – unten fahren die letzten
   let rest = [...seeds]
@@ -551,6 +598,7 @@ function sectionLadder(env: Env, sec: SectionDef, seeds: Entrant[], per: number)
   let carry: Entrant[] = []
   for (let level = 0; level < sizes.length; level++) {
     const top = level === sizes.length - 1
+    const advance = auto ? auto.advance[level] : fixed
     const label = top && sizes.length > 1 ? 'Finale' : `Rennen ${level + 1}`
     const entrants = [...carry, ...direct[level]]
     const heat = addHeat(env, sec, {
@@ -558,7 +606,7 @@ function sectionLadder(env: Env, sec: SectionDef, seeds: Entrant[], per: number)
       label,
       kind: 'race',
       entrants,
-      note: top ? 'Entscheidet den Sieg' : `Top ${advance} steigen auf`,
+      note: top ? 'Entscheidet den Sieg' : advance === 1 ? 'Der Sieger steigt auf' : `Top ${advance} steigen auf`,
     })
     heats.push(heat)
     if (heat.status === 'done') {
@@ -846,7 +894,11 @@ export function computeEvent(def: EventDef, ctx: EventContext): EventState {
   const order = [...def.sections.keys()].sort((a, b) => Number(def.sections[a].format === 'free') - Number(def.sections[b].format === 'free'))
   for (const i of order) {
     const sec = def.sections[i]
-    const per = Math.max(1, sec.maxPerHeat ?? def.maxPerHeat)
+    // Müssen alle verschiedene Autos aus einer Liste fahren, fahren höchstens so viele gleichzeitig, wie Autos ausgewählt sind
+    const cap = carCap(sec.cars ?? def.cars)
+    const wanted = Math.max(1, sec.maxPerHeat ?? def.maxPerHeat)
+    const per = Math.min(wanted, cap ?? wanted)
+    if (cap != null && cap < wanted) warnings.push(`${sec.name}: Nur ${cap} ${cap === 1 ? 'Auto' : 'Autos'} ausgewählt – es fahren höchstens ${cap} gleichzeitig.`)
     let part: Omit<SectionState, 'def'>
     if (sec.format === 'free') part = sectionFree(env, sec, drivers)
     else if (sec.format === 'custom') part = sectionCustom(env, sec, drivers)

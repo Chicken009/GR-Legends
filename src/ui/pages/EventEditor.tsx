@@ -3,13 +3,13 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { eventSessions } from '../../data/useRaceDays'
 import { isGuest } from '../../domain/drivers'
 import { eventContext, typicalLapMs } from '../../domain/event/context'
-import { teamsAsDefs, teamSplit, type Heat, type TeamPlan } from '../../domain/event/engine'
+import { carCap, teamsAsDefs, teamSplit, type Heat, type TeamPlan } from '../../domain/event/engine'
 import { todayIso } from '../../domain/event/insights'
 import { eventSlug, normalizeEvent, serializeEvent } from '../../domain/event/normalize'
 import { newSeed } from '../../domain/event/random'
 import { simulate, type Simulation } from '../../domain/event/simulate'
 import { newEvent, newSection, TEMPLATES } from '../../domain/event/templates'
-import { FORMAT_LABEL, type EventDef, type HeatOverride, type SectionDef, type SectionFormat, type Seeding } from '../../domain/event/types'
+import { FORMAT_LABEL, type CarRule, type EventDef, type HeatOverride, type SectionDef, type SectionFormat, type Seeding } from '../../domain/event/types'
 import { PageHead, Segment, useData } from '../components'
 import { CarRuleEditor, Field, Group, Stepper, ToggleChip, useCarOptions } from '../event/form'
 import { computeFor, EVENT_ACCENT, fmtPts, HeatCard, teamColor } from '../event/shared'
@@ -308,6 +308,7 @@ export function EventEditor() {
           <Stepper label="Fahrzeuge gleichzeitig" value={def.maxPerHeat} min={1} max={8} onChange={(maxPerHeat) => update({ maxPerHeat })} />
         </Group>
         <CarRuleEditor rule={def.cars} onChange={(cars) => update({ cars })} drivers={def.drivers} />
+        <CapNote rule={def.cars} per={def.maxPerHeat} />
       </section>
 
       <ScoringCard def={def} update={update} />
@@ -755,9 +756,17 @@ function SectionEditor({ sec, index, count, def, plan, onChange, onMove, onRemov
             <Stepper label="Durchgänge" value={sec.rounds ?? 1} min={1} max={10} onChange={(rounds) => onChange({ rounds })} />
           </Group>
         )}
-        {(sec.format === 'ladder' || sec.format === 'ko') && (
-          <Group label={sec.format === 'ladder' ? 'Steigen auf' : 'Kommen weiter'} help={sec.format === 'ko' ? 'je Lauf, in größeren Gruppen einer mehr' : 'je Lauf'}>
-            <Stepper label="Weiter je Lauf" value={Math.min(sec.advance ?? (sec.format === 'ladder' ? 2 : 1), per - 1)} min={1} max={Math.max(1, per - 1)} onChange={(advance) => onChange({ advance })} />
+        {sec.format === 'ladder' && (
+          <Group label="Steigen auf" help={sec.advanceAuto ? 'je Rennen die Hälfte, Rennen möglichst gleich groß' : 'je Rennen'}>
+            <span style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+              <Segment small label="Aufsteiger" value={sec.advanceAuto ? 'auto' : 'fixed'} onChange={(v) => onChange({ advanceAuto: v === 'auto' || undefined })} options={[['auto', 'Automatisch'], ['fixed', 'Fest']]} />
+              {!sec.advanceAuto && <Stepper label="Weiter je Lauf" value={Math.min(sec.advance ?? 2, per - 1)} min={1} max={Math.max(1, per - 1)} onChange={(advance) => onChange({ advance })} />}
+            </span>
+          </Group>
+        )}
+        {sec.format === 'ko' && (
+          <Group label="Kommen weiter" help="je Lauf, in größeren Gruppen einer mehr">
+            <Stepper label="Weiter je Lauf" value={Math.min(sec.advance ?? 1, per - 1)} min={1} max={Math.max(1, per - 1)} onChange={(advance) => onChange({ advance })} />
           </Group>
         )}
       </div>
@@ -769,9 +778,17 @@ function SectionEditor({ sec, index, count, def, plan, onChange, onMove, onRemov
         </label>
       )}
       {sec.cars && <CarRuleEditor rule={sec.cars} onChange={(cars) => onChange({ cars })} drivers={def.drivers} />}
+      {sec.cars && <CapNote rule={sec.cars} per={per} />}
       {sec.format === 'custom' && <CustomHeats sec={sec} def={def} onChange={onChange} />}
     </div>
   )
+}
+
+/** Hinweis, wenn weniger Autos ausgewählt sind, als gleichzeitig fahren sollen */
+function CapNote({ rule, per }: { rule: CarRule; per: number }) {
+  const cap = carCap(rule)
+  if (cap == null || cap >= per) return null
+  return <span style={{ fontSize: 12, color: 'var(--crash)' }}>Nur {cap} {cap === 1 ? 'Auto' : 'Autos'} ausgewählt – es fahren höchstens {cap} gleichzeitig.</span>
 }
 
 const TEAM_PLAN_TEXT: Record<TeamPlan['mode'], string> = {

@@ -4,6 +4,7 @@ import type { EventFolder } from '../../data/events'
 import { driverInsight, eventVisible, todayIso } from '../../domain/event/insights'
 import { PageHead, useData } from '../components'
 import { useMe } from '../me'
+import { CarThumb } from '../CarPhoto'
 import { computeFor, dateRange, EVENT_ACCENT, fmtPts, PhasePill, phaseOf } from '../event/shared'
 
 /** Liste der Wettkämpfe (Seite und Reiter „Wettkämpfe“ der Saison) */
@@ -52,6 +53,8 @@ export function EventCard({ folder, me }: { folder: EventFolder; me: string | nu
   const phase = phaseOf(folder.def, state)
   const mine = me && state.drivers.includes(me) ? driverInsight(state, me) : null
   const leader = state.standings[0]
+  const rule = folder.def.cars
+  const cars = rule.mode === 'fixed' ? [...new Set(Object.values(rule.fixed))] : rule.mode === 'free' ? [] : rule.pool
   return (
     <Link to={`/wettkampf/${folder.id}`} className="card" style={{ gap: 8 }}>
       <div className="card-head">
@@ -71,6 +74,14 @@ export function EventCard({ folder, me }: { folder: EventFolder; me: string | nu
           {mine.nextHeat ? ` · als Nächstes ${mine.nextHeat.label}` : ''}
         </span>
       )}
+      {cars.length > 0 && (
+        <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }} aria-label={`Autos: ${cars.join(', ')}`}>
+          {cars.slice(0, 8).map((c) => (
+            <CarThumb key={c} car={c} size={30} />
+          ))}
+          {cars.length > 8 && <span style={{ fontSize: 12, color: 'var(--muted)', alignSelf: 'center' }}>+{cars.length - 8}</span>}
+        </span>
+      )}
       {folder.problem && <span style={{ fontSize: 12, color: 'var(--muted)' }}>{folder.problem}</span>}
     </Link>
   )
@@ -79,7 +90,7 @@ export function EventCard({ folder, me }: { folder: EventFolder; me: string | nu
 export function Events() {
   return (
     <div className="page" style={{ ['--accent' as string]: EVENT_ACCENT }}>
-      <PageHead title="Wettkämpfe" kicker="Meisterschaft" color={EVENT_ACCENT} />
+      <PageHead title="Events" kicker="Wettkämpfe" color={EVENT_ACCENT} />
       <EventList />
     </div>
   )

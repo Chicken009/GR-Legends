@@ -4,6 +4,7 @@ import { Link, useParams } from 'react-router-dom'
 import { planVisible, storylines, todayIso } from '../../domain/event/insights'
 import { Avatar, useData } from '../components'
 import { formatTime } from '../format'
+import { CarThumb } from '../CarPhoto'
 import { EVENT_ACCENT, fmtPts, PhasePill, phaseOf, Podium, StoryIcon, teamColor, TeamTag, useEventState } from '../event/shared'
 
 const REFRESH_MS = 30_000
@@ -102,9 +103,21 @@ export function EventLive() {
                     {e.label}
                   </span>
                   <span style={{ marginLeft: 'auto', color: 'var(--muted)', textAlign: 'right' }}>{e.name ? state.next!.cars[e.name] ?? '' : ''}</span>
+                  {e.name && state.next!.cars[e.name] && <CarThumb car={state.next!.cars[e.name]} size={56} />}
                 </div>
               ))}
-              {state.next.carHint && <span style={{ color: 'var(--muted)', fontSize: '0.8em' }}>{state.next.carHint}</span>}
+              {state.next.carChoice ? (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
+                  <span style={{ color: 'var(--muted)', fontSize: '0.8em' }}>Freie Wahl aus:</span>
+                  {state.next.carChoice.map((c) => (
+                    <span key={c} style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: '0.8em' }}>
+                      <CarThumb car={c} size={44} /> {c}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                state.next.carHint && <span style={{ color: 'var(--muted)', fontSize: '0.8em' }}>{state.next.carHint}</span>
+              )}
               {after.length > 0 && (
                 <span style={{ color: 'var(--muted)', fontSize: '0.85em' }}>
                   Danach: {after.map((h) => `${h.label} (${h.entrants.map((e) => (e.name ? e.name.split(' ')[0] : '?')).join(', ')})`).join(' · ')}
@@ -128,6 +141,7 @@ export function EventLive() {
                     </span>
                     <span style={{ fontWeight: 700 }}>{n}</span>
                     <span style={{ marginLeft: 'auto', color: 'var(--muted)' }}>{r?.validBestLapMs ? formatTime(r.validBestLapMs) : ''}</span>
+                    {r?.car && <CarThumb car={r.car} size={40} />}
                     <span className="num" style={{ minWidth: 50, textAlign: 'right', fontWeight: 800, color: lastDone.advancing?.includes(n) ? EVENT_ACCENT : undefined }}>
                       {lastDone.advancing?.includes(n) ? '↑ weiter' : lastDone.points.has(n) ? `+${fmtPts(lastDone.points.get(n)!)}` : ''}
                     </span>

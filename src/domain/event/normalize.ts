@@ -60,6 +60,7 @@ function normalizeSection(v: Obj, i: number): SectionDef {
   if (v.laps != null) out.laps = num(v.laps, 10, 1, 999)
   if (v.rounds != null) out.rounds = num(v.rounds, 1, 1, 20)
   if (v.half === true) out.half = true
+  if (v.advanceAuto === true) out.advanceAuto = true
   if (v.advance != null) out.advance = num(v.advance, 1, 1, 11)
   if (Array.isArray(v.heats)) {
     out.heats = v.heats.filter(isObj).map((h) => ({ kind: h.kind === 'quali' ? 'quali' : 'race', drivers: strList(h.drivers) }))

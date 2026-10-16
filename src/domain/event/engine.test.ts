@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Result, Session } from '../../types'
-import { buildTeams, chunkEven, computeEvent, ladderSizes, snake, type EventContext } from './engine'
+import { buildTeams, chunkEven, computeEvent, ladderAuto, ladderSizes, snake, type EventContext } from './engine'
 import { driverInsight, eventPhase, planVisible, storylines } from './insights'
 import { normalizeEvent, serializeEvent } from './normalize'
 import { playThrough, simulate } from './simulate'
@@ -189,6 +189,30 @@ describe('Rennen, K.-o. und Teams', () => {
     const d = def({ drivers: ['A', 'B', 'C', 'D', 'E'], maxPerHeat: 4, teams: { mode: 'manual', size: 3, teams: [{ name: 'X', drivers: ['A', 'B', 'C'] }, { name: 'Y', drivers: ['D', 'E'] }] }, sections: [newSection('team', { id: 't' })] })
     const s = computeEvent(d, ctx())
     expect(s.heats.map((h) => h.entrants.map((e) => e.name))).toEqual([['A', 'D'], ['B', 'E'], ['C', 'E']])
+  })
+})
+
+describe('Automatische Aufstiegsleiter und Autoliste', () => {
+  const sizes = (r: { direct: number[]; advance: number[] }) => r.direct.map((d, i) => d + (i ? r.advance[i - 1] : 0))
+
+  it('lässt je Rennen die Hälfte aufsteigen, Rennen voll oder unten kleiner', () => {
+    expect(sizes(ladderAuto(7, 4))).toEqual([2, 4, 4])
+    expect(ladderAuto(7, 4).advance).toEqual([1, 2, 0])
+    expect(sizes(ladderAuto(10, 6))).toEqual([4, 4, 6])
+    expect(sizes(ladderAuto(6, 5))).toEqual([2, 5])
+    for (const per of [3, 4, 5, 6]) for (let n = 2; n <= 20; n++) expect(ladderAuto(n, per).direct.reduce((a, b) => a + b, 0)).toBe(n)
+    const d = def({ drivers: ['A', 'B', 'C', 'D', 'E', 'F', 'G'], sections: [newSection('ladder', { id: 'l', seeding: 'elo' })] })
+    const s = computeEvent(d, ctx())
+    expect(s.heats.map((h) => h.entrants.length)).toEqual([2, 4, 4])
+    expect(s.heats.map((h) => h.note)).toEqual(['Der Sieger steigt auf', 'Top 2 steigen auf', 'Entscheidet den Sieg'])
+  })
+
+  it('fährt höchstens so viele gleichzeitig, wie Autos ausgewählt sind', () => {
+    const d = def({ drivers: ['A', 'B', 'C', 'D', 'E', 'F'], maxPerHeat: 4, cars: { scale: '1:32', mode: 'skill', pool: ['X', 'Y', 'Z'], fixed: {} }, sections: [newSection('races', { id: 'r', rounds: 1 })] })
+    const s = computeEvent(d, ctx())
+    expect(s.heats.map((h) => h.entrants.length)).toEqual([3, 3])
+    for (const h of s.heats) expect(new Set(Object.values(h.cars)).size).toBe(h.entrants.length)
+    expect(s.warnings.some((w) => w.includes('höchstens 3'))).toBe(true)
   })
 })
 
