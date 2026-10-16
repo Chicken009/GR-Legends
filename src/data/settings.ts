@@ -32,6 +32,9 @@ const clean = (name: string) => name.normalize('NFKC').replace(/\s+/g, ' ').trim
 
 const isExample = (row: string[]) => row.some((c) => /^beispiel/i.test((c ?? '').trim()))
 
+/** Datum, Uhrzeit oder reine Zahl (z. B. ein „Stand“-Vermerk im Sheet) – kein Fahrer- oder Fahrzeugname */
+export const isNotAName = (s: string) => /^[\d\s.,:/-]+$/.test(s) || /^(stand|aktualisiert)\b/i.test(s)
+
 /**
  * Maßstab aus der Tabelle. Google Sheets macht aus „1:24“ gern eine Uhrzeit („01:24:00“),
  * deshalb werden auch diese Schreibweisen sowie „1/24“ und „24“ erkannt.
@@ -55,14 +58,14 @@ export function parseSettings(tabs: { fahrer?: string[][]; fahrzeuge?: string[][
   const out: Settings = { aliases: {}, guests: [], cars: {}, corrections: [], labels: {} }
   for (const row of tabs.fahrer ?? []) {
     const [name = '', display = '', guest = ''] = row.map((c) => clean(c ?? ''))
-    if (!name || isExample(row)) continue
+    if (!name || isNotAName(name) || isExample(row)) continue
     out.labels![nameKey(name)] = name
     if (display && display !== name) out.aliases[nameKey(name)] = display
     if (/^x$/i.test(guest)) out.guests.push(nameKey(name))
   }
   for (const row of tabs.fahrzeuge ?? []) {
     const [name = '', scale = '', display = ''] = row.map((c) => clean(c ?? ''))
-    if (!name || isExample(row)) continue
+    if (!name || isNotAName(name) || isExample(row)) continue
     const entry: Settings['cars'][string] = {}
     const parsed = parseScale(scale)
     if (parsed) entry.scale = parsed
