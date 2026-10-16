@@ -265,7 +265,8 @@ export function Sheet({ onClose, children, actions, label }: { onClose: () => vo
   )
 }
 
-const sheetStack: string[] = []
+/** Offene Panels und Pop-ups, oben = zuletzt geöffnet (Esc schließt nur das oberste) */
+export const sheetStack: string[] = []
 
 /** Neue Fahrer: statt Elo-Zahl und Veränderung nur der Fortschritt der Einstufung */
 export function Placement({ n, size = 12, short }: { n: number; size?: number; short?: boolean }) {

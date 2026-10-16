@@ -12,6 +12,7 @@ import { TimeTrendChart } from '../charts/TimeTrendChart'
 import { ShareIcon, StatusIcons } from '../icons'
 import { TipCarousel } from '../TipCarousel'
 import { MedalBadge, TIERS } from '../Medal'
+import { useMedalPopup } from '../MedalPopup'
 import { fmtDelta, fmtElo, fmtGapSec, fmtNum, fmtPct, formatDate, formatMonth, formatTime } from '../format'
 import { quantile } from '../../domain/laps'
 
@@ -121,7 +122,7 @@ export function DriverProfile({ onClose }: { onClose: () => void }) {
       {current.length > 0 && (
         <div style={{ display: 'flex', gap: 8 }}>
           {current.slice(0, 2).map((m) => (
-            <MedalChip key={m.id} medal={m} />
+            <MedalChip key={m.id} medal={m} driver={driver} />
           ))}
           <Link to={`${driverPath(driver)}/medaillen`} replace className="tile" aria-label="Alle Medaillen anzeigen" style={{ width: 56, alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <span style={{ fontSize: 16, fontWeight: 700 }}>{medals.length > 2 ? `+${medals.length - 2}` : '›'}</span>
@@ -381,9 +382,10 @@ function rivalText(diff: number) {
   return r > 0 ? `${r} Elo vor dir` : `${-r} Elo hinter dir`
 }
 
-function MedalChip({ medal }: { medal: Medal }) {
+function MedalChip({ medal, driver }: { medal: Medal; driver: string }) {
+  const openMedal = useMedalPopup()
   return (
-    <div className="tile" style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10 }}>
+    <button className="tile" onClick={() => openMedal(medal, driver)} aria-label={`Medaille ${medal.name} anzeigen`} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10, border: 'none', textAlign: 'left', color: 'inherit', font: 'inherit', cursor: 'pointer' }}>
       <MedalBadge medal={medal} size={34} />
       <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
         <span style={{ fontSize: 12, fontWeight: 600, lineHeight: 1.2 }}>{medal.name}</span>
@@ -391,7 +393,7 @@ function MedalChip({ medal }: { medal: Medal }) {
           {TIERS[medal.tier].label} · {medal.title ? 'Titel' : `${['bahnrekord', 'fahrzeugrekord'].includes(medal.kind) ? 'seit ' : ''}${formatMonth(medal.date)}`}
         </span>
       </div>
-    </div>
+    </button>
   )
 }
 
@@ -665,7 +667,7 @@ export function MedalsSheet({ onClose }: { onClose: () => void }) {
       </span>
       <div className="row-list" style={{ gap: 8 }}>
         {current.map((m) => (
-          <MedalRow key={m.id} medal={m} />
+          <MedalRow key={m.id} medal={m} driver={driver} />
         ))}
       </div>
       {former.length > 0 && (
@@ -675,7 +677,7 @@ export function MedalsSheet({ onClose }: { onClose: () => void }) {
           </span>
           <div className="row-list" style={{ gap: 8 }}>
             {former.map((m) => (
-              <MedalRow key={m.id} medal={m} />
+              <MedalRow key={m.id} medal={m} driver={driver} />
             ))}
           </div>
         </>
@@ -687,10 +689,11 @@ export function MedalsSheet({ onClose }: { onClose: () => void }) {
   )
 }
 
-function MedalRow({ medal }: { medal: Medal }) {
+function MedalRow({ medal, driver }: { medal: Medal; driver: string }) {
   const t = TIERS[medal.tier]
+  const openMedal = useMedalPopup()
   return (
-    <div className="inner" style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+    <button className="inner" onClick={() => openMedal(medal, driver)} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, border: 'none', textAlign: 'left', color: 'inherit', font: 'inherit', cursor: 'pointer', width: '100%' }}>
       <MedalBadge medal={medal} size={46} />
       <div style={{ display: 'flex', flexDirection: 'column', gap: 1, flex: 1, minWidth: 0 }}>
         <span style={{ fontSize: 14, fontWeight: 600 }}>{medal.former ? `Ehemals: ${medal.name}` : medal.name}</span>
@@ -700,6 +703,6 @@ function MedalRow({ medal }: { medal: Medal }) {
         <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, textTransform: 'uppercase', color: medal.former ? 'var(--muted)' : t.text }}>{t.label}</span>
         <span style={{ fontSize: 11, color: 'var(--muted)' }}>{medal.former ? `${formatMonth(medal.former.from)} – ${formatMonth(medal.former.to)}` : medal.title ? 'aktueller Titel' : formatDate(medal.date)}</span>
       </div>
-    </div>
+    </button>
   )
 }
