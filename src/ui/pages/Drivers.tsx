@@ -34,6 +34,7 @@ export function Drivers() {
       ),
     },
     { key: 'elo', label: 'Elo', strong: true, value: (r) => r.elo, render: (r) => fmtElo(r.elo) },
+    { key: 'level', label: 'Level', title: 'Karriere-Level aus Erfahrungspunkten (steigt mit jedem Rennen)', value: (r) => model.career(r.name)?.xp ?? 0, render: (r) => { const c = model.career(r.name); return c ? `${c.level} · ${c.title}` : '–' } },
     ...(p !== 'all'
       ? [
           {

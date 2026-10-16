@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import type { Medal } from '../../domain/model'
+import { CAREER_XP, type Medal } from '../../domain/model'
 import { AREA } from '../colors'
 import { Avatar, carPath, driverPath, PeriodTabs, Segment, Sheet, Tile, useData, useMyName } from '../components'
 import { CarThumb } from '../CarPhoto'
@@ -99,6 +99,8 @@ export function DriverProfile({ onClose }: { onClose: () => void }) {
         <Tile value={d.wins} label="Siege" />
         <Tile value={fmtPct(d.beatShare)} label="Ø geschlagen" />
       </div>
+
+      <CareerCard driver={driver} />
 
       {current.length > 0 && (
         <div style={{ display: 'flex', gap: 8 }}>
@@ -343,6 +345,58 @@ function DriverChart({ driver, kind, period }: { driver: string; kind: 'elo' | '
         <span>↑ schneller</span>
       </div>
     </>
+  )
+}
+
+/** Karriere-Level: Erfahrungspunkte aus allem, was man fährt – sie gehen nie verloren */
+function CareerCard({ driver }: { driver: string }) {
+  const { model } = useData()
+  const [open, setOpen] = useState(false)
+  const c = model.career(driver)
+  if (!c) return null
+  const progress = (c.xp - c.levelXp) / Math.max(1, c.nextXp - c.levelXp)
+  return (
+    <button className="inner" onClick={() => setOpen(!open)} aria-expanded={open} style={{ border: 'none', textAlign: 'left', gap: 6 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span
+          style={{ width: 40, height: 40, borderRadius: 12, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, fontWeight: 800, color: '#0E1013', background: 'linear-gradient(145deg, #6BE07A, #3BBC4A 60%, #2A8F37)', boxShadow: 'var(--sh2)' }}
+          aria-hidden="true"
+        >
+          {c.level}
+        </span>
+        <span style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
+          <span style={{ fontSize: 15, fontWeight: 700 }}>
+            Level {c.level} · {c.title}
+          </span>
+          <span style={{ fontSize: 12, color: 'var(--muted)' }}>
+            {c.xp.toLocaleString('de-DE')} XP · noch {(c.nextXp - c.xp).toLocaleString('de-DE')} bis Level {c.level + 1}
+          </span>
+        </span>
+        <span style={{ fontSize: 12, color: 'var(--muted)' }}>{open ? '▴' : '▾'}</span>
+      </div>
+      <div className="bar" style={{ ['--accent' as string]: ACCENT, width: '100%', height: 7 }}>
+        <div style={{ width: `${Math.round(progress * 100)}%` }} />
+      </div>
+      {open && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
+          {c.breakdown
+            .filter((b) => b.count > 0)
+            .map((b) => (
+              <div key={b.label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                <span style={{ color: 'var(--text-2)' }}>
+                  {b.count.toLocaleString('de-DE')} {b.label}
+                </span>
+                <span className="num" style={{ fontWeight: 600 }}>
+                  +{b.xp.toLocaleString('de-DE')} XP
+                </span>
+              </div>
+            ))}
+          <span style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.45, marginTop: 4 }}>
+            Jedes Mitfahren bringt Erfahrung: Rennen {CAREER_XP.race}, Renntag {CAREER_XP.raceDay}, Qualifying {CAREER_XP.quali}, Sieg +{CAREER_XP.win}, Podium +{CAREER_XP.podium}, je km {CAREER_XP.km}, neue Bestzeit {CAREER_XP.personalBest}. Punkte gehen nie verloren.
+          </span>
+        </div>
+      )}
+    </button>
   )
 }
 

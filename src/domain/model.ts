@@ -141,6 +141,21 @@ export interface Tip {
   good?: boolean
 }
 
+export interface Career {
+  xp: number
+  level: number
+  title: string
+  /** XP, ab denen das aktuelle bzw. nächste Level erreicht ist */
+  levelXp: number
+  nextXp: number
+  breakdown: { label: string; count: number; xp: number }[]
+}
+
+/** XP-Regeln für das Karriere-Level: Jedes Mitfahren zählt, nichts geht verloren */
+export const CAREER_XP = { race: 10, quali: 4, raceDay: 15, win: 10, podium: 5, km: 5, personalBest: 10 }
+const levelXp = (level: number) => 25 * level * (level - 1)
+const CAREER_TITLES: [number, string][] = [[15, 'Legende'], [10, 'Profi'], [7, 'Routinier'], [5, 'Stammfahrer'], [3, 'Hobbyfahrer'], [1, 'Rookie']]
+
 export interface SeasonRow {
   name: string
   /** Elo zu Saisonbeginn (bzw. Startwert bei neuen Fahrern) */
@@ -182,6 +197,8 @@ export interface Model {
   news: () => NewsItem[]
   /** Saisonwertung: Elo-Gewinn im Jahr, sortiert (wer in der Saison gefahren ist) */
   season: (year: string) => SeasonRow[]
+  /** Karriere-Level aus Erfahrungspunkten (steigt nur) */
+  career: (driver: string) => Career | null
 }
 
 /** Mindestzahl Rennen für den Titel „Saisonsieger“ */
@@ -473,6 +490,33 @@ export function buildModel(input: Session[]): Model {
     return rows
   }
 
+  // ---- Karriere-Level ---------------------------------------------------------------------
+  const careerCache = new Map<string, Career | null>()
+  const career = (driver: string): Career | null => {
+    if (careerCache.has(driver)) return careerCache.get(driver)!
+    const d = stats('all').drivers.get(driver)
+    if (!d) return null
+    const days = new Set(sessions.filter((x) => x.results.some((r) => r.driver === driver)).map((x) => x.date)).size
+    const pbs = pbEvents.filter((p) => p.driver === driver && p.prevExisted).length
+    const km = Math.floor(d.km ?? 0)
+    const breakdown = [
+      { label: 'Rennen', count: d.races, xp: d.races * CAREER_XP.race },
+      { label: 'Qualifyings', count: d.qualis, xp: d.qualis * CAREER_XP.quali },
+      { label: 'Renntage', count: days, xp: days * CAREER_XP.raceDay },
+      { label: 'Siege', count: d.wins, xp: d.wins * CAREER_XP.win },
+      { label: 'Podien', count: d.podiums, xp: d.podiums * CAREER_XP.podium },
+      { label: 'Kilometer', count: km, xp: km * CAREER_XP.km },
+      { label: 'Neue Bestzeiten', count: pbs, xp: pbs * CAREER_XP.personalBest },
+    ]
+    const xp = breakdown.reduce((a, b) => a + b.xp, 0)
+    let level = 1
+    while (levelXp(level + 1) <= xp) level++
+    const title = CAREER_TITLES.find(([min]) => level >= min)![1]
+    const result = { xp, level, title, levelXp: levelXp(level), nextXp: levelXp(level + 1), breakdown }
+    careerCache.set(driver, result)
+    return result
+  }
+
   // ---- Medaillen -------------------------------------------------------------------------
   const medals = computeMedals(sessions, rating, stats('all').drivers, recordTimeline, years, rankingAt, dates, season)
 
@@ -709,7 +753,7 @@ export function buildModel(input: Session[]): Model {
 
   return {
     sessions, years, tracks, rating, drivers, stats, ranking, statuses, medals,
-    trackRecords, carRecords, goals, rival, tips, eloAt, rankTimeline, news, season,
+    trackRecords, carRecords, goals, rival, tips, eloAt, rankTimeline, news, season, career,
   }
 }
 

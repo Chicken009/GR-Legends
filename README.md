@@ -144,5 +144,14 @@ Fahrer- **plus** Autowertung (pro Strecke) – wer im schwächeren Auto gewinnt,
 Die Autowertung hat einen Recency Bias: Ältere Ergebnisse verblassen mit 120 Tagen Halbwertszeit,
 damit sich mechanische Änderungen schnell im Auto-Bonus zeigen.
 
+**Duell gegen die Bahn**: Zusätzlich fährt jeder in jedem Lauf gegen einen festen Maßstab (Startwert
+500): gewonnen, wenn die eigene typische saubere Runde schneller ist als die typische Runde des Autos
+auf der Strecke über alle Läufe. Gewicht 0,3 eines Laufs. Werden alle schneller, steigen alle – die
+Wertung spiegelt so auch echte Verbesserung wider.
+
 **Saisonwertung**: Pro Jahr zählt, wer die meisten Elo-Punkte dazugewonnen hat (ab 5 Rennen).
 Abgeschlossene Jahre ergeben die Medaille „Saisonsieger“.
+
+**Karriere-Level**: Erfahrungspunkte, die nie verloren gehen – Rennen 10, Renntag 15, Qualifying 4,
+Sieg +10, Podium +5, je km 5, neue persönliche Bestzeit 10. Level n ab 25·n·(n−1) XP; Titel Rookie,
+Hobbyfahrer, Stammfahrer, Routinier, Profi, Legende.
