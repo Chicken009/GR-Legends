@@ -12,6 +12,11 @@ describe('parseTime / formatTime', () => {
     expect(parseTime('abc')).toBeNull()
   })
 
+  it('verträgt Zeiten aus Tabellen-Apps', () => {
+    expect(parseTime('0:10,077')).toBe(10_077)
+    expect(parseTime('0:00:10.077')).toBe(10_077)
+  })
+
   it('formatiert Millisekunden', () => {
     expect(formatTime(10_077)).toBe('10.077')
     expect(formatTime(283_307)).toBe('4:43.307')
@@ -104,4 +109,22 @@ describe('decodeCsv', () => {
     expect(decodeCsv(new TextEncoder().encode('Jörg').buffer)).toBe('Jörg')
     expect(decodeCsv(new Uint8Array([0x4a, 0xf6, 0x72, 0x67]).buffer)).toBe('Jörg')
   })
+})
+
+describe('Bearbeitete CSV (Komma, Tabulator, Anführungszeichen)', () => {
+  const rows = [
+    ['Position', 'Abstand', 'Fahrer', 'Fahrzeug', 'Runden', 'Schnellste Runde', 'Boxenstops', '1', '2', '3'],
+    ['1', '', 'Anna', 'Mercedes C63 AMG DTM No. 2', '3', '0:10.408', '0', '0:10.408', '0:10.941', '0:10.455'],
+    ['2', '+1 Runde(n)', 'Ben', 'Audi RS5, Frijns', '2', '0:11.099', '0', '0:19.001', '0:11.099', ''],
+  ]
+  for (const [label, d] of [['Komma', ','], ['Tabulator', '\t']] as const) {
+    it(`liest Trennzeichen ${label}`, () => {
+      const text = rows.map((r) => r.map((c) => (c.includes(d) || c.includes(',') ? `"${c}"` : c)).join(d)).join('\n')
+      const results = parseSmartraceCsv(text)
+      expect(results.map((r) => r.car)).toEqual(['Mercedes C63 AMG DTM No. 2', 'Audi RS5, Frijns'])
+      expect(results[0].lapTimes.map((l) => l.ms)).toEqual([10_408, 10_941, 10_455])
+      expect(results[1].gap).toEqual({ kind: 'laps', laps: 1 })
+      expect(results[1].lapTimes).toHaveLength(2)
+    })
+  }
 })

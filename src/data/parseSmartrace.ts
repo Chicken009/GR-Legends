@@ -32,7 +32,40 @@ export function parseGap(value: string, position: number): Gap {
 }
 
 /**
- * Parst eine Smartrace-Ergebnis-CSV (Trennzeichen `;`).
+ * Trennzeichen aus der Kopfzeile: Smartrace nutzt `;`, nach dem Bearbeiten in einer Tabellen-App
+ * (z. B. am Handy) steht dort oft `,` oder ein Tabulator.
+ */
+function detectDelimiter(header: string): string {
+  const counts = [';', ',', '\t'].map((d) => [d, header.split(d).length - 1] as const)
+  return counts.reduce((best, c) => (c[1] > best[1] ? c : best))[0]
+}
+
+/** Zerlegt eine CSV-Zeile; Felder in Anführungszeichen dürfen das Trennzeichen enthalten. */
+function splitLine(line: string, delimiter: string): string[] {
+  if (!line.includes('"')) return line.split(delimiter)
+  const cells: string[] = []
+  let cur = ''
+  let quoted = false
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]
+    if (quoted) {
+      if (ch === '"' && line[i + 1] === '"') {
+        cur += '"'
+        i++
+      } else if (ch === '"') quoted = false
+      else cur += ch
+    } else if (ch === '"') quoted = true
+    else if (ch === delimiter) {
+      cells.push(cur)
+      cur = ''
+    } else cur += ch
+  }
+  cells.push(cur)
+  return cells
+}
+
+/**
+ * Parst eine Smartrace-Ergebnis-CSV (Trennzeichen `;`, auch `,` oder Tabulator).
  * Rundenzeiten werden noch nicht klassifiziert (Status `normal`).
  */
 export function parseSmartraceCsv(text: string): Result[] {
@@ -42,7 +75,8 @@ export function parseSmartraceCsv(text: string): Result[] {
     .filter((l) => l.trim() !== '')
   if (lines.length === 0) throw new SmartraceParseError('Leere Datei')
 
-  const header = lines[0].split(';').map((h) => h.trim())
+  const delimiter = detectDelimiter(lines[0])
+  const header = splitLine(lines[0], delimiter).map((h) => h.trim())
   const col = Object.fromEntries(FIXED_COLUMNS.map((name) => [name, header.indexOf(name)]))
   const missing = FIXED_COLUMNS.filter((name) => col[name] < 0)
   if (missing.length) {
@@ -51,7 +85,7 @@ export function parseSmartraceCsv(text: string): Result[] {
   const firstLapCol = col['Boxenstops'] + 1
 
   return lines.slice(1).map((line) => {
-    const cells = line.split(';')
+    const cells = splitLine(line, delimiter)
     const get = (name: (typeof FIXED_COLUMNS)[number]) => (cells[col[name]] ?? '').trim()
     const position = Number(get('Position'))
     const lapTimes = cells

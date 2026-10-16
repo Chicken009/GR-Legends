@@ -1,11 +1,12 @@
-const TIME_RE = /^(\d+):(\d{1,2})\.(\d{1,3})$/
+// m:ss.mmm wie von Smartrace; Tabellen-Apps machen daraus mitunter h:mm:ss.mmm oder ein Dezimalkomma
+const TIME_RE = /^(?:(\d+):)?(\d+):(\d{1,2})[.,](\d{1,3})$/
 
 /** Parst Smartrace-Zeiten im Format `m:ss.mmm` in Millisekunden. */
 export function parseTime(value: string): number | null {
   const m = TIME_RE.exec(value.trim())
   if (!m) return null
-  const [, min, sec, frac] = m
-  return Number(min) * 60_000 + Number(sec) * 1000 + Number(frac.padEnd(3, '0'))
+  const [, hours = '0', min, sec, frac] = m
+  return Number(hours) * 3_600_000 + Number(min) * 60_000 + Number(sec) * 1000 + Number(frac.padEnd(3, '0'))
 }
 
 /** Formatiert Millisekunden als `ss.mmm` bzw. `m:ss.mmm`. */
