@@ -209,3 +209,19 @@ describe('Einstufung und Pace', () => {
     for (const g of paces) expect(Math.abs(g)).toBeLessThan(10_000)
   })
 })
+
+describe('Rekord-Tipps', () => {
+  const { model } = prepare(fixtureSessions(), EMPTY_SETTINGS)
+
+  it('zeigt den Bahnrekord nur dem Halter oder wenn er in Reichweite ist', () => {
+    for (const d of model.drivers) {
+      for (const t of model.tips(d)) {
+        if (t.title === 'Bahnrekord') expect(t.good).toBe(true)
+        if (t.title === 'Bahnrekord in Reichweite') {
+          const gap = Number(t.text.match(/fehlen dir nur (\d+,\d+) s/)![1].replace(',', '.'))
+          expect(gap).toBeLessThanOrEqual(0.3)
+        }
+      }
+    }
+  })
+})
