@@ -110,7 +110,7 @@ export function Compare() {
 
   const options = kind === 'fahrer' ? driverOptions : carOptions
   // Ist das gewählte Auto das meistgefahrene, heißt es „Favorit“
-  const carLabel = (driver: string, car: string) => (all.drivers.get(driver)?.favoriteCar === car ? `Favorit von ${driver}` : `Auto von ${driver}`)
+  const carLabel = (driver: string, car: string) => (all.drivers.get(driver)?.favoriteCar === car ? `Favorit von ${driver}` : `Fahrer ${driver}`)
   const pathOf = (n: string) => (kind === 'fahrer' ? driverPath(n) : carPath(n))
 
   return (
