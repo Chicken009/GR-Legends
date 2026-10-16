@@ -10,6 +10,7 @@ import { AREA, ME, seriesColors } from '../colors'
 import { Avatar, carPath, driverPath, PageHead, Segment, useData, useMyName } from '../components'
 import { formatDate } from '../format'
 import { MedalBadge } from '../Medal'
+import { useMedalPopup } from '../MedalPopup'
 import { useStored } from '../useStored'
 import { byProgress, ChallengeItem } from '../ChallengeItem'
 
@@ -223,6 +224,7 @@ const AWARDS: { kind: string; name: string; text: string }[] = [
 
 function Awards({ year, running }: { year: string; running: boolean }) {
   const { model } = useData()
+  const openMedal = useMedalPopup()
   const location = useLocation()
   const winners = [...model.medals].flatMap(([name, list]) => list.filter((m) => m.id.endsWith(year) && AWARDS.some((a) => a.kind === m.kind)).map((m) => ({ name, m })))
   const leader = model.season(year)[0]
@@ -236,7 +238,11 @@ function Awards({ year, running }: { year: string; running: boolean }) {
         const got = winners.filter((w) => w.m.kind === a.kind)
         return (
           <div key={a.kind} className="row" style={{ padding: '8px', alignItems: 'center' }}>
-            {got[0] ? <MedalBadge medal={got[0].m} size={40} /> : <span style={{ width: 40, height: 40, borderRadius: 20, border: '1px dashed #3A404A', flexShrink: 0 }} />}
+            {got[0] ? (
+              <button onClick={() => openMedal(got[0].m, got[0].name)} aria-label={`Medaille ${got[0].m.name} anzeigen`} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', borderRadius: '50%' }}>
+                <MedalBadge medal={got[0].m} size={40} />
+              </button>
+            ) : <span style={{ width: 40, height: 40, borderRadius: 20, border: '1px dashed #3A404A', flexShrink: 0 }} />}
             <span className="grow">
               <span className="name">{a.name}</span>
               <span className="sub">{got[0] ? got[0].m.description : a.text}</span>

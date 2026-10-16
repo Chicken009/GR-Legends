@@ -9,6 +9,7 @@ import { Avatar, carPath, driverPath, useData, useMyName } from '../components'
 import { fmtDelta, fmtElo, fmtNum, formatDate, formatTime } from '../format'
 import { ChevronLeft, ShareIcon } from '../icons'
 import { MedalBadge } from '../Medal'
+import { useMedalPopup } from '../MedalPopup'
 import { useOneStep } from '../useOneStep'
 
 /** Hintergründe der Karten – je Karte ein eigener Farbton, Text bleibt hell */
@@ -45,21 +46,20 @@ function CardFrame({ i, kicker, children, story }: { i: number; kicker: string; 
   )
 }
 
-/** Medaillen des Jahres; antippen zeigt die Beschreibung */
-function MedalRow({ medals }: { medals: Medal[] }) {
-  const [open, setOpen] = useState<string | null>(null)
-  const m = medals.find((x) => x.id === open)
+/** Medaillen des Jahres; antippen öffnet das Medaillen-Pop-up */
+function MedalRow({ medals, driver }: { medals: Medal[]; driver: string }) {
+  const openMedal = useMedalPopup()
   return (
     <>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
         {medals.map((x) => (
-          <button key={x.id} onClick={() => setOpen(open === x.id ? null : x.id)} title={x.description} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, width: 84, textAlign: 'center', background: 'none', border: 'none', color: 'inherit', font: 'inherit', padding: 0, cursor: 'pointer', opacity: open && open !== x.id ? 0.5 : 1 }}>
+          <button key={x.id} onClick={() => openMedal(x, driver)} aria-label={`Medaille ${x.name} anzeigen`} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, width: 84, textAlign: 'center', background: 'none', border: 'none', color: 'inherit', font: 'inherit', padding: 0, cursor: 'pointer' }}>
             <MedalBadge medal={x} size={52} />
             <span style={{ fontSize: 11, fontWeight: 600, lineHeight: 1.2 }}>{x.name}</span>
           </button>
         ))}
       </div>
-      <Hint>{m ? m.description : 'Medaille antippen für die Beschreibung'}</Hint>
+      <Hint>Medaille antippen für Details</Hint>
     </>
   )
 }
@@ -306,7 +306,7 @@ function buildCards(w: WrappedData, you: boolean, seasonDates: string[]): CardDe
     })
   }
   if (w.medals.length > 0) {
-    cards.push({ key: 'medaillen', kicker: `Medaillen ${year}`, body: <MedalRow medals={w.medals} /> })
+    cards.push({ key: 'medaillen', kicker: `Medaillen ${year}`, body: <MedalRow medals={w.medals} driver={driver} /> })
   }
   const done = w.challenges.filter((c) => c.done)
   cards.push({

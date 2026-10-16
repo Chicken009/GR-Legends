@@ -1417,3 +1417,15 @@ table.dt tr.me-row td.st1 {
   border-color: #E5A51A;
   color: #F6C83C;
 }
+
+/* Medaillen-Pop-up: kurz aufploppen */
+@keyframes medal-pop {
+  from {
+    transform: scale(0.92);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}

@@ -7,6 +7,7 @@ import { GradientDefs } from './ui/icons'
 import { ErrorBoundary } from './ui/ErrorBoundary'
 import { Layout } from './ui/Layout'
 import { MeProvider, useMe } from './ui/me'
+import { MedalPopupProvider } from './ui/MedalPopup'
 import { MePicker } from './ui/MePicker'
 import { CarProfile, Cars } from './ui/pages/Cars'
 import { Compare } from './ui/pages/Compare'
@@ -95,7 +96,9 @@ function Loaded() {
   return (
     <DataContext.Provider value={data}>
       <HashRouter>
-        <AppRoutes />
+        <MedalPopupProvider>
+          <AppRoutes />
+        </MedalPopupProvider>
       </HashRouter>
     </DataContext.Provider>
   )
