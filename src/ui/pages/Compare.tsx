@@ -31,7 +31,7 @@ export function Compare() {
   const all = model.stats('all')
   const ranking = model.ranking('all')
   const driverNames = ranking.map((r) => r.name)
-  const carNames = [...all.cars.values()].filter((c) => c.races > 0).sort((x, y) => y.races - x.races).map((c) => c.name)
+  const carNames = [...all.cars.values()].filter((c) => c.races > 0 || c.qualis > 0).sort((x, y) => y.races - x.races || y.qualis - x.qualis).map((c) => c.name)
   const names = kind === 'fahrer' ? driverNames : carNames
   const a = names.includes(params.get('a') ?? '') ? params.get('a')! : kind === 'fahrer' ? (me ?? names[0]) : names[0]
   const b = names.includes(params.get('b') ?? '') && params.get('b') !== a ? params.get('b')! : (names.find((n) => n !== a) ?? '')
