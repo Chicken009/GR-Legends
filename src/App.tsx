@@ -1,4 +1,5 @@
-import { HashRouter, Route, Routes, useLocation, useNavigate, type Location } from 'react-router-dom'
+import { useEffect } from 'react'
+import { HashRouter, Route, Routes, useLocation, useNavigate, useNavigationType, type Location } from 'react-router-dom'
 import { useAppData } from './data/useRaceDays'
 import { Celebration } from './ui/Celebration'
 import { DataContext, Monogram } from './ui/components'
@@ -24,6 +25,11 @@ function AppRoutes() {
   const isSheet = /^\/fahrer\/[^/]+/.test(location.pathname)
   const background = isSheet ? (state?.bg ?? ({ ...location, pathname: '/fahrer' } as Location)) : location
   const close = () => (state?.bg ? navigate(-1) : navigate('/fahrer'))
+  const navType = useNavigationType()
+  // Neue Seite beginnt oben (außer Profil-Panels und Zurück)
+  useEffect(() => {
+    if (!isSheet && navType !== 'POP') window.scrollTo(0, 0)
+  }, [location.pathname, isSheet, navType])
 
   return (
     <>

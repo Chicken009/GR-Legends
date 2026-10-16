@@ -162,6 +162,9 @@ export function CarProfile() {
   if (!c) return <div className="page"><p className="muted">Fahrzeug „{car}“ nicht gefunden.</p></div>
   const { rated } = rankedCars(cars)
   const rank = rated.findIndex((x) => x.name === car) + 1
+  // Vergleich mit dem eigenen Lieblingsauto, sonst mit dem meistgefahrenen anderen Auto
+  const myFav = me ? model.stats('all').drivers.get(me)?.favoriteCar : null
+  const compareWith = myFav && myFav !== car ? myFav : [...cars.values()].filter((x) => x.name !== car).sort((a, b) => b.races - a.races)[0]?.name
   const photo = photoId
   const scale = carScale(settings, car)
   const drivers = [...c.drivers]
@@ -196,6 +199,11 @@ export function CarProfile() {
         <button className="icon-btn" aria-label="Zurück" onClick={() => (window.history.length > 1 ? navigate(-1) : navigate('/autos'))} style={{ position: 'absolute', top: 14, left: 10, background: 'var(--bg)' }}>
           <ChevronLeft color={ACCENT} />
         </button>
+        {compareWith && (
+          <Link className="btn round" to={`/vergleich?typ=auto&a=${encodeURIComponent(car)}&b=${encodeURIComponent(compareWith)}`} style={{ position: 'absolute', top: 14, right: 10, background: 'var(--bg)' }}>
+            Vergleichen
+          </Link>
+        )}
         <span style={{ position: 'absolute', bottom: 14, right: 14, fontSize: 11, fontWeight: 700, letterSpacing: 1, background: 'var(--bg)', borderRadius: 999, padding: '5px 10px', color: 'var(--text-2)' }}>1:{scale}</span>
       </div>
       <div className="page" style={{ maxWidth: 760 }}>
