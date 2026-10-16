@@ -116,7 +116,7 @@ export interface Medal {
   title?: boolean
   /** Ehemaliger Titel (Wanderpokal), mit Zeitraum */
   former?: { from: string; to: string }
-  icon: 'trophy' | 'track' | 'clock' | 'people' | 'sword' | 'flag' | 'target' | 'shield' | 'car' | 'flame' | 'star' | 'road'
+  icon: 'trophy' | 'track' | 'clock' | 'people' | 'sword' | 'flag' | 'target' | 'shield' | 'car' | 'flame' | 'star' | 'road' | 'chevrons'
 }
 
 export interface Goal {
@@ -438,7 +438,7 @@ export function buildModel(input: Session[]): Model {
   }
 
   // ---- Medaillen -------------------------------------------------------------------------
-  const medals = computeMedals(sessions, rating, stats('all').drivers, recordTimeline, years)
+  const medals = computeMedals(sessions, rating, stats('all').drivers, recordTimeline, years, rankingAt, dates)
 
   // ---- Ziele, Rivale, Tipps --------------------------------------------------------------
   const rival = (driver: string) => {
@@ -740,6 +740,8 @@ function computeMedals(
   all: Map<string, DriverStats>,
   timeline: { kind: 'track' | 'car'; key: string; entry: RecordEntry; prev: RecordEntry | null }[],
   years: string[],
+  rankingAt: (date: string) => Map<string, number>,
+  dates: string[],
 ): Map<string, Medal[]> {
   const out = new Map<string, Medal[]>()
   const add = (driver: string, m: Medal) => {
@@ -812,6 +814,21 @@ function computeMedals(
       if (!best || r.validBestLapMs < best.ms) best = { ms: r.validBestLapMs, driver: r.driver, date: s.date }
     }
     if (best) add(best.driver, { id: `jahr-${y}`, kind: 'jahresschnellster', name: `Jahresschnellster ${y}`, description: 'Schnellste Runde des Jahres', tier: 'platinum', icon: 'clock', date: best.date })
+  }
+
+  // Aufsteiger des Jahres: die meisten Plätze in der Wertung gewonnen (Stand vor dem Jahr → Jahresende)
+  for (const y of years) {
+    const before = dates.filter((dt) => dt < `${y}-01-01`)
+    const inYear = dates.filter((dt) => dt.startsWith(y))
+    if (!before.length || !inYear.length) continue
+    const start = rankingAt(before[before.length - 1])
+    const end = rankingAt(inYear[inYear.length - 1])
+    const gains = [...end].filter(([n]) => start.has(n)).map(([n, r]) => ({ n, g: start.get(n)! - r }))
+    const max = Math.max(0, ...gains.map((x) => x.g))
+    if (max < 2) continue
+    for (const x of gains.filter((x) => x.g === max)) {
+      add(x.n, { id: `aufsteiger-${y}`, kind: 'aufsteiger', name: `Aufsteiger ${y}`, description: `Die meisten Plätze in der Wertung gewonnen (+${max})`, tier: 'gold', icon: 'chevrons', date: inYear[inYear.length - 1] })
+    }
   }
 
   // Stufen: Siege, Rennen, Kilometer, geschlagene Gegner

@@ -40,7 +40,7 @@ export function Drivers() {
     { key: 'podiums', label: 'Podien', value: (r) => d(r)?.podiums ?? 0 },
     { key: 'avgPos', label: 'Ø Platz', asc: true, value: (r) => d(r)?.avgPosition ?? null, render: (r) => fmtNum(d(r)?.avgPosition) },
     {
-      key: 'beat', label: 'Geschlagen', title: 'Anteil geschlagener Gegner', value: (r) => d(r)?.beatShare ?? null,
+      key: 'beat', label: 'Ø geschlagen', title: 'Anteil des Feldes, den man im Schnitt hinter sich lässt (Platz 2 von 5 = 75 %)', value: (r) => d(r)?.beatShare ?? null,
       render: (r) => (
         <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8 }}>
           <span className="bar" style={{ width: 48, height: 5 }}>
@@ -50,7 +50,7 @@ export function Drivers() {
         </span>
       ),
     },
-    { key: 'opp', label: 'Gegner besiegt', title: 'Verschiedene Gegner mindestens einmal geschlagen / getroffen', value: (r) => d(r)?.opponentsBeaten.size ?? 0, render: (r) => `${d(r)?.opponentsBeaten.size ?? 0} / ${d(r)?.opponentsMet.size ?? 0}` },
+    { key: 'opp', label: 'Schon besiegt', title: 'Verschiedene Gegner, die man mindestens einmal geschlagen hat / gegen die man gefahren ist', value: (r) => d(r)?.opponentsBeaten.size ?? 0, render: (r) => `${d(r)?.opponentsBeaten.size ?? 0} / ${d(r)?.opponentsMet.size ?? 0}` },
     { key: 'streak', label: 'Serie', title: 'Längste Siegesserie', value: (r) => d(r)?.maxStreak ?? 0 },
     { key: 'qualis', label: 'Qualis', value: (r) => d(r)?.qualis ?? 0 },
     { key: 'poles', label: 'Pole', title: 'Schnellster im Qualifying', value: (r) => d(r)?.poles ?? 0 },
@@ -122,7 +122,7 @@ export function Drivers() {
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 4, borderTop: `1px solid ${isMe ? 'rgba(255,255,255,.12)' : '#262B33'}`, paddingTop: 8 }}>
                   <Mini v={d?.races ?? 0} l="Rennen" />
                   <Mini v={d?.wins ?? 0} l="Siege" />
-                  <Mini v={fmtPct(d?.beatShare)} l="geschl." />
+                  <Mini v={fmtPct(d?.beatShare)} l="Ø geschl." />
                 </div>
                 {isMe && <span className="du">DU</span>}
               </Link>

@@ -190,6 +190,17 @@ export function computeRatings(sessions: Session[], cfg = RATING): RatingResult 
   return { drivers, cars, history, events }
 }
 
+/**
+ * Hypothetische Elo-Änderung für A in einem Rennen zu zweit gegen B.
+ * `margin` in Runden (positiv = A vorne), `runs` = bisherige Läufe von A (Einpendel-Phase).
+ */
+export function duelDelta(strengthA: number, strengthB: number, margin: number, runs: number, cfg = RATING): number {
+  const k = runs < cfg.provisionalRaces ? cfg.kProvisional : cfg.k
+  const S = 0.5 + 0.5 * Math.tanh(margin / cfg.raceScaleLaps)
+  const E = 1 / (1 + 10 ** ((strengthB - strengthA) / cfg.scale))
+  return k * (S - E)
+}
+
 /** Siegchance jedes Fahrers in einem Rennen untereinander (Bradley-Terry aus der Wertung). */
 export function winChances(ratings: { name: string; strength: number }[], scale = RATING.scale): Map<string, number> {
   const weights = ratings.map((r) => 10 ** (r.strength / scale))

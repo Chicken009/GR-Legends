@@ -14,7 +14,10 @@ export function Home() {
   const location = useLocation()
   const rows = model.ranking('all')
   const statuses = model.statuses('all')
-  const day = days[0]
+  const latest = days[0]
+  // Der letzte Renntag ist nur „neu“, solange er höchstens 5 Tage zurückliegt
+  const fresh = latest != null && daysSince(latest.date) <= 5
+  const day = fresh ? latest : undefined
   const races = day?.sessions.filter((s) => !isQuali(s)) ?? []
   const winners = new Map<string, number>()
   for (const s of races) {
@@ -26,7 +29,7 @@ export function Home() {
   const podium = [rows[1], rows[0], rows[2]].filter(Boolean)
   const myRow = me ? rows.find((r) => r.name === me) : null
   const above = myRow ? rows.find((r) => r.rank === myRow.rank - 1) : null
-  const news = model.news().slice(0, 5)
+  const news = fresh ? model.news().slice(0, 5) : []
   const bg = { bg: location }
 
   return (
@@ -85,6 +88,8 @@ export function Home() {
             )}
           </Link>
         )}
+
+        {!fresh && <RecordsCard lastDate={latest?.date} lastFileId={latest?.sessions.filter((s) => !isQuali(s)).slice(-1)[0]?.fileId ?? latest?.sessions[0]?.fileId} />}
 
         <section className="card" style={{ paddingBottom: 12 }}>
           <div className="card-head">
@@ -159,6 +164,61 @@ export function Home() {
         </section>
       )}
     </div>
+  )
+}
+
+function daysSince(iso: string): number {
+  const [y, m, d] = iso.split('-').map(Number)
+  const then = new Date(y, m - 1, d).getTime()
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+  return Math.round((today - then) / 86_400_000)
+}
+
+/** Statt des letzten Renntags (wenn er länger her ist): die Bestmarken auf einen Blick */
+function RecordsCard({ lastDate, lastFileId }: { lastDate?: string; lastFileId?: string }) {
+  const { model } = useData()
+  const me = useMyName()
+  const location = useLocation()
+  const all = [...model.stats('all').drivers.values()]
+  const best = <T,>(list: T[], get: (x: T) => number | null) => list.filter((x) => get(x) != null).sort((a, b) => get(b)! - get(a)!)[0]
+  const track = model.tracks[0]
+  const rec = track ? model.trackRecords.get(track) : undefined
+  const wins = best(all, (d) => (d.wins > 0 ? d.wins : null))
+  const km = best(all, (d) => d.km)
+  const rows = [
+    { label: 'Bahnrekord', who: rec?.driver, value: rec ? formatTime(rec.ms) : '–', guest: rec?.guest, gold: true },
+    { label: 'Meiste Siege', who: wins?.name, value: String(wins?.wins ?? '–') },
+    { label: 'Meiste km', who: km?.name, value: km?.km != null ? `${km.km.toLocaleString('de-DE', { maximumFractionDigits: 1 })} km` : '–' },
+  ]
+  return (
+    <section className="card" style={{ gap: 4 }}>
+      <div className="card-head">
+        <span className="kicker" style={{ color: AREA.stats }}>
+          Bestmarken
+        </span>
+        <Link to="/statistik" style={{ fontSize: 12, color: 'var(--muted)' }}>
+          Statistiken ›
+        </Link>
+      </div>
+      {rows.map((r) => (
+        <Link key={r.label} to={r.who && !r.guest ? driverPath(r.who) : '/statistik'} state={{ bg: location }} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '7px 0', borderBottom: '1px solid var(--grid)' }}>
+          <span style={{ fontSize: 11, color: 'var(--muted)', width: 90, flexShrink: 0 }}>{r.label}</span>
+          <span style={{ flex: 1, fontSize: 14, fontWeight: 600, color: r.who === me ? 'var(--me)' : undefined, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {r.who ?? '–'}
+            {r.guest ? ' (Gast)' : ''}
+          </span>
+          <span className="num" style={{ fontSize: 14, fontWeight: 700, color: r.gold ? '#F2C94C' : undefined }}>
+            {r.value}
+          </span>
+        </Link>
+      ))}
+      {lastDate && lastFileId && (
+        <Link to={`/lauf/${lastFileId}`} style={{ fontSize: 12, color: 'var(--muted)', paddingTop: 6 }}>
+          Letzter Renntag: {formatDate(lastDate)} › ansehen
+        </Link>
+      )}
+    </section>
   )
 }
 

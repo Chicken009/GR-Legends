@@ -2,7 +2,8 @@ import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { Medal } from '../../domain/model'
 import { AREA } from '../colors'
-import { Avatar, carPath, driverPath, Segment, Sheet, Tile, useData, useMyName } from '../components'
+import { Avatar, carPath, driverPath, PeriodTabs, Segment, Sheet, Tile, useData, useMyName } from '../components'
+import { CarThumb } from '../CarPhoto'
 import { LineChart, type LinePoint } from '../charts/LineChart'
 import { ShareIcon, StatusIcons } from '../icons'
 import { TipCarousel } from '../TipCarousel'
@@ -18,6 +19,8 @@ export function DriverProfile({ onClose }: { onClose: () => void }) {
   const me = useMyName()
   const navigate = useNavigate()
   const [chart, setChart] = useState<'elo' | 'rank' | 'lap'>('elo')
+  const [period, setPeriod] = useState('all')
+  const [showOpponents, setShowOpponents] = useState(false)
   const driver = decodeURIComponent(name)
   const d = model.stats('all').drivers.get(driver)
   const history = model.rating.history.get(driver) ?? []
@@ -39,6 +42,7 @@ export function DriverProfile({ onClose }: { onClose: () => void }) {
   const tips = model.tips(driver)
   const fav = d.favoriteCar ? d.cars.get(d.favoriteCar) : null
   const isMe = driver === me
+  const driverYears = [...new Set(history.map((e) => e.date.slice(0, 4)))].sort().reverse()
 
   const share = async () => {
     const url = window.location.href
@@ -92,7 +96,7 @@ export function DriverProfile({ onClose }: { onClose: () => void }) {
         <Tile value={fmtElo(model.rating.drivers.get(driver))} label="Elo" color={ACCENT} />
         <Tile value={d.races} label="Rennen" />
         <Tile value={d.wins} label="Siege" />
-        <Tile value={fmtPct(d.beatShare)} label="geschlagen" />
+        <Tile value={fmtPct(d.beatShare)} label="Ø geschlagen" />
       </div>
 
       {current.length > 0 && (
@@ -112,7 +116,12 @@ export function DriverProfile({ onClose }: { onClose: () => void }) {
           <span style={{ fontSize: 14, fontWeight: 600 }}>Entwicklung</span>
           <Segment small label="Diagramm wählen" value={chart} onChange={setChart} options={[['elo', 'Elo'], ['rank', 'Rang'], ['lap', 'Ø Runde']]} />
         </div>
-        <DriverChart driver={driver} kind={chart} />
+        {driverYears.length > 1 && (
+          <div style={{ ['--accent' as string]: ACCENT }}>
+            <PeriodTabs value={period} onChange={setPeriod} years={driverYears} />
+          </div>
+        )}
+        <DriverChart driver={driver} kind={chart} period={period} />
       </section>
 
       <div className="grid-2">
@@ -131,15 +140,15 @@ export function DriverProfile({ onClose }: { onClose: () => void }) {
             </span>
           )}
         </Link>
-        <div className="inner">
-          <span className="l">Gegner besiegt</span>
+        <button className="inner" onClick={() => setShowOpponents(!showOpponents)} aria-expanded={showOpponents} style={{ border: 'none', textAlign: 'left' }}>
+          <span className="l">Gegner schon besiegt {showOpponents ? '▴' : '▾'}</span>
           <span className="v">
             {d.opponentsBeaten.size} von {d.opponentsMet.size}
           </span>
-          <div className="bar" style={{ ['--accent' as string]: ACCENT }}>
+          <div className="bar" style={{ ['--accent' as string]: ACCENT, width: '100%' }}>
             <div style={{ width: `${d.opponentsMet.size ? (d.opponentsBeaten.size / d.opponentsMet.size) * 100 : 0}%` }} />
           </div>
-        </div>
+        </button>
         <div className="inner">
           <span className="l">Gefahren</span>
           <span className="v">{d.km != null ? `${fmtNum(d.km)} km` : '–'}</span>
@@ -153,9 +162,16 @@ export function DriverProfile({ onClose }: { onClose: () => void }) {
         <div className="inner">
           <span className="l">Abflüge</span>
           <span className="v">{d.crashRate != null ? `${fmtNum(d.crashRate)} / 100 Runden` : '–'}</span>
-          <span className="s">{d.crashRate != null ? `Ø ${fmtNum(d.crashes ? d.crashLossMs / d.crashes / 1000 : 0)} s Verlust` : 'zu wenige Rennen ohne Tank'}</span>
+          <span className="s">{d.crashRate != null ? `${d.crashes} insgesamt · Ø ${fmtNum(d.crashes ? d.crashLossMs / d.crashes / 1000 : 0)} s Verlust` : 'zu wenige Rennen ohne Tank'}</span>
         </div>
       </div>
+      <p style={{ margin: '-4px 2px 0', fontSize: 11, color: 'var(--muted)', lineHeight: 1.45 }}>
+        <b>Ø geschlagen</b>: Anteil des Feldes, den du im Schnitt hinter dir lässt (Platz 2 von 5 = 75 %). <b>Gegner schon besiegt</b>: wie viele verschiedene Gegner du mindestens einmal geschlagen hast – antippen für die Liste.
+      </p>
+
+      {showOpponents && <OpponentList driver={driver} />}
+
+      <CarBests driver={driver} />
 
       {goals.length > 0 && (
         <section className="inner" style={{ gap: 10 }}>
@@ -224,9 +240,11 @@ function MedalChip({ medal }: { medal: Medal }) {
   )
 }
 
-function DriverChart({ driver, kind }: { driver: string; kind: 'elo' | 'rank' | 'lap' }) {
+function DriverChart({ driver, kind, period }: { driver: string; kind: 'elo' | 'rank' | 'lap'; period: string }) {
   const { model } = useData()
-  const history = model.rating.history.get(driver) ?? []
+  const inP = (date: string) => period === 'all' || date.startsWith(period)
+  const history = (model.rating.history.get(driver) ?? []).filter((e) => inP(e.date))
+  if (history.length === 0) return <p className="muted" style={{ margin: 0, fontSize: 13 }}>Keine Läufe in diesem Zeitraum.</p>
   if (kind === 'elo') {
     const ups = [...history.keys()].filter((i) => history[i].delta > 0).sort((a, b) => history[b].delta - history[a].delta).slice(0, 2)
     const downs = [...history.keys()].filter((i) => history[i].delta < 0).sort((a, b) => history[a].delta - history[b].delta).slice(0, 2)
@@ -251,7 +269,7 @@ function DriverChart({ driver, kind }: { driver: string; kind: 'elo' | 'rank' | 
   if (kind === 'rank') {
     const { dates, ranks } = model.rankTimeline()
     const r = ranks.get(driver) ?? []
-    const pts = dates.map((dt, i) => ({ dt, y: r[i] })).filter((p): p is { dt: string; y: number } => p.y != null)
+    const pts = dates.map((dt, i) => ({ dt, y: r[i] })).filter((p): p is { dt: string; y: number } => p.y != null && inP(p.dt))
     if (pts.length < 2) return <p className="muted" style={{ margin: 0, fontSize: 13 }}>Noch zu wenige Renntage.</p>
     return (
       <LineChart
@@ -264,24 +282,104 @@ function DriverChart({ driver, kind }: { driver: string; kind: 'elo' | 'rank' | 
       />
     )
   }
-  // Ø saubere Runde pro Renntag
+  // Ø saubere Runde pro Rennen
   const st = model.stats('all').drivers.get(driver)
-  const byDay = new Map<string, number[]>()
-  for (const { session, result } of st?.raceResults ?? []) {
-    const nl = result.lapTimes.filter((l) => l.status === 'normal').map((l) => l.ms)
-    if (nl.length) byDay.set(session.date, [...(byDay.get(session.date) ?? []), ...nl])
-  }
-  const pts = [...byDay].sort((a, b) => a[0].localeCompare(b[0])).map(([dt, xs]) => ({ dt, y: quantile([...xs].sort((a, b) => a - b), 0.5) }))
-  if (pts.length < 2) return <p className="muted" style={{ margin: 0, fontSize: 13 }}>Noch zu wenige Renntage.</p>
+  const pts = (st?.raceResults ?? [])
+    .filter(({ session }) => inP(session.date))
+    .map(({ session, result }) => {
+      const nl = result.lapTimes.filter((l) => l.status === 'normal').map((l) => l.ms).sort((a, b) => a - b)
+      return nl.length >= 3 ? { session, result, y: quantile(nl, 0.5) } : null
+    })
+    .filter((p): p is NonNullable<typeof p> => p != null)
+  if (pts.length < 2) return <p className="muted" style={{ margin: 0, fontSize: 13 }}>Noch zu wenige Rennen.</p>
   return (
     <LineChart
       invert
-      points={pts.map((p) => ({ y: p.y, tip: { title: formatTime(Math.round(p.y)), text: 'Ø saubere Runde', sub: formatDate(p.dt) } }))}
+      points={pts.map((p) => ({ y: p.y, tip: { title: formatTime(Math.round(p.y)), text: `Ø saubere Runde · P${p.result.position} im ${p.result.car}`, sub: `${formatDate(p.session.date)} · ${p.session.type} ${p.session.heat}` } }))}
       color={ACCENT}
       format={(v) => (v / 1000).toLocaleString('de-DE', { maximumFractionDigits: 1 })}
-      label="Durchschnittliche saubere Runde pro Renntag"
-      xLabels={[{ index: 0, text: formatDate(pts[0].dt) }, { index: pts.length - 1, text: formatDate(pts[pts.length - 1].dt) }]}
+      label="Durchschnittliche saubere Runde pro Rennen"
+      xLabels={[{ index: 0, text: formatDate(pts[0].session.date) }, { index: pts.length - 1, text: formatDate(pts[pts.length - 1].session.date) }]}
     />
+  )
+}
+
+/** Wen man schon geschlagen hat und wen noch nicht (Rennen, direkte Duelle) */
+function OpponentList({ driver }: { driver: string }) {
+  const { model } = useData()
+  const navigate = useNavigate()
+  const d = model.stats('all').drivers.get(driver)
+  if (!d) return null
+  const list = [...d.h2h].map(([name, [w, l]]) => ({ name, w, l }))
+  const open = list.filter((o) => o.w === 0).sort((a, b) => b.l - a.l)
+  const done = list.filter((o) => o.w > 0).sort((a, b) => b.w - b.l - (a.w - a.l) || b.w - a.w)
+  const row = (o: { name: string; w: number; l: number }) => (
+    <button
+      key={o.name}
+      className="row"
+      onClick={() => navigate(`/vergleich?a=${encodeURIComponent(driver)}&b=${encodeURIComponent(o.name)}`)}
+      style={{ border: 'none', background: 'none', textAlign: 'left', padding: '5px 0', minHeight: 40 }}
+    >
+      <Avatar name={o.name} size={28} />
+      <span className="grow">
+        <span className="name" style={{ fontWeight: 500 }}>{o.name}</span>
+      </span>
+      <span className="num" style={{ fontSize: 13, fontWeight: 700, color: o.w > o.l ? '#7BDB8A' : o.w === 0 ? 'var(--muted)' : 'var(--text-2)' }}>
+        {o.w} : {o.l}
+      </span>
+    </button>
+  )
+  return (
+    <section className="inner" style={{ gap: 2 }}>
+      <span style={{ fontSize: 14, fontWeight: 600 }}>Gegner</span>
+      <span style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>Siege : Niederlagen in gemeinsamen Rennen · antippen zum Vergleichen</span>
+      {open.length > 0 && (
+        <>
+          <span className="kicker" style={{ fontSize: 11, marginTop: 4 }}>Noch nie geschlagen ({open.length})</span>
+          {open.map(row)}
+        </>
+      )}
+      {done.length > 0 && (
+        <>
+          <span className="kicker" style={{ fontSize: 11, marginTop: 8 }}>Schon geschlagen ({done.length})</span>
+          {done.map(row)}
+        </>
+      )}
+    </section>
+  )
+}
+
+/** Autos, mit denen man gefahren ist – nach Bestzeit */
+function CarBests({ driver }: { driver: string }) {
+  const { model } = useData()
+  const d = model.stats('all').drivers.get(driver)
+  if (!d || d.cars.size === 0) return null
+  const cars = [...d.cars].filter(([, u]) => u.bestLapMs != null).sort((a, b) => a[1].bestLapMs! - b[1].bestLapMs!)
+  return (
+    <section className="inner" style={{ gap: 2 }}>
+      <div className="card-head" style={{ marginBottom: 4 }}>
+        <span className="card-title">Autos & Bestzeiten</span>
+        <span className="hint">Best · Ø saubere Runde</span>
+      </div>
+      {cars.map(([car, u], i) => {
+        const avg = u.normal.length ? quantile([...u.normal].sort((a, b) => a - b), 0.5) : null
+        return (
+          <Link key={car} to={carPath(car)} className="row" style={{ padding: '5px 0' }}>
+            <CarThumb car={car} size={36} />
+            <span className="grow">
+              <span className="name">{car}</span>
+              <span className="sub">
+                {u.races} Rennen{u.wins ? ` · ${u.wins} ${u.wins === 1 ? 'Sieg' : 'Siege'}` : ''}
+              </span>
+            </span>
+            <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+              <span className="num" style={{ fontSize: 13, fontWeight: 700, color: i === 0 ? 'var(--best)' : undefined }}>{formatTime(u.bestLapMs)}</span>
+              <span className="num" style={{ fontSize: 11, color: 'var(--muted)' }}>{avg ? (avg / 1000).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '–'}</span>
+            </span>
+          </Link>
+        )
+      })}
+    </section>
   )
 }
 
