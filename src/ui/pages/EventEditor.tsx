@@ -46,7 +46,6 @@ function writeDraft(def: EventDef | null, templateId: string | null = null) {
 }
 
 /** „14.03.26“ */
-const shortDate = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(2, 4)}`
 
 const clone = (d: EventDef): EventDef => JSON.parse(JSON.stringify(d)) as EventDef
 
@@ -497,9 +496,9 @@ function DriversCard({ def, update }: { def: EventDef; update: (p: Partial<Event
       </div>
       <div className="chips">
         {candidates.map((n) => (
-          <ToggleChip key={n} on={def.drivers.includes(n)} onClick={() => toggle(n)} title={lastSeen.has(n) ? `Zuletzt an der Bahn: ${formatDate(lastSeen.get(n)!)}` : 'Noch ohne Läufe'}>
+          <ToggleChip key={n} on={def.drivers.includes(n)} onClick={() => toggle(n)} title={lastSeen.has(n) ? undefined : 'Noch ohne Läufe'}>
             {n}
-            <span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 400 }}>{lastSeen.has(n) ? shortDate(lastSeen.get(n)!) : 'neu'}</span>
+            {!lastSeen.has(n) && <span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 400 }}>neu</span>}
           </ToggleChip>
         ))}
       </div>
