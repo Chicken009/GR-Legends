@@ -103,6 +103,13 @@ describe('Qualifying und Aufstiegsleiter', () => {
     expect(fin.entrants.filter((e) => e.name == null)).toHaveLength(2)
     const race1 = run('race', ['E', 'C', 'D', 'F'])
     s = computeEvent(def({ sections }), ctx([...quali, race1]))
+    // Rennen 1 bringt noch keine Punkte, nur den Aufstieg
+    expect(s.sections[1].heats[0].advancing).toEqual(['E', 'C'])
+    expect(s.sections[1].heats[0].points.size).toBe(0)
+    // Zwischenstand: Wer noch im Finale fährt, hat sicher D und F hinter sich (2 Punkte) – mehr nicht
+    const mid = new Map(s.sections[1].ranking.map((r) => [r.name, r.points]))
+    expect([mid.get('A'), mid.get('B'), mid.get('C'), mid.get('E')]).toEqual([2, 2, 2, 2])
+    expect([mid.get('D'), mid.get('F')]).toEqual([1, 0])
     const final = s.sections[1].heats[1]
     expect(final.entrants.map((e) => e.name)).toEqual(['E', 'C', 'B', 'A'])
     expect(s.next?.id).toBe(final.id)
@@ -110,6 +117,8 @@ describe('Qualifying und Aufstiegsleiter', () => {
     s = computeEvent(def({ sections }), ctx([...quali, race1, race2]))
     expect(s.complete).toBe(true)
     expect(s.sections[1].ranking.map((r) => r.name)).toEqual(['C', 'A', 'E', 'B', 'D', 'F'])
+    // Endstand: je geschlagenem Fahrer 1 Punkt, Sieger +1
+    expect(s.sections[1].ranking.map((r) => r.points)).toEqual([6, 4, 3, 2, 1, 0])
     // Ohne Bonus gewinnt der Leiter-Sieger; Bonuspunkte (schnellste Runde, Fahrer des Tages) können das drehen
     const plain = computeEvent(def({ sections, scoring: { fastestLap: 0, driverOfDay: 0, pole: 1 } } as never), ctx([...quali, race1, race2]))
     expect(plain.standings[0].name).toBe('C')
@@ -150,6 +159,9 @@ describe('Rennen, K.-o. und Teams', () => {
     expect(s.complete).toBe(true)
     expect(s.heats.map((h) => h.label)).toEqual(['Halbfinale 1', 'Halbfinale 2', 'Finale'])
     expect(s.sections[0].ranking).toHaveLength(4)
+    // Beide Halbfinal-Verlierer teilen sich Platz 3
+    expect(s.sections[0].ranking.map((r) => r.rank)).toEqual([1, 2, 3, 3])
+    expect(s.sections[0].ranking.map((r) => r.points)).toEqual([4, 2, 0, 0])
   })
 
   it('bildet ausgeglichene Teams, die bei jedem gleich sind', () => {
