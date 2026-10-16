@@ -211,8 +211,8 @@ export function HeatCard({ heat, state, me, children }: { heat: Heat; state: Eve
                   {r?.car}
                   {r?.validBestLapMs ? ` · ${formatTime(r.validBestLapMs)}` : ''}
                 </span>
-                <span className="num" style={{ minWidth: 34, textAlign: 'right', fontWeight: 700 }}>
-                  {heat.kind === 'race' && heat.points.has(n) ? `+${fmtPts(heat.points.get(n)!)}` : ''}
+                <span className="num" style={{ minWidth: 34, textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap', color: heat.advancing?.includes(n) ? EVENT_ACCENT : undefined }}>
+                  {heat.advancing?.includes(n) ? '↑ weiter' : heat.kind === 'race' && heat.points.has(n) ? `+${fmtPts(heat.points.get(n)!)}` : ''}
                 </span>
               </div>
             )
