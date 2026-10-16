@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "name": "Herbstcup 2026",
+  "start": "2026-03-14",
+  "drivers": ["Anton Berger", "Mika", "Lars v. Hollen", "Pia S.", "Emil", "F. Lorenz"],
+  "show": "now",
+  "showPlan": "now",
+  "maxPerHeat": 4,
+  "cars": { "scale": "1:32", "mode": "free", "pool": [], "fixed": {} },
+  "scoring": { "method": "absolute", "perBeaten": 1, "win": 1, "fastestLap": 2, "pole": 1, "driverOfDay": 2, "personalBest": 1, "clean": 0, "finaleFactor": 2 },
+  "teams": {
+    "mode": "manual",
+    "size": 2,
+    "teams": [
+      { "name": "Team Rot", "drivers": ["Anton Berger", "Emil"] },
+      { "name": "Team Blau", "drivers": ["Mika", "Pia S."] },
+      { "name": "Team Grün", "drivers": ["Lars v. Hollen", "F. Lorenz"] }
+    ]
+  },
+  "countInStats": true,
+  "seed": "herbst",
+  "sections": [
+    { "id": "q", "name": "Einzel-Quali", "format": "quali", "weight": 0, "seeding": "elo", "maxPerHeat": 1, "laps": 4 },
+    { "id": "l", "name": "Aufstiegsleiter", "format": "ladder", "weight": 1, "seeding": "previous", "laps": 10, "advance": 2 },
+    { "id": "t", "name": "Teamrennen", "format": "team", "weight": 1, "seeding": "elo", "laps": 15 }
+  ],
+  "overrides": {},
+  "matches": {}
+}
