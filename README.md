@@ -83,6 +83,10 @@ GR Legends
   gegen jedes“ (4 Teams = 6 Rennen); optional nur ein halber Durchgang mit nach Elo ausgeglichenen
   Gegnern. Der Editor zeigt die Rennzahl je Durchgang. Läufe mit weniger Fahrern werden auf die
   größte Laufgröße hochgerechnet, Pausen (ungerade Teamzahl) über die Zahl der Läufe ausgeglichen.
+- **Ungleich große Läufe:** Bei „Rennen in Gruppen“ und „Eigene Läufe“ werden die Punkte kleinerer
+  Läufe auf die größte Laufgröße hochgerechnet (eine Nachkommastelle); den kleineren Lauf fährt bei
+  „Rennen in Gruppen“ reihum, wer bisher am seltensten drin war. K.-o.: Gruppen möglichst gleich
+  groß, in jeder scheiden gleich viele aus (so viele, wie die kleinste Gruppe zulässt).
 - **Fair:** Ein geschlagener Gegner bringt `2 × (1 − eigene Siegchance)` × Punkte je Gegner; die
   Siegchance kommt aus Fahrer- plus Auto-Elo zu Beginn des Wettkampfs. Die erwarteten Punkte sind
   so für beide Seiten eines Duells gleich.

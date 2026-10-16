@@ -470,20 +470,53 @@ function sectionQuali(env: Env, sec: SectionDef, seeds: Entrant[], per: number):
   }
 }
 
+/** Erwartete Punkte je Fahrer in einem Lauf mit n Fahrern (absolute Wertung) */
+const expectedPoints = (env: Env, n: number) => (n > 1 ? (env.def.scoring.perBeaten * (n - 1)) / 2 + env.def.scoring.win / n : 0)
+
+/**
+ * Rennen mit weniger Fahrern bringen weniger Punkte (weniger Gegner zum Schlagen). Deshalb werden
+ * die Punkte kleinerer Läufe auf die größte Laufgröße des Abschnitts hochgerechnet (eine Nachkommastelle).
+ */
+function scaleToBiggest(env: Env, heats: Heat[]) {
+  for (const kind of ['race', 'quali'] as const) {
+    const list = heats.filter((h) => h.kind === kind)
+    const ref = expectedPoints(env, Math.max(0, ...list.map((h) => h.entrants.length)))
+    for (const h of list) {
+      const e = expectedPoints(env, h.order.length)
+      if (h.status !== 'done' || !(e > 0) || !(ref > e)) continue
+      h.points = new Map([...h.points].map(([n, p]) => [n, Math.round(p * (ref / e) * 10) / 10]))
+    }
+  }
+}
+
 function sectionRaces(env: Env, sec: SectionDef, seeds: Entrant[], per: number): Omit<SectionState, 'def'> {
   const rounds = sec.rounds ?? 1
   const heats: Heat[] = []
   const count = Math.max(1, Math.ceil(seeds.length / per))
+  // Wie oft jemand schon im kleineren Lauf war – das wird reihum verteilt
+  const small = new Map<string, number>()
   let k = 0
   for (let r = 0; r < rounds; r++) {
     // Erster Durchgang: ausgeglichene Gruppen nach Startreihenfolge, danach neu gemischt
-    const list = r === 0 ? seeds : shuffle(seeds, `${env.def.seed}|${sec.id}|${r}`)
-    for (const g of snake(list, count)) {
-      if (!g.length) continue
+    let groups = snake(r === 0 ? seeds : shuffle(seeds, `${env.def.seed}|${sec.id}|${r}`), count).filter((g) => g.length)
+    const big = Math.max(...groups.map((g) => g.length))
+    if (r > 0 && groups.some((g) => g.length < big)) {
+      // Wer bisher am seltensten im kleineren Lauf war, kommt jetzt dorthin (bei Gleichstand bleibt die Auslosung)
+      const pool = groups.flat()
+      const byCount = [...pool].sort((a, b) => (small.get(a.label) ?? 0) - (small.get(b.label) ?? 0))
+      const need = groups.filter((g) => g.length < big).reduce((a, g) => a + g.length, 0)
+      const toSmall = new Set(byCount.slice(0, need))
+      const smallList = pool.filter((e) => toSmall.has(e))
+      const bigList = pool.filter((e) => !toSmall.has(e))
+      groups = groups.map((g) => (g.length < big ? smallList : bigList).splice(0, g.length))
+    }
+    for (const g of groups) {
+      if (g.length < big) for (const e of g) small.set(e.label, (small.get(e.label) ?? 0) + 1)
       k++
       heats.push(addHeat(env, sec, { id: `${sec.id}-r${r + 1}-${k}`, label: `Rennen ${k}`, kind: 'race', entrants: g, note: rounds > 1 ? `Durchgang ${r + 1} von ${rounds}` : null }))
     }
   }
+  scaleToBiggest(env, heats)
   const drivers = seeds.map((e) => e.name).filter((n): n is string => n != null)
   return { heats, ranking: rankingFromSums(heats, drivers), teamRanking: null, started: heats.some((h) => h.status === 'done'), complete: heats.every((h) => h.status === 'done') }
 }
@@ -553,9 +586,13 @@ function sectionLadder(env: Env, sec: SectionDef, seeds: Entrant[], per: number)
   }
 }
 
+/**
+ * K.-o.: Gruppen so gleich groß wie möglich. In jeder Gruppe scheiden gleich viele aus – so viele,
+ * wie es die kleinste Gruppe bei `advance` Weiterkommenden zulässt. Größere Gruppen bringen also
+ * einen mehr weiter, statt dass dort das Weiterkommen schwerer ist.
+ */
 function sectionKo(env: Env, sec: SectionDef, seeds: Entrant[], per: number): Omit<SectionState, 'def'> {
   if (!seeds.length) return { heats: [], ranking: [], teamRanking: null, started: false, complete: false }
-  const advance = Math.min(sec.advance ?? 1, per - 1)
   const heats: Heat[] = []
   const exit: Exit = new Map()
   let field = [...seeds]
@@ -564,23 +601,26 @@ function sectionKo(env: Env, sec: SectionDef, seeds: Entrant[], per: number): Om
     const final = field.length <= per
     const count = final ? 1 : Math.ceil(field.length / per)
     const groups = snake(field, count).filter((g) => g.length)
-    const nextCount = final ? 0 : groups.reduce((a, g) => a + Math.min(advance, g.length - 1), 0)
+    const minSize = Math.min(...groups.map((g) => g.length))
+    const out = final ? 0 : Math.max(1, minSize - Math.min(sec.advance ?? 1, per - 1, minSize - 1))
+    const nextCount = field.length - out * groups.length
     const semi = !final && nextCount <= per
     const next: Entrant[] = []
     groups.forEach((g, k) => {
       const label = final ? 'Finale' : semi ? `Halbfinale ${k + 1}` : `Runde ${level + 1} · Lauf ${k + 1}`
-      const adv = Math.min(advance, g.length - 1)
+      const adv = final ? 0 : g.length - out
       const heat = addHeat(env, sec, { id: `${sec.id}-r${level + 1}-${k + 1}`, label: groups.length === 1 && !final ? `Runde ${level + 1}` : label, kind: 'race', entrants: g, note: final ? 'Entscheidet den Sieg' : `Top ${adv} kommen weiter` })
       heats.push(heat)
       if (heat.status === 'done') {
-        const up = final ? [] : heat.order.slice(0, adv)
-        heat.order.forEach((n, i) => exit.set(n, { level, pos: i, decided: !up.includes(n) }))
+        const up = heat.order.slice(0, adv)
+        // Ausgeschiedene zählen ab dem ersten Ausgeschiedenen – gleich weit gekommen = gleicher Platz
+        heat.order.forEach((n, i) => exit.set(n, { level, pos: i < adv ? i : i - adv, decided: i >= adv }))
         heat.advancing = up
         heat.points = new Map()
         next.push(...up.map(named))
       } else {
         for (const e of heat.entrants) if (e.name) exit.set(e.name, { level, pos: seeds.findIndex((s) => s.name === e.name), decided: false })
-        if (!final) next.push(...Array.from({ length: adv }, (_, i) => placeholder(`Platz ${i + 1} aus ${heat.label}`)))
+        next.push(...Array.from({ length: adv }, (_, i) => placeholder(`Platz ${i + 1} aus ${heat.label}`)))
       }
     })
     if (final || next.length >= field.length) break
@@ -592,7 +632,8 @@ function sectionKo(env: Env, sec: SectionDef, seeds: Entrant[], per: number): Om
     ranking: rankingFromExit(env, exit, (n) => {
       const e = exit.get(n)!
       const h = heats.find((x) => x.entrants.some((en) => en.name === n) && x.id.includes(`-r${e.level + 1}-`))
-      return e.decided ? `${h?.label ?? ''} P${e.pos + 1}` : `startet in ${h?.label ?? 'Runde 1'}`
+      const place = h?.order.indexOf(n) ?? -1
+      return e.decided ? `${h?.label ?? ''} P${place + 1}` : `startet in ${h?.label ?? 'Runde 1'}`
     }),
     teamRanking: null,
     started: heats.some((h) => h.status === 'done'),
@@ -656,9 +697,6 @@ function balancedHalf<T>(rounds: [T, T][][], strength: (t: T) => number): [T, T]
   walk(0)
   return best.map((i) => rounds[i])
 }
-
-/** Erwartete Punkte je Fahrer in einem Lauf mit n Fahrern (absolute Wertung) */
-const expectedPoints = (env: Env, n: number) => (n > 1 ? (env.def.scoring.perBeaten * (n - 1)) / 2 + env.def.scoring.win / n : 0)
 
 /**
  * Teamrennen. Passen alle Teams auf die Bahn: alle zusammen. Passen zwei: jedes Team gegen jedes
@@ -751,6 +789,7 @@ function sectionCustom(env: Env, sec: SectionDef, drivers: string[]): Omit<Secti
   const heats = (sec.heats ?? []).map((h, k) =>
     addHeat(env, sec, { id: `${sec.id}-${k + 1}`, label: `${h.kind === 'quali' ? 'Quali' : 'Lauf'} ${k + 1}`, kind: h.kind, entrants: h.drivers.map(named) }),
   )
+  scaleToBiggest(env, heats)
   return { heats, ranking: rankingFromSums(heats, drivers), teamRanking: null, started: heats.some((h) => h.status === 'done'), complete: heats.every((h) => h.status === 'done') }
 }
 

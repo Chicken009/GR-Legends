@@ -192,6 +192,40 @@ describe('Rennen, K.-o. und Teams', () => {
   })
 })
 
+describe('Ungleich große Läufe', () => {
+  const seven = ['A', 'B', 'C', 'D', 'E', 'F', 'G']
+
+  it('Rennen in Gruppen: den kleineren Lauf fährt jeder reihum, Punkte hochgerechnet', () => {
+    const d = def({ drivers: seven, maxPerHeat: 4, sections: [newSection('races', { id: 'r', rounds: 3, seeding: 'elo' })] })
+    const plan = computeEvent(d, ctx())
+    const inSmall = new Map<string, number>()
+    for (const h of plan.heats) if (h.entrants.length === 3) for (const e of h.entrants) inSmall.set(e.name!, (inSmall.get(e.name!) ?? 0) + 1)
+    // 3 Durchgänge × 3 Plätze im kleinen Lauf = 9 Plätze für 7 Fahrer: jeder 1- oder 2-mal
+    expect(seven.map((n) => inSmall.get(n) ?? 0).sort()).toEqual([1, 1, 1, 1, 1, 2, 2])
+    // Dreierlauf: Sieger 2 + 1 = 3, Zweiter 1 – × 1,75 / 1,33 (erwartete Punkte im Vierer- / Dreierlauf)
+    const first = plan.heats[0].entrants.length === 3 ? plan.heats[0] : plan.heats[1]
+    const s = computeEvent({ ...d, sections: [newSection('races', { id: 'r', rounds: 1, seeding: 'elo' })] }, ctx([run('race', first.entrants.map((e) => e.name!))]))
+    const h = s.heats.find((x) => x.status === 'done')!
+    expect([...h.points.values()]).toEqual([3.9, 1.3, 0])
+  })
+
+  it('K.-o.: in jeder Gruppe scheiden gleich viele aus', () => {
+    const d = def({ drivers: seven, maxPerHeat: 4, sections: [newSection('ko', { id: 'k', advance: 1, seeding: 'elo' })] })
+    const plan = computeEvent(d, ctx())
+    // 4er- und 3er-Gruppe: in beiden scheiden 2 aus – also 2 und 1 kommen weiter, 3 im Finale
+    const [a, b, final] = plan.heats
+    const g1 = a.entrants.length === 4 ? a : b
+    const g2 = g1 === a ? b : a
+    expect([g1.entrants.length, g2.entrants.length, final.entrants.length]).toEqual([4, 3, 3])
+    expect([g1.note, g2.note, final.note]).toEqual(['Top 2 kommen weiter', 'Top 1 kommen weiter', 'Entscheidet den Sieg'])
+    const played = computeEvent(d, ctx([run('race', g1.entrants.map((e) => e.name!)), run('race', g2.entrants.map((e) => e.name!))]))
+    // Erste Ausgeschiedene beider Gruppen (P3 bzw. P2) teilen sich den Platz
+    const r = played.sections[0].ranking
+    const rank = (n: string) => r.find((x) => x.name === n)!.rank
+    expect(rank(g1.entrants[2].name!)).toBe(rank(g2.entrants[1].name!))
+  })
+})
+
 describe('Teamrennen: Paarungen und Ausgleich', () => {
   const teamsOf = (names: string[][]) => names.map((drivers, i) => ({ name: `T${i + 1}`, drivers }))
   const pairsOf = (s: ReturnType<typeof computeEvent>) => s.heats.map((h) => [...new Set(Object.values(h.teamOf ?? {}))].sort().join('-'))
