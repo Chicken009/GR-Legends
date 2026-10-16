@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-do
 import { PLACEMENT_RUNS } from '../../domain/model'
 import { carKey, duelDelta, winChances } from '../../domain/rating'
 import { CarThumb } from '../CarPhoto'
+import { RadarChart } from '../charts/RadarChart'
 import { AREA, ME, SERIES } from '../colors'
 import { Avatar, carPath, driverPath, Segment, Sheet, useData, useMyName } from '../components'
 import { ChevronDown, ChevronLeft } from '../icons'
@@ -176,6 +177,23 @@ export function Compare() {
           <CarBonus a={a} b={b} rA={carRating(a)} rB={carRating(b)} colorA={colorA} colorB={colorB} />
         </section>
       )}
+      {kind === 'auto' && all.cars.get(a)?.radar.length && all.cars.get(b)?.radar.length ? (
+        <section className="card" style={{ gap: 8 }}>
+          <span className="card-title">Eigenschaften</span>
+          <RadarChart
+            series={[
+              { name: a, color: colorA, axes: all.cars.get(a)!.radar },
+              { name: b, color: colorB, axes: all.cars.get(b)!.radar },
+            ]}
+            label={`Eigenschaften ${a} gegen ${b}`}
+          />
+          <div className="legend">
+            <span><span style={{ width: 10, height: 10, borderRadius: 3, background: colorA }} />{a}</span>
+            <span><span style={{ width: 10, height: 10, borderRadius: 3, background: colorB }} />{b}</span>
+            <span>außen = besser · gestrichelt = Ø Auto · Punkte antippen</span>
+          </div>
+        </section>
+      ) : null}
 
       <section className="card" style={{ gap: 14 }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', gap: 8, fontSize: 13, fontWeight: 700 }}>

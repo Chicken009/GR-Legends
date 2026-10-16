@@ -7,6 +7,7 @@ import { CarPhoto, CarThumb, usePhotoId } from '../CarPhoto'
 import { carPath, PageHead, PeriodTabs, SettingsHint, Tile, useData, useMyName, ViewToggle } from '../components'
 import { DataTable, type Column } from '../DataTable'
 import { LapHistogram } from '../charts/LapHistogram'
+import { RadarChart } from '../charts/RadarChart'
 import { CarSilhouette, Chevrons, ChevronLeft, RecordFlame } from '../icons'
 import { fmtGapSec, fmtNum, fmtPct, formatTime } from '../format'
 import { useStored } from '../useStored'
@@ -221,21 +222,24 @@ export function CarProfile() {
           <Tile value={fmtNum(c.laps, 0)} label="Runden" />
         </div>
 
-        <div className="grid-2">
-          <div className="inner">
-            <span className="l">Tempo</span>
-            <span className="v">{fmtGapSec(c.tempo)}</span>
-            <span className="s">pro Runde {c.tempo != null && c.tempo < 0 ? 'schneller' : 'langsamer'} als das Ø Auto</span>
+        <section className="inner" style={{ padding: 14, gap: 8 }}>
+          <div className="card-head">
+            <span className="card-title">Eigenschaften</span>
+            <span className="hint">Autowertung {c.rating == null ? '–' : `${c.rating >= 0 ? '+' : '−'}${Math.abs(Math.round(c.rating))}`}</span>
           </div>
-          <div className="inner">
-            <span className="l">Abflüge</span>
-            <span className="v">{c.crashRate != null ? `${fmtNum(c.crashRate)} / 100 Runden` : '–'}</span>
-            <span className="s">Autowertung {c.rating == null ? '–' : `${c.rating >= 0 ? '+' : '−'}${Math.abs(Math.round(c.rating))}`}</span>
+          <RadarChart series={[{ name: car, color: ACCENT, axes: c.radar }]} label={`Eigenschaften ${car}: ${c.radar.map((a) => `${a.label} ${Math.round(a.score * 100)}`).join(', ')}`} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {c.radar.map((a) => (
+              <div key={a.key} style={{ display: 'flex', gap: 10, alignItems: 'baseline' }}>
+                <span style={{ fontSize: 12, fontWeight: 700, width: 96, flexShrink: 0 }}>{a.label}</span>
+                <span style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.4 }}>{a.text}</span>
+              </div>
+            ))}
           </div>
-        </div>
-        <p style={{ margin: '-4px 2px 0', fontSize: 11, color: 'var(--muted)', lineHeight: 1.45 }}>
-          Fahrerbereinigt: verglichen wird, was dieselben Fahrer im selben Lauf mit anderen Autos fahren – konsistente Fahrer zählen mehr. Alle Rennen zählen, gleichbleibende neue Entwicklungen (z. B. nach einem Umbau) zusätzlich.
-        </p>
+          <p style={{ margin: 0, fontSize: 11, color: 'var(--muted)', lineHeight: 1.45 }}>
+            Außen = besser, gestrichelter Ring = Ø Auto. Alles fahrerbereinigt: verglichen wird, wie dieselben Fahrer mit anderen Autos fahren. Bei Tempo und Abflügen zählen konsistente Fahrer und gleichbleibende neue Entwicklungen (z. B. nach einem Umbau) stärker.
+          </p>
+        </section>
 
         <section className="inner" style={{ padding: 14, gap: 10 }}>
           <div className="card-head">
