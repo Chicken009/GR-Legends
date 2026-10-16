@@ -13,12 +13,12 @@ import { useStored } from '../useStored'
 
 const ACCENT = AREA.history
 
-/** Umschalter im Tab „Rennen“: Renntage (Historie) und Statistik */
+/** Umschalter im Tab „Historie“: Renntage und Statistik */
 export function RacesSwitch({ value }: { value: 'renntage' | 'statistik' }) {
   const navigate = useNavigate()
   return (
     <Segment
-      label="Rennen"
+      label="Historie"
       value={value}
       onChange={(v) => navigate(v === 'statistik' ? '/statistik' : '/historie', { replace: true })}
       options={[
@@ -44,7 +44,7 @@ export function History() {
   )
   return (
     <div className="page" style={{ ['--accent' as string]: ACCENT }}>
-      <PageHead title="Rennen" kicker="Alle Renntage" color={ACCENT} />
+      <PageHead title="Historie" kicker="Alle Renntage" color={ACCENT} />
       <RacesSwitch value="renntage" />
       <div className="filters">
         <div role="tablist" aria-label="Jahr" className="tabs">

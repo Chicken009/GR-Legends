@@ -19,7 +19,7 @@ export function Stats() {
   const p = period === 'all' || model.years.includes(period) ? period : 'all'
   return (
     <div className="page" style={{ ['--accent' as string]: ACCENT }}>
-      <PageHead title="Rennen" kicker="Statistik" color={AREA.history} />
+      <PageHead title="Historie" kicker="Statistik" color={AREA.history} />
       <RacesSwitch value="statistik" />
       <Segment
         small
