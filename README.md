@@ -87,6 +87,12 @@ GR Legends
   Läufe auf die größte Laufgröße hochgerechnet (eine Nachkommastelle); den kleineren Lauf fährt bei
   „Rennen in Gruppen“ reihum, wer bisher am seltensten drin war. K.-o.: Gruppen möglichst gleich
   groß, in jeder scheiden gleich viele aus (so viele, wie die kleinste Gruppe zulässt).
+- **Aufstiegsleiter automatisch** (Standard für neue Abschnitte): In jedem Rennen steigt die Hälfte
+  auf; alle Rennen sind voll, fehlen Fahrer, werden die untersten Rennen kleiner.
+- **Autoliste:** Bei „Freie Wahl aus Liste“, „Nach Können“ und „Zufällig“ fahren höchstens so viele
+  gleichzeitig, wie Autos ausgewählt sind – sonst müssten sich zwei ein Auto teilen.
+- **Autobilder:** Ablauf, Leinwand, „Dein Wettkampf“, Wettkampfliste und Regeln zeigen die Autos
+  mit Foto (aus dem Ordner „Fotos“).
 - **Fair:** Ein geschlagener Gegner bringt `2 × (1 − eigene Siegchance)` × Punkte je Gegner; die
   Siegchance kommt aus Fahrer- plus Auto-Elo zu Beginn des Wettkampfs. Die erwarteten Punkte sind
   so für beide Seiten eines Duells gleich.

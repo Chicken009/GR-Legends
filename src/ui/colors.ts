@@ -10,6 +10,7 @@ export const AREA = {
   history: '#EE9E10',
   home: '#F2F4F5',
   season: '#4AA8F0',
+  events: '#E2559A',
 } as const
 
 export type Area = keyof typeof AREA

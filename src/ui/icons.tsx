@@ -63,6 +63,8 @@ export const NAV_ICONS = {
   stats: 'M6 20V10M12 20V4M18 20v-7M3 20h18',
   season: 'M8 4h8v5a4 4 0 0 1-8 0zM8 6H5v1a3 3 0 0 0 3 3M16 6h3v1a3 3 0 0 1-3 3M12 13v4M9 20h6M10 17h4',
   races: 'M5 21V4M5 4h12l-2.5 4L17 12H5',
+  /** Siegerpodest */
+  events: 'M3 20h18M4 20v-5h5v5M9.5 20V9h5v11M15 20v-7h5v7M12 3.5l.9 1.8 2 .3-1.45 1.4.35 2-1.8-.95-1.8.95.35-2L9.1 5.6l2-.3z',
 }
 
 export function StrokeIcon({ d, size = 22, color = 'currentColor', width = 2 }: { d: string; size?: number; color?: string; width?: number }) {

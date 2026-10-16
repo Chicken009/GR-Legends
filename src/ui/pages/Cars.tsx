@@ -4,6 +4,7 @@ import { carScale } from '../../data/settings'
 import { quantile } from '../../domain/laps'
 import { AREA } from '../colors'
 import { CarPhoto, CarThumb, usePhotoId } from '../CarPhoto'
+import { FieldSwitch } from '../FieldSwitch'
 import { carPath, PageHead, PeriodTabs, SettingsHint, Sheet, Tile, useData, useMyName, ViewToggle } from '../components'
 import { DataTable, type Column } from '../DataTable'
 import { BoxPlot, type BoxRow } from '../charts/BoxPlot'
@@ -83,6 +84,7 @@ export function Cars() {
       <PageHead title="Fahrzeuge" kicker="Autowertung" color={ACCENT}>
         <ViewToggle value={view} onChange={setView} />
       </PageHead>
+      <FieldSwitch value="autos" />
       <PeriodTabs value={p} onChange={setPeriod} years={model.years} />
       {view === 'table' ? (
         <DataTable

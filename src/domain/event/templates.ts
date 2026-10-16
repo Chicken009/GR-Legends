@@ -15,7 +15,7 @@ export function newSection(format: SectionFormat, extra: Partial<SectionDef> = {
   const defaults: Partial<Record<SectionFormat, Partial<SectionDef>>> = {
     quali: { name: 'Qualifying', laps: 4 },
     races: { name: 'Rennen', laps: 10, rounds: 2 },
-    ladder: { name: 'Aufstiegsleiter', laps: 10, advance: 2 },
+    ladder: { name: 'Aufstiegsleiter', laps: 10, advanceAuto: true },
     ko: { name: 'K.-o.-Runde', laps: 10, advance: 1 },
     team: { name: 'Teamrennen', laps: 15, rounds: 1 },
     custom: { name: 'Eigene Läufe', laps: 10, heats: [] },

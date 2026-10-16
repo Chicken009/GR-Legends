@@ -6,7 +6,8 @@ import { Avatar, PageHead, Segment, useData, useMyName } from '../components'
 import type { EventState } from '../../domain/event/engine'
 import { useMe } from '../me'
 import { useStored } from '../useStored'
-import { dateRange, EVENT_ACCENT, fmtPts, HeatCard, PhasePill, phaseOf, Podium, rulesText, StandingsList, Stories, teamColor, TeamStandings, TeamTag, useEventState } from '../event/shared'
+import { CarThumb } from '../CarPhoto'
+import { CarChips, dateRange, EVENT_ACCENT, fmtPts, HeatCard, PhasePill, phaseOf, Podium, rulesText, StandingsList, Stories, teamColor, TeamStandings, TeamTag, useEventState } from '../event/shared'
 
 type Tab = 'stand' | 'ablauf' | 'regeln'
 
@@ -90,7 +91,14 @@ export function EventView() {
             <span style={{ fontSize: 14 }}>
               Als Nächstes: <b>{insight.nextHeat.label}</b>
               {insight.nextHeat.entrants.length > 1 && ` gegen ${insight.nextHeat.entrants.filter((e) => e.name !== me).map((e) => e.label).join(', ')}`}
-              {me && insight.nextHeat.cars[me] ? ` · Auto: ${insight.nextHeat.cars[me]}` : ''}
+            </span>
+          )}
+          {showPlan && insight.nextHeat && me && insight.nextHeat.cars[me] && (
+            <span style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14 }}>
+              <CarThumb car={insight.nextHeat.cars[me]} size={44} />
+              <span>
+                Dein Auto: <b>{insight.nextHeat.cars[me]}</b>
+              </span>
             </span>
           )}
           {showPlan && !insight.nextHeat && state.started && <span style={{ fontSize: 13, color: 'var(--muted)' }}>Keine Läufe mehr für dich geplant.</span>}
@@ -190,7 +198,34 @@ export function EventView() {
           </ul>
         </section>
       )}
+      {tab === 'regeln' && <CarsCard def={def} />}
     </div>
+  )
+}
+
+/** Fahrzeuge des Wettkampfs mit Bild: Auswahlliste oder feste Autos je Fahrer */
+function CarsCard({ def }: { def: EventState['def'] }) {
+  const rules = [{ name: 'Alle Läufe', rule: def.cars }, ...def.sections.filter((s) => s.cars).map((s) => ({ name: s.name, rule: s.cars! }))]
+  const shown = rules.filter((r) => (r.rule.mode === 'fixed' ? Object.keys(r.rule.fixed).length : r.rule.mode !== 'free' && r.rule.pool.length))
+  if (!shown.length) return null
+  const modeText = { list: 'Freie Wahl aus', skill: 'Nach Können zugeteilt aus', random: 'Zufällig verteilt aus', fixed: 'Festes Auto je Fahrer', free: '' }
+  return (
+    <section className="card" style={{ gap: 10 }}>
+      <span className="card-title">Fahrzeuge</span>
+      {shown.map(({ name, rule }) => (
+        <div key={name} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <span style={{ fontSize: 12, color: 'var(--muted)' }}>
+            {shown.length > 1 || name !== 'Alle Läufe' ? `${name} · ` : ''}
+            {modeText[rule.mode]}
+          </span>
+          {rule.mode === 'fixed' ? (
+            <CarChips cars={[...new Set(Object.values(rule.fixed))]} label={(c) => `${c} · ${Object.entries(rule.fixed).filter(([, x]) => x === c).map(([d]) => d).join(', ')}`} />
+          ) : (
+            <CarChips cars={rule.pool} />
+          )}
+        </div>
+      ))}
+    </section>
   )
 }
 

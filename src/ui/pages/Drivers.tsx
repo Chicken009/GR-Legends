@@ -2,6 +2,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { PLACEMENT_RUNS, type RankRow } from '../../domain/model'
 import { SEASON_POINTS } from '../../domain/season'
 import { AREA } from '../colors'
+import { FieldSwitch } from '../FieldSwitch'
 import { Avatar, driverPath, PageHead, PeriodTabs, Placement, Rank, SettingsHint, useData, useMyName, ViewToggle } from '../components'
 import { DataTable, type Column } from '../DataTable'
 import { StatusIcons } from '../icons'
@@ -89,6 +90,7 @@ export function Drivers() {
       <PageHead title="Fahrer" kicker="Rangliste" color={AREA.drivers}>
         <ViewToggle value={view} onChange={setView} />
       </PageHead>
+      <FieldSwitch value="fahrer" />
       <div className="filters">
         <PeriodTabs value={p} onChange={setPeriod} years={model.years} />
         <label className="check">

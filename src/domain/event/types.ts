@@ -89,6 +89,8 @@ export interface SectionDef {
   half?: boolean
   /** ladder / ko: so viele kommen pro Lauf weiter */
   advance?: number
+  /** ladder: Aufsteiger je Rennen automatisch (die Hälfte, Rennen möglichst gleich groß) */
+  advanceAuto?: boolean
   /** custom: Läufe mit festen Fahrern */
   heats?: { kind: 'race' | 'quali'; drivers: string[] }[]
 }

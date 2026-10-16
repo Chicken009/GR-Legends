@@ -1,30 +1,46 @@
+import { useEffect } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { AREA } from './colors'
 import { Avatar, useData, useMyName, Wordmark } from './components'
 import { NAV_ICONS, StrokeIcon } from './icons'
 import { useMe } from './me'
+import { useStored } from './useStored'
 
-// „Rennen“ umfasst Renntage (Historie), Statistik und einzelne Läufe
+const isField = (p: string) => /^\/(fahrer|autos)/.test(p)
+
+// „Fahrer“ umfasst Fahrer und Fahrzeuge (Umschalter oben), „Rennen“ Renntage, Statistik und einzelne Läufe
 const ITEMS = [
   { to: '/', label: 'Boxengasse', short: 'Start', icon: NAV_ICONS.home, color: AREA.home, match: (p: string) => p === '/' },
-  { to: '/fahrer', label: 'Fahrer', short: 'Fahrer', icon: NAV_ICONS.drivers, color: AREA.drivers, match: (p: string) => p.startsWith('/fahrer') },
-  { to: '/autos', label: 'Fahrzeuge', short: 'Autos', icon: NAV_ICONS.cars, color: AREA.cars, match: (p: string) => p.startsWith('/autos') },
-  { to: '/saison', label: 'Saison', short: 'Saison', icon: NAV_ICONS.season, color: AREA.season, match: (p: string) => p.startsWith('/saison') || p.startsWith('/wrapped') || p.startsWith('/wettkampf') },
+  { to: '/fahrer', label: 'Fahrer & Autos', short: 'Fahrer', icon: NAV_ICONS.drivers, color: AREA.drivers, match: isField },
+  { to: '/saison', label: 'Saison', short: 'Saison', icon: NAV_ICONS.season, color: AREA.season, match: (p: string) => p.startsWith('/saison') || p.startsWith('/wrapped') },
+  { to: '/wettkampf', label: 'Events', short: 'Events', icon: NAV_ICONS.events, color: AREA.events, match: (p: string) => p.startsWith('/wettkampf') },
   { to: '/historie', label: 'Rennen', short: 'Rennen', icon: NAV_ICONS.races, color: AREA.history, match: (p: string) => /^\/(historie|statistik|lauf)/.test(p) },
 ]
+
+/** Fahrer-Gruppe: führt zurück zu dem, was zuletzt offen war (Fahrer oder Autos), und zeigt das passende Symbol */
+function useNavItems(pathname: string) {
+  const [field, setField] = useStored<'fahrer' | 'autos'>('nav:field', 'fahrer')
+  const now = pathname.startsWith('/autos') ? 'autos' : pathname.startsWith('/fahrer') ? 'fahrer' : null
+  useEffect(() => {
+    if (now && now !== field) setField(now)
+  }, [now, field, setField])
+  const cars = (now ?? field) === 'autos'
+  return ITEMS.map((it) => (it.to === '/fahrer' ? { ...it, to: cars ? '/autos' : '/fahrer', short: cars ? 'Autos' : 'Fahrer', icon: cars ? NAV_ICONS.cars : NAV_ICONS.drivers, color: cars ? AREA.cars : AREA.drivers } : it))
+}
 
 export function Layout() {
   const me = useMyName()
   const { openPicker } = useMe()
   const { source } = useData()
   const { pathname } = useLocation()
+  const items = useNavItems(pathname)
   return (
     <div className="shell">
       <nav className="side-nav" aria-label="Hauptnavigation">
         <div className="brand">
           <Wordmark width={150} />
         </div>
-        {ITEMS.map((it) => (
+        {items.map((it) => (
           <NavLink key={it.to} to={it.to} className={() => `item${it.match(pathname) ? ' active' : ''}`} aria-current={it.match(pathname) ? 'page' : undefined} style={{ ['--nav-color' as string]: it.color }}>
             <StrokeIcon d={it.icon} color={it.color} />
             <span>{it.label}</span>
@@ -51,7 +67,7 @@ export function Layout() {
         <Outlet />
       </div>
       <nav className="bottom-nav" aria-label="Hauptnavigation">
-        {ITEMS.map((it) => (
+        {items.map((it) => (
           <NavLink key={it.to} to={it.to} aria-label={it.label} className={() => (it.match(pathname) ? 'active' : '')} aria-current={it.match(pathname) ? 'page' : undefined} style={{ ['--nav-color' as string]: it.color }}>
             <StrokeIcon d={it.icon} color={it.match(pathname) ? it.color : '#7D8691'} />
             <span>{it.short}</span>

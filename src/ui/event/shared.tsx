@@ -11,8 +11,9 @@ import { AREA, SERIES } from '../colors'
 import { Avatar, driverPath, useData } from '../components'
 import { fmtNum, formatDate, formatTime } from '../format'
 import { Bolt, Crown, PoleFlag, Rocket, Sword, Trophy } from '../icons'
+import { CarThumb } from '../CarPhoto'
 
-export const EVENT_ACCENT = AREA.season
+export const EVENT_ACCENT = AREA.events
 
 // Steckt eine Farbe im Teamnamen („Team Rot“), gilt sie – sonst feste Farbe nach Teamnummer
 const NAMED_COLORS: [string[], string][] = [
@@ -207,6 +208,20 @@ export function TeamStandings({ state }: { state: EventState }) {
 
 const STATUS_TEXT = { done: 'gefahren', next: 'als Nächstes', ready: 'geplant', waiting: 'wartet' } as const
 
+/** Autos als kleine Bilder mit Namen */
+export function CarChips({ cars, size = 32, label }: { cars: string[]; size?: number; label?: (car: string) => ReactNode }) {
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+      {cars.map((c) => (
+        <span key={c} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-2)', background: 'var(--inner)', borderRadius: 10, padding: '3px 8px 3px 3px', maxWidth: '100%' }}>
+          <CarThumb car={c} size={size} />
+          <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label ? label(c) : c}</span>
+        </span>
+      ))}
+    </div>
+  )
+}
+
 export function HeatCard({ heat, state, me, children }: { heat: Heat; state: EventState; me: string | null; children?: ReactNode }) {
   const { model } = useData()
   const teamTag = (n: string) => {
@@ -243,6 +258,7 @@ export function HeatCard({ heat, state, me, children }: { heat: Heat; state: Eve
                   {r?.car}
                   {r?.validBestLapMs ? ` · ${formatTime(r.validBestLapMs)}` : ''}
                 </span>
+                {r?.car && <CarThumb car={r.car} size={26} />}
                 <span className="num" style={{ minWidth: 34, textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap', color: heat.advancing?.includes(n) ? EVENT_ACCENT : undefined }}>
                   {heat.advancing?.includes(n) ? '↑ weiter' : heat.kind === 'race' && heat.points.has(n) ? `+${fmtPts(heat.points.get(n)!)}` : ''}
                 </span>
@@ -254,9 +270,17 @@ export function HeatCard({ heat, state, me, children }: { heat: Heat; state: Eve
               <span style={{ whiteSpace: 'nowrap' }}>{e.label}</span>
               {e.name && teamTag(e.name)}
               <span className="car">{e.name ? heat.cars[e.name] ?? '' : ''}</span>
+              {e.name && heat.cars[e.name] && <CarThumb car={heat.cars[e.name]} size={26} />}
             </div>
           ))}
-      {heat.status !== 'done' && heat.carHint && <span style={{ fontSize: 11, color: 'var(--muted)' }}>{heat.carHint}</span>}
+      {heat.status !== 'done' && heat.carChoice ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <span style={{ fontSize: 11, color: 'var(--muted)' }}>Freie Wahl aus:</span>
+          <CarChips cars={heat.carChoice} size={26} />
+        </div>
+      ) : (
+        heat.status !== 'done' && heat.carHint && <span style={{ fontSize: 11, color: 'var(--muted)' }}>{heat.carHint}</span>
+      )}
       {heat.teamPoints && (
         <span style={{ fontSize: 12, color: 'var(--text-2)' }}>
           {[...heat.teamPoints].map(([id, p], i) => (
