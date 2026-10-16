@@ -4,7 +4,7 @@ import { Link, useParams } from 'react-router-dom'
 import { planVisible, storylines, todayIso } from '../../domain/event/insights'
 import { Avatar, useData } from '../components'
 import { formatTime } from '../format'
-import { EVENT_ACCENT, fmtPts, PhasePill, phaseOf, Podium, StoryIcon, useEventState } from '../event/shared'
+import { EVENT_ACCENT, fmtPts, PhasePill, phaseOf, Podium, StoryIcon, teamColor, TeamTag, useEventState } from '../event/shared'
 
 const REFRESH_MS = 30_000
 const TICKER_MS = 8_000
@@ -87,7 +87,7 @@ export function EventLive() {
               <div className="pop">
                 <Podium state={state} />
               </div>
-              {state.teamStandings[0] && <span style={{ textAlign: 'center' }}>Bestes Team: <b>{state.teamStandings[0].name}</b></span>}
+              {state.teamStandings[0] && <span style={{ textAlign: 'center' }}>Bestes Team: <b style={{ color: teamColor(state.teamStandings[0].id, state.teamStandings[0].name) }}>{state.teamStandings[0].name}</b></span>}
             </section>
           ) : showPlan && state.next ? (
             <section className="card" style={{ borderColor: EVENT_ACCENT }}>
@@ -128,8 +128,8 @@ export function EventLive() {
                     </span>
                     <span style={{ fontWeight: 700 }}>{n}</span>
                     <span style={{ marginLeft: 'auto', color: 'var(--muted)' }}>{r?.validBestLapMs ? formatTime(r.validBestLapMs) : ''}</span>
-                    <span className="num" style={{ minWidth: 50, textAlign: 'right', fontWeight: 800 }}>
-                      +{fmtPts(lastDone.points.get(n) ?? 0)}
+                    <span className="num" style={{ minWidth: 50, textAlign: 'right', fontWeight: 800, color: lastDone.advancing?.includes(n) ? EVENT_ACCENT : undefined }}>
+                      {lastDone.advancing?.includes(n) ? '↑ weiter' : lastDone.points.has(n) ? `+${fmtPts(lastDone.points.get(n)!)}` : ''}
                     </span>
                   </div>
                 )
@@ -150,7 +150,7 @@ export function EventLive() {
                   <Avatar name={r.name} size={32} />
                 )}
                 <span style={{ fontWeight: 700 }}>{r.name}</span>
-                {r.team && <span style={{ color: 'var(--muted)', fontSize: '0.8em' }}>{r.team}</span>}
+                {r.team && <TeamTag id={r.teamId} name={r.team} size="0.75em" />}
                 {state.started && (
                   <span className="num" style={{ marginLeft: 'auto', fontSize: '1.3em', fontWeight: 800 }}>
                     {fmtPts(r.total)}
@@ -167,7 +167,7 @@ export function EventLive() {
                   <span className={`rank${t.rank <= 3 ? ` r${t.rank}` : ''}`} style={{ fontSize: '1.2em', minWidth: 30 }}>
                     {t.rank}
                   </span>
-                  <span style={{ fontWeight: 700 }}>{t.name}</span>
+                  <span style={{ fontWeight: 700, color: teamColor(t.id, t.name) }}>{t.name}</span>
                   <span style={{ color: 'var(--muted)', fontSize: '0.8em' }}>{t.drivers.join(', ')}</span>
                   <span className="num" style={{ marginLeft: 'auto', fontSize: '1.2em', fontWeight: 800 }}>
                     {fmtPts(t.points)}

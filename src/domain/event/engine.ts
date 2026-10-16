@@ -54,6 +54,8 @@ export interface Heat {
   points: Map<string, number>
   /** Teamrennen: Punkte je Team */
   teamPoints: Map<string, number> | null
+  /** Aufstiegsleiter / K.-o.: wer aus diesem Lauf weiterkommt (Punkte gibt es hier erst für den Endstand) */
+  advancing: string[] | null
   /** Rundenzahl laut Plan */
   laps: number | null
 }
@@ -92,6 +94,7 @@ export interface Standing {
   wins: number
   bestLapMs: number | null
   team: string | null
+  teamId: string | null
 }
 
 export interface TeamState {
@@ -335,6 +338,7 @@ function addHeat(
     order: [],
     points: new Map(),
     teamPoints: null,
+    advancing: null,
     laps: sec.laps ?? null,
   }
   const { session, manual } = matchSession(env, heat)
@@ -359,6 +363,45 @@ function addHeat(
 function rankingFromOrder(env: Env, order: string[], detail: (n: string) => string): RankRow[] {
   const pts = orderPoints(env, order, (n) => env.ctx.elo(n))
   return order.map((name, i) => ({ name, rank: i + 1, points: pts.get(name) ?? 0, detail: detail(name) }))
+}
+
+type Exit = Map<string, { level: number; pos: number; decided: boolean }>
+
+/**
+ * Endstand für Aufstiegsleiter und K.-o.: Wer weiter oben ausscheidet, steht vorne; im selben
+ * Lauf entscheidet der Platz. Punkte gibt es nur gegen Fahrer, die sicher dahinter landen – so
+ * bekommt niemand Punkte für Rennen, die er noch gar nicht gefahren ist, und kein Punktestand
+ * sinkt im Lauf des Abends. Wer noch fährt, hat damit seine Mindestpunkte.
+ */
+function rankingFromExit(env: Env, exit: Exit, detail: (n: string) => string): RankRow[] {
+  const sc = env.def.scoring
+  const names = [...exit.keys()]
+  const key = (n: string) => exit.get(n)!
+  const ordered = names.sort((a, b) => key(b).level - key(a).level || Number(key(b).decided) - Number(key(a).decided) || key(a).pos - key(b).pos)
+  const allDecided = names.every((n) => key(n).decided)
+  const below = (x: string, y: string) => {
+    const a = key(x)
+    const b = key(y)
+    if (!b.decided) return false
+    if (b.level < a.level) return true
+    return a.decided && b.level === a.level && b.pos > a.pos
+  }
+  const rows = ordered.map((name) => {
+    let p = 0
+    for (const other of ordered) {
+      if (other === name || !below(name, other)) continue
+      p += sc.method === 'fair' ? 2 * (1 - winProb(env.ctx.elo(name), env.ctx.elo(other))) * sc.perBeaten : sc.perBeaten
+    }
+    if (allDecided && name === ordered[0] && ordered.length > 1) p += sc.win
+    return { name, rank: 0, points: Math.round(p * 10) / 10, detail: detail(name) }
+  })
+  // Gleicher Platz in der gleichen Runde (K.-o. mit mehreren Läufen) = gleicher Rang
+  rows.forEach((r, i) => {
+    const prev = rows[i - 1]
+    const same = prev && key(prev.name).decided && key(r.name).decided && key(prev.name).level === key(r.name).level && key(prev.name).pos === key(r.name).pos
+    r.rank = same ? prev.rank : i + 1
+  })
+  return rows
 }
 
 /** Rangliste aus Punktesummen der Läufe */
@@ -458,7 +501,7 @@ function sectionLadder(env: Env, sec: SectionDef, seeds: Entrant[], per: number)
     rest = rest.slice(sizes[i])
   }
   // Ausscheiden: Ebene und Platz im Lauf
-  const exit = new Map<string, { level: number; pos: number }>()
+  const exit: Exit = new Map()
   let carry: Entrant[] = []
   for (let level = 0; level < sizes.length; level++) {
     const top = level === sizes.length - 1
@@ -473,22 +516,23 @@ function sectionLadder(env: Env, sec: SectionDef, seeds: Entrant[], per: number)
     })
     heats.push(heat)
     if (heat.status === 'done') {
-      heat.order.forEach((n, i) => exit.set(n, { level, pos: i }))
-      carry = heat.order.slice(0, top ? 0 : advance).map(named)
+      const up = top ? [] : heat.order.slice(0, advance)
+      heat.order.forEach((n, i) => exit.set(n, { level, pos: i, decided: !up.includes(n) }))
+      heat.advancing = up
+      heat.points = new Map()
+      carry = up.map(named)
     } else {
-      for (const e of heat.entrants) if (e.name) exit.set(e.name, { level, pos: 100 + seeds.findIndex((s) => s.name === e.name) })
+      for (const e of heat.entrants) if (e.name) exit.set(e.name, { level, pos: seeds.findIndex((s) => s.name === e.name), decided: false })
       carry = Array.from({ length: advance }, (_, i) => placeholder(`Platz ${i + 1} aus ${label}`))
     }
   }
-  const names = [...exit.keys()]
-  const ordered = names.sort((a, b) => exit.get(b)!.level - exit.get(a)!.level || exit.get(a)!.pos - exit.get(b)!.pos)
   const complete = heats.every((h) => h.status === 'done')
   return {
     heats,
-    ranking: rankingFromOrder(env, ordered, (n) => {
+    ranking: rankingFromExit(env, exit, (n) => {
       const e = exit.get(n)!
       const h = heats[e.level]
-      return e.pos >= 100 ? `startet in ${h.label}` : `${h.label} P${e.pos + 1}`
+      return e.decided ? `${h.label} P${e.pos + 1}` : `startet in ${h.label}`
     }),
     teamRanking: null,
     started: heats.some((h) => h.status === 'done'),
@@ -500,7 +544,7 @@ function sectionKo(env: Env, sec: SectionDef, seeds: Entrant[], per: number): Om
   if (!seeds.length) return { heats: [], ranking: [], teamRanking: null, started: false, complete: false }
   const advance = Math.min(sec.advance ?? 1, per - 1)
   const heats: Heat[] = []
-  const exit = new Map<string, { level: number; pos: number }>()
+  const exit: Exit = new Map()
   let field = [...seeds]
   let level = 0
   while (field.length) {
@@ -516,10 +560,13 @@ function sectionKo(env: Env, sec: SectionDef, seeds: Entrant[], per: number): Om
       const heat = addHeat(env, sec, { id: `${sec.id}-r${level + 1}-${k + 1}`, label: groups.length === 1 && !final ? `Runde ${level + 1}` : label, kind: 'race', entrants: g, note: final ? 'Entscheidet den Sieg' : `Top ${adv} kommen weiter` })
       heats.push(heat)
       if (heat.status === 'done') {
-        heat.order.forEach((n, i) => exit.set(n, { level, pos: i }))
-        next.push(...heat.order.slice(0, final ? 0 : adv).map(named))
+        const up = final ? [] : heat.order.slice(0, adv)
+        heat.order.forEach((n, i) => exit.set(n, { level, pos: i, decided: !up.includes(n) }))
+        heat.advancing = up
+        heat.points = new Map()
+        next.push(...up.map(named))
       } else {
-        for (const e of heat.entrants) if (e.name) exit.set(e.name, { level, pos: 100 + seeds.findIndex((s) => s.name === e.name) })
+        for (const e of heat.entrants) if (e.name) exit.set(e.name, { level, pos: seeds.findIndex((s) => s.name === e.name), decided: false })
         if (!final) next.push(...Array.from({ length: adv }, (_, i) => placeholder(`Platz ${i + 1} aus ${heat.label}`)))
       }
     })
@@ -527,13 +574,12 @@ function sectionKo(env: Env, sec: SectionDef, seeds: Entrant[], per: number): Om
     field = next
     level++
   }
-  const ordered = [...exit.keys()].sort((a, b) => exit.get(b)!.level - exit.get(a)!.level || exit.get(a)!.pos - exit.get(b)!.pos)
   return {
     heats,
-    ranking: rankingFromOrder(env, ordered, (n) => {
+    ranking: rankingFromExit(env, exit, (n) => {
       const e = exit.get(n)!
       const h = heats.find((x) => x.entrants.some((en) => en.name === n) && x.id.includes(`-r${e.level + 1}-`))
-      return e.pos >= 100 ? `startet in ${h?.label ?? 'Runde 1'}` : `${h?.label ?? ''} P${e.pos + 1}`
+      return e.decided ? `${h?.label ?? ''} P${e.pos + 1}` : `startet in ${h?.label ?? 'Runde 1'}`
     }),
     teamRanking: null,
     started: heats.some((h) => h.status === 'done'),
@@ -713,8 +759,8 @@ export function computeEvent(def: EventDef, ctx: EventContext): EventState {
   const lastScoring = sections.map((s, i) => (s.def.weight > 0 && s.def.format !== 'free' ? i : -1)).reduce((a, b) => Math.max(a, b), -1)
   const everyone = [...new Set([...drivers, ...heats.flatMap((h) => h.order)])]
   const rows = new Map<string, Standing>()
-  const teamName = new Map(teams.flatMap((t) => t.drivers.map((d) => [d, t.name] as const)))
-  for (const n of everyone) rows.set(n, { name: n, rank: 0, total: 0, sections: sections.map(() => 0), bonuses: [], races: 0, wins: 0, bestLapMs: null, team: teamName.get(n) ?? null })
+  const teamOf = new Map(teams.flatMap((t) => t.drivers.map((d) => [d, t] as const)))
+  for (const n of everyone) rows.set(n, { name: n, rank: 0, total: 0, sections: sections.map(() => 0), bonuses: [], races: 0, wins: 0, bestLapMs: null, team: teamOf.get(n)?.name ?? null, teamId: teamOf.get(n)?.id ?? null })
   sections.forEach((s, i) => {
     const factor = s.def.weight * (i === lastScoring ? sc.finaleFactor : 1)
     for (const r of s.ranking) {

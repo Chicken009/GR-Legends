@@ -12,7 +12,7 @@ import { newEvent, newSection, TEMPLATES } from '../../domain/event/templates'
 import { FORMAT_LABEL, type EventDef, type HeatOverride, type SectionDef, type SectionFormat, type Seeding } from '../../domain/event/types'
 import { PageHead, Segment, useData } from '../components'
 import { CarRuleEditor, Field, Group, Stepper, ToggleChip, useCarOptions } from '../event/form'
-import { computeFor, EVENT_ACCENT, fmtPts, HeatCard } from '../event/shared'
+import { computeFor, EVENT_ACCENT, fmtPts, HeatCard, teamColor } from '../event/shared'
 import { formatDate } from '../format'
 
 const DRAFT_KEY = 'gr-legends:event-draft'
@@ -26,14 +26,27 @@ function readDraft(): EventDef | null {
   }
 }
 
-function writeDraft(def: EventDef | null) {
+function readTemplateId(): string | null {
+  try {
+    return localStorage.getItem(`${DRAFT_KEY}:vorlage`)
+  } catch {
+    return null
+  }
+}
+
+function writeDraft(def: EventDef | null, templateId: string | null = null) {
   try {
     if (def) localStorage.setItem(DRAFT_KEY, JSON.stringify(def))
     else localStorage.removeItem(DRAFT_KEY)
+    if (def && templateId) localStorage.setItem(`${DRAFT_KEY}:vorlage`, templateId)
+    else localStorage.removeItem(`${DRAFT_KEY}:vorlage`)
   } catch {
     // Speicher gesperrt – egal
   }
 }
+
+/** „14.03.26“ */
+const shortDate = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(2, 4)}`
 
 const clone = (d: EventDef): EventDef => JSON.parse(JSON.stringify(d)) as EventDef
 
@@ -63,10 +76,23 @@ export function EventEditor() {
   const [editHeat, setEditHeat] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const fileInput = useRef<HTMLInputElement>(null)
+  // Vorlage: sichtbar gewählt, Wechsel erst nach Bestätigung, danach rückgängig machbar
+  const [templateId, setTemplateId] = useState<string | null>(() => (isNew ? (readTemplateId() ?? TEMPLATES[0].id) : null))
+  const [confirmTpl, setConfirmTpl] = useState<string | null>(null)
+  const [undo, setUndo] = useState<{ def: EventDef; templateId: string | null } | null>(null)
+  const applyTemplate = (tid: string) => {
+    const t = TEMPLATES.find((x) => x.id === tid)
+    if (!t) return
+    const built = t.build()
+    setUndo({ def, templateId })
+    setDef({ ...def, sections: built.sections, teams: built.teams, overrides: {} })
+    setTemplateId(tid)
+    setConfirmTpl(null)
+  }
 
   useEffect(() => {
-    if (isNew) writeDraft(def)
-  }, [def, isNew])
+    if (isNew) writeDraft(def, templateId)
+  }, [def, isNew, templateId])
 
   const state = useMemo(() => computeFor(data, def, folder?.id ?? null), [data, def, folder?.id])
   const update = (patch: Partial<EventDef>) => setDef((d) => ({ ...d, ...patch }))
@@ -113,6 +139,8 @@ export function EventEditor() {
     try {
       const next = normalizeEvent(JSON.parse(await file.text()))
       setDef(next)
+      setTemplateId(null)
+      setUndo(null)
       setImportError(null)
     } catch (err) {
       setImportError(err instanceof Error ? err.message : String(err))
@@ -146,22 +174,71 @@ export function EventEditor() {
         <section className="card">
           <span className="card-title">1 · Vorlage</span>
           <div className="form-grid">
-            {TEMPLATES.map((t) => (
+            {TEMPLATES.map((t) => {
+              const selected = templateId === t.id
+              const asking = confirmTpl === t.id
+              return (
+                <div
+                  key={t.id}
+                  className="inner"
+                  style={{
+                    padding: 0,
+                    borderRadius: 14,
+                    border: `${selected ? 2 : 1}px solid ${selected || asking ? EVENT_ACCENT : 'var(--line-2)'}`,
+                    background: selected ? `color-mix(in srgb, ${EVENT_ACCENT} 14%, var(--inner-2))` : undefined,
+                    display: 'flex',
+                    flexDirection: 'column',
+                  }}
+                >
+                  <button
+                    type="button"
+                    aria-pressed={selected}
+                    style={{ textAlign: 'left', padding: 12, border: 'none', background: 'transparent', display: 'flex', flexDirection: 'column', gap: 4, borderRadius: 14 }}
+                    onClick={() => !selected && setConfirmTpl(t.id)}
+                  >
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <b style={{ fontSize: 14 }}>{t.name}</b>
+                      {selected && (
+                        <span className="status-chip next" style={{ marginLeft: 'auto' }}>
+                          ✓ gewählt
+                        </span>
+                      )}
+                    </span>
+                    <span style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.4 }}>{t.text}</span>
+                  </button>
+                  {asking && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '0 12px 12px' }}>
+                      <span style={{ fontSize: 12, color: 'var(--text-2)' }}>Abschnitte und Teams werden durch diese Vorlage ersetzt. Name, Datum, Fahrer und Wertung bleiben.</span>
+                      <span style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        <button type="button" className="btn round primary" style={{ padding: '0 12px' }} onClick={() => applyTemplate(t.id)}>
+                          Übernehmen
+                        </button>
+                        <button type="button" className="btn round" style={{ padding: '0 12px' }} onClick={() => setConfirmTpl(null)}>
+                          Abbrechen
+                        </button>
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+          {undo && (
+            <div className="inner" style={{ padding: '10px 12px', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }} role="status">
+              <span style={{ fontSize: 13, flex: 1 }}>Vorlage „{TEMPLATES.find((t) => t.id === templateId)?.name}“ übernommen – Abschnitte und Teams wurden ersetzt.</span>
               <button
-                key={t.id}
                 type="button"
-                className="inner"
-                style={{ textAlign: 'left', padding: 12, border: '1px solid var(--line-2)', borderRadius: 14, display: 'flex', flexDirection: 'column', gap: 4 }}
+                className="btn round"
                 onClick={() => {
-                  const built = t.build()
-                  setDef((d) => ({ ...d, sections: built.sections, teams: built.teams, overrides: {} }))
+                  setDef(undo.def)
+                  setTemplateId(undo.templateId)
+                  setUndo(null)
                 }}
               >
-                <b style={{ fontSize: 14 }}>{t.name}</b>
-                <span style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.4 }}>{t.text}</span>
+                Rückgängig
               </button>
-            ))}
-          </div>
+            </div>
+          )}
           <span style={{ fontSize: 11, color: 'var(--muted)' }}>Eine Vorlage ersetzt nur die Abschnitte und Teams – alles lässt sich danach anpassen.</span>
         </section>
       )}
@@ -352,6 +429,8 @@ export function EventEditor() {
               onClick={() => {
                 writeDraft(null)
                 setDef(newEvent(todayIso()))
+                setTemplateId(TEMPLATES[0].id)
+                setUndo(null)
               }}
             >
               Neu beginnen
@@ -395,10 +474,15 @@ export function EventEditor() {
 function DriversCard({ def, update }: { def: EventDef; update: (p: Partial<EventDef>) => void }) {
   const { model, settings } = useData()
   const [extra, setExtra] = useState('')
-  // Fahrer aus der Rangliste, dann Namen aus dem Einstellungen-Sheet, die noch keine Läufe haben
+  const { allSessions } = useData()
+  // Zuletzt an der Bahn zuerst, dann Namen aus dem Einstellungen-Sheet, die noch keine Läufe haben
+  const lastSeen = new Map<string, string>()
+  for (const ses of allSessions) for (const r of ses.results) if (!isGuest(r.driver) && ses.date > (lastSeen.get(r.driver) ?? '')) lastSeen.set(r.driver, ses.date)
   const ranked = model.ranking('all').map((r) => r.name)
   const fromSheet = [...new Set([...Object.values(settings.aliases), ...Object.entries(settings.labels ?? {}).filter(([k]) => !settings.aliases[k]).map(([, v]) => v)])].filter((n) => !isGuest(n) && !settings.guests.includes(n.toLocaleLowerCase('de-DE')))
-  const candidates = [...new Set([...ranked, ...fromSheet, ...def.drivers])]
+  const candidates = [...new Set([...ranked, ...lastSeen.keys(), ...fromSheet, ...def.drivers])].sort(
+    (a, b) => (lastSeen.get(b) ?? '').localeCompare(lastSeen.get(a) ?? '') || a.localeCompare(b, 'de'),
+  )
   const toggle = (n: string) => update({ drivers: def.drivers.includes(n) ? def.drivers.filter((d) => d !== n) : [...def.drivers, n] })
   const add = () => {
     const n = extra.trim().replace(/\s+/g, ' ')
@@ -409,13 +493,13 @@ function DriversCard({ def, update }: { def: EventDef; update: (p: Partial<Event
     <section className="card">
       <div className="card-head">
         <span className="card-title">Fahrer</span>
-        <span className="hint">{def.drivers.length} dabei</span>
+        <span className="hint">{def.drivers.length} dabei · zuletzt an der Bahn zuerst</span>
       </div>
       <div className="chips">
         {candidates.map((n) => (
-          <ToggleChip key={n} on={def.drivers.includes(n)} onClick={() => toggle(n)} title={ranked.includes(n) ? undefined : 'Noch ohne Läufe'}>
+          <ToggleChip key={n} on={def.drivers.includes(n)} onClick={() => toggle(n)} title={lastSeen.has(n) ? `Zuletzt an der Bahn: ${formatDate(lastSeen.get(n)!)}` : 'Noch ohne Läufe'}>
             {n}
-            {!ranked.includes(n) && <span style={{ fontSize: 10, color: 'var(--muted)' }}>neu</span>}
+            <span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 400 }}>{lastSeen.has(n) ? shortDate(lastSeen.get(n)!) : 'neu'}</span>
           </ToggleChip>
         ))}
       </div>
@@ -558,7 +642,7 @@ function TeamEditor({ def, update, teams, warnings }: { def: EventDef; update: (
           <div className="form-grid">
             {manualTeams.map((t, i) => (
               <Field key={i} label={`Team ${i + 1}`}>
-                <input className="input" value={t.name} onChange={(e) => set({ teams: manualTeams.map((x, k) => (k === i ? { ...x, name: e.target.value } : x)) })} />
+                <input className="input" style={{ borderLeft: `4px solid ${teamColor(`t${i + 1}`, t.name)}` }} value={t.name} onChange={(e) => set({ teams: manualTeams.map((x, k) => (k === i ? { ...x, name: e.target.value } : x)) })} />
               </Field>
             ))}
           </div>
@@ -575,7 +659,10 @@ function TeamEditor({ def, update, teams, warnings }: { def: EventDef; update: (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {def.drivers.map((d) => (
               <div key={d} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ flex: 1, fontSize: 14 }}>{d}</span>
+                <span style={{ flex: 1, fontSize: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ width: 10, height: 10, borderRadius: 5, background: teamOf(d) >= 0 ? teamColor(`t${teamOf(d) + 1}`, manualTeams[teamOf(d)]?.name) : 'transparent', border: teamOf(d) >= 0 ? 'none' : '1px dashed var(--faint)' }} />
+                  {d}
+                </span>
                 <select className="select" value={teamOf(d)} onChange={(e) => assign(d, Number(e.target.value))} aria-label={`Team für ${d}`}>
                   <option value={-1}>– ohne –</option>
                   {manualTeams.map((t, i) => (
@@ -591,8 +678,8 @@ function TeamEditor({ def, update, teams, warnings }: { def: EventDef; update: (
       ) : (
         <div className="form-grid">
           {teams.map((t) => (
-            <div key={t.id} className="inner" style={{ padding: 10, borderRadius: 12, display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <b style={{ fontSize: 13 }}>{t.name}</b>
+            <div key={t.id} className="inner" style={{ padding: 10, borderRadius: 12, display: 'flex', flexDirection: 'column', gap: 4, borderLeft: `4px solid ${teamColor(t.id, t.name)}` }}>
+              <b style={{ fontSize: 13, color: teamColor(t.id, t.name) }}>{t.name}</b>
               <span style={{ fontSize: 12, color: 'var(--text-2)' }}>{t.drivers.join(', ')}</span>
             </div>
           ))}
