@@ -13,6 +13,7 @@ import { MedalBadge } from '../Medal'
 import { useMedalPopup } from '../MedalPopup'
 import { useStored } from '../useStored'
 import { byProgress, ChallengeItem } from '../ChallengeItem'
+import { EventList } from './Events'
 
 const ACCENT = AREA.season
 const CURRENT_YEAR = String(new Date().getFullYear())
@@ -33,11 +34,21 @@ export function Season() {
     setStoredTab(t)
     if (stateTab) navigate(location.pathname, { replace: true, state: null })
   }
-  if (!year) return <div className="page"><p className="muted">Noch keine Rennen.</p></div>
+  if (!year)
+    return (
+      <div className="page" style={{ ['--accent' as string]: ACCENT }}>
+        <PageHead title="Saison" kicker="Meisterschaft" color={ACCENT} />
+        <EventList />
+      </div>
+    )
   const running = year >= CURRENT_YEAR
   return (
     <div className="page" style={{ ['--accent' as string]: ACCENT }}>
-      <PageHead title={`Saison ${year}`} kicker={running ? 'Meisterschaft · läuft' : 'Meisterschaft'} color={ACCENT} />
+      <PageHead title={`Saison ${year}`} kicker={running ? 'Meisterschaft · läuft' : 'Meisterschaft'} color={ACCENT}>
+        <Link to="/wettkampf" className="btn round">
+          Wettkämpfe
+        </Link>
+      </PageHead>
       <div className="filters">
         <Segment value={year} onChange={(y) => navigate(`/saison/${y}`, { replace: true })} label="Jahr" small options={model.years.map((y) => [y, y] as [string, string])} />
       </div>

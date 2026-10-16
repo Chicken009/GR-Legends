@@ -45,6 +45,56 @@ Sheets API nicht lesen). Tabs:
 - Namen werden ohne Rücksicht auf Groß-/Kleinschreibung und Leerzeichen verglichen. Einträge, die
   zu keinem Rennen passen, zeigt die App unter der Fahrer- bzw. Fahrzeugliste an.
 
+## Wettkämpfe
+
+Ein Wettkampf ist ein Unterordner im Streckenordner. Darin liegen die Definition `wettkampf.json`
+und die Smartrace-Exporte des Wettkampfs:
+
+```
+GR Legends
+└── Musterring 2364cm/
+    ├── Rennen_01.03.2026.csv        ← normaler Renntag
+    └── Herbstcup 2026/              ← Wettkampf-Ordner (Name = Wettkampf)
+        ├── wettkampf.json
+        ├── Qualifikation_14.03.2026.csv
+        └── Rennen_14.03.2026.csv
+```
+
+- **Anlegen:** Saison → „Wettkämpfe“ → „Neuer Wettkampf“. Der Editor speichert nichts online, er
+  erzeugt nur `wettkampf.json` zum Herunterladen. Ändern: im Wettkampf „Bearbeiten“, Datei
+  herunterladen und in Drive ersetzen (die zuletzt geänderte JSON im Ordner gilt).
+- **Inhalt:** Name, Datum (Ende optional), Fahrer (auch solche ohne Läufe), Sichtbarkeit
+  (Wettkampf sofort oder 1 Woche vorher; Ablauf sofort, 1 Woche, 1 Tag vorher oder am Renntag),
+  Fahrzeuge gleichzeitig (Standard 4), Fahrzeugregel (egal, fest je Fahrer, freie Wahl aus Liste,
+  nach Können, zufällig mit Durchtauschen; Maßstab 1:32/1:24), Wertung (absolut oder fair nach
+  Elo, Bonuspunkte, Finalbonus), Einzel oder Teams, Abschnitte. Jeder Abschnitt und jeder einzelne
+  Lauf kann die Regeln überschreiben.
+- **Abschnitte:** Qualifying (auch einzeln), Rennen in Gruppen, Aufstiegsleiter, K.-o.-System,
+  Teamrennen, eigene Läufe, „wie gefahren“ (ohne Plan). Spätere Läufe hängen von Ergebnissen ab
+  und füllen sich, sobald die CSV des vorigen Laufs im Ordner liegt.
+- **Zuordnung der CSVs:** nach Besetzung (gleiche Fahrer, Reihenfolge egal), sonst nach ähnlicher
+  Besetzung in Upload-Reihenfolge. Korrigieren oder ignorieren im Editor unter „Dateien zuordnen“.
+- **Zufall** (Teams, Autos) kommt aus einem festen Startwert in der JSON – jedes Gerät sieht
+  dieselbe Auslosung. „Festschreiben“ übernimmt Teams fest in die Datei.
+- **Teams, die nicht aufgehen**, werden größer; gewertet wird mit dem Schnitt der Mitglieder. Bei
+  Positionsduellen (Teams passen nicht zusammen auf die Bahn) fährt der Schwächste eines kleineren
+  Teams doppelt. Alle Mitglieder bekommen die Teampunkte – zusammenarbeiten lohnt sich.
+- **Fair:** Ein geschlagener Gegner bringt `2 × (1 − eigene Siegchance)` × Punkte je Gegner; die
+  Siegchance kommt aus Fahrer- plus Auto-Elo zu Beginn des Wettkampfs. Die erwarteten Punkte sind
+  so für beide Seiten eines Duells gleich.
+- **Bonus:** schnellste Runde, Pole, Fahrer des Tages (größte Leistung über der Erwartung), neue
+  persönliche Bestzeit, Rennen ohne Abflug – jeweils einstellbar, 0 = aus.
+- **Ansicht:** Stand, Ablauf, Regeln, „Dein Wettkampf“ (nächster Lauf, Auto, was zum Aufsteigen
+  oder Überholen fehlt, Tipps aus den Runden), Spannungsmeldungen, Siegerehrung.
+- **Leinwand** (`#/wettkampf/<id>/leinwand`): für Tablet oder Fernseher an der Bahn, aktualisiert
+  sich alle 30 Sekunden. Tipp: Smartrace-Exporte mit Google Drive für Desktop direkt in den
+  Wettkampf-Ordner speichern.
+- **Probelauf** im Editor: spielt den Wettkampf 120-mal mit zufälligen Ergebnissen nach Elo durch
+  (Läufe, Dauer, Läufe je Fahrer, Siegchancen, wie knapp).
+- Ohne `wettkampf.json` wird der Ordner „wie gefahren“ gewertet. Mit „zählt nicht für Elo und
+  Saison“ bleiben die Läufe aus allen anderen Wertungen heraus.
+- Beispiele für die lokale Entwicklung: `test/events/` (bzw. `local-data/<Strecke>/<Wettkampf>/`).
+
 ## Einrichtung
 
 ### 1. Google-API-Key
@@ -121,8 +171,10 @@ Eine eigene Anmeldung bei GitHub Pages ist nicht nötig – es ist Teil des GitH
 src/
 ├── data/      Drive- und Sheets-API, CSV-Parser, Einstellungen, Laden + Cache
 ├── domain/    Läufe, Rundenklassifizierung, Wertung (Elo), Kennzahlen, Medaillen
+│   └── event/ Wettkämpfe: Format, Ablaufplanung, Wertung, Probelauf
 └── ui/        Seiten, Diagramme (eigenes SVG), Symbole, Medaillen
 test/fixtures/ Smartrace-Exporte als Testdaten (Namen anonymisiert)
+test/events/   Beispiel-Wettkämpfe (erfundene Ergebnisse)
 docs/          Einstellungen-Vorlage, Logo (Monogramm, App-Icon, Schriftzug)
 ```
 
