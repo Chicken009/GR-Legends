@@ -1,5 +1,6 @@
 /** Feste Farben für Fahrer in Diagrammen (Grün ist für „Ich“ reserviert). */
-export const SERIES = ['#3987E5', '#D95926', '#C98500', '#D55181', '#2BA8A0', '#8E7CF0', '#B5534A', '#7F9A3A']
+// Reihenfolge auf Farbsehschwäche geprüft: benachbarte Farben bleiben unterscheidbar
+export const SERIES = ['#3987E5', '#D95926', '#2BA8A0', '#C98500', '#8E7CF0', '#D55181', '#7F9A3A', '#B5534A']
 export const ME = '#3BBC4A'
 
 export const AREA = {
