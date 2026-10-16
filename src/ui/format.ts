@@ -47,6 +47,8 @@ export const fmtDelta = (v: number) => {
   const r = Math.round(v)
   return r > 0 ? `+${r}` : r < 0 ? `−${Math.abs(r)}` : '±0'
 }
+/** Abstand zur typischen Bestzeit: „+0,62 s“ */
+export const fmtGapSec = (ms: number | null | undefined) => (ms == null ? '–' : `${ms < 0 ? '−' : '+'}${nf(2).format(Math.abs(ms) / 1000)} s`)
 export const fmtSeconds = (ms: number, digits = 1) => `${nf(digits).format(ms / 1000)} s`
 
 /** Initialen für Avatare: „Anton Berger“ → AB, „Mika“ → MI, „K. Lindner“ → KL */

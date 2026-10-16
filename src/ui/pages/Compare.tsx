@@ -1,11 +1,12 @@
 import { useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { PLACEMENT_RUNS } from '../../domain/model'
 import { carKey, duelDelta, winChances } from '../../domain/rating'
 import { CarThumb } from '../CarPhoto'
 import { AREA, ME, SERIES } from '../colors'
 import { Avatar, carPath, driverPath, Segment, Sheet, useData, useMyName } from '../components'
 import { ChevronDown, ChevronLeft } from '../icons'
-import { fmtDelta, fmtElo, fmtNum, fmtPct, formatTime } from '../format'
+import { fmtDelta, fmtElo, fmtGapSec, fmtNum, fmtPct, formatTime } from '../format'
 
 type Kind = 'fahrer' | 'auto'
 
@@ -50,7 +51,7 @@ export function Compare() {
 
   const driverOptions = driverNames.map((n) => {
     const r = ranking.find((x) => x.name === n)!
-    return { value: n, label: n, sub: `Rang ${r.rank} · ${fmtElo(r.elo)} Elo`, visual: <Avatar name={n} size={34} ring={n === me ? 'var(--me)' : undefined} /> }
+    return { value: n, label: n, sub: model.placement(n) != null ? `Rang ${r.rank} · Einstufung ${model.placement(n)}/${PLACEMENT_RUNS}` : `Rang ${r.rank} · ${fmtElo(r.elo)} Elo`, visual: <Avatar name={n} size={34} ring={n === me ? 'var(--me)' : undefined} /> }
   })
   const carOptions = carNames.map((n) => {
     const c = all.cars.get(n)!
@@ -82,7 +83,7 @@ export function Compare() {
       { label: 'Ø Platz', a: da?.avgPosition ?? null, b: db?.avgPosition ?? null, format: (v) => fmtNum(v), lower: true },
       { label: 'Ø Gegner geschlagen', a: da?.beatShare ?? null, b: db?.beatShare ?? null, format: (v) => fmtPct(v) },
       { label: 'Bestzeit', a: da?.bestLapMs ?? null, b: db?.bestLapMs ?? null, format: (v) => formatTime(v), lower: true },
-      { label: 'Pace', a: da?.pace ?? null, b: db?.pace ?? null, format: (v) => (v == null ? '–' : `${fmtNum(v)} %`), lower: true },
+      { label: 'Pace', a: da?.paceGap ?? null, b: db?.paceGap ?? null, format: fmtGapSec, lower: true },
       { label: 'Streuung', a: da?.precision ?? null, b: db?.precision ?? null, format: (v) => fmtPct(v, 1), lower: true },
       { label: 'Abflüge / 100 Runden', a: da?.crashRate ?? null, b: db?.crashRate ?? null, format: (v) => fmtNum(v), lower: true },
       { label: 'Kilometer', a: da?.km ?? null, b: db?.km ?? null, format: (v) => fmtNum(v) },
@@ -102,7 +103,7 @@ export function Compare() {
       { label: 'Ø Platz', a: ca?.avgPosition ?? null, b: cb?.avgPosition ?? null, format: (v) => fmtNum(v), lower: true },
       { label: 'Ø Gegner geschlagen', a: ca?.beatShare ?? null, b: cb?.beatShare ?? null, format: (v) => fmtPct(v) },
       { label: 'Bestzeit', a: ca?.bestLapMs ?? null, b: cb?.bestLapMs ?? null, format: (v) => formatTime(v), lower: true },
-      { label: 'Pace', a: ca?.pace ?? null, b: cb?.pace ?? null, format: (v) => (v == null ? '–' : `${fmtNum(v)} %`), lower: true },
+      { label: 'Pace', a: ca?.paceGap ?? null, b: cb?.paceGap ?? null, format: fmtGapSec, lower: true },
       { label: 'Streuung der Fahrer', a: ca?.spread ?? null, b: cb?.spread ?? null, format: (v) => fmtPct(v, 1), lower: true },
       { label: 'Kilometer', a: ca?.km ?? null, b: cb?.km ?? null, format: (v) => fmtNum(v) },
     ]

@@ -1,10 +1,10 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import type { RankRow } from '../../domain/model'
+import { PLACEMENT_RUNS, type RankRow } from '../../domain/model'
 import { AREA } from '../colors'
-import { Avatar, driverPath, PageHead, PeriodTabs, Rank, useData, useMyName, ViewToggle } from '../components'
+import { Avatar, driverPath, PageHead, PeriodTabs, Placement, Rank, useData, useMyName, ViewToggle } from '../components'
 import { DataTable, type Column } from '../DataTable'
 import { StatusIcons } from '../icons'
-import { fmtElo, fmtNum, fmtPct, formatTime } from '../format'
+import { fmtElo, fmtGapSec, fmtNum, fmtPct, formatTime } from '../format'
 import { useStored } from '../useStored'
 
 export function Drivers() {
@@ -21,7 +21,9 @@ export function Drivers() {
   const rows = model.ranking(p).filter((r) => !minRaces || r.races >= 3 || r.name === me)
   const open = (name: string) => navigate(driverPath(name), { state: { bg: location } })
   const d = (r: RankRow) => stats.get(r.name)
-  const seasonGain = new Map(p !== 'all' ? model.season(p).map((r) => [r.name, r.gain]) : [])
+  const seasonRows = p !== 'all' ? model.season(p) : []
+  const seasonGain = new Map(seasonRows.map((r) => [r.name, r.gain]))
+  const seasonPlacing = new Set(seasonRows.filter((r) => r.placing != null).map((r) => r.name))
   const medalCount = (name: string) => (model.medals.get(name) ?? []).filter((m) => !m.former).length
   const columns: Column<RankRow>[] = [
     {
@@ -33,7 +35,7 @@ export function Drivers() {
         </span>
       ),
     },
-    { key: 'elo', label: 'Elo', strong: true, value: (r) => r.elo, render: (r) => fmtElo(r.elo) },
+    { key: 'elo', label: 'Elo', strong: true, value: (r) => r.elo, render: (r) => { const n = model.placement(r.name); return n != null ? <Placement n={n} /> : fmtElo(r.elo) } },
     { key: 'level', label: 'Level', title: 'Karriere-Level aus Erfahrungspunkten (steigt mit jedem Rennen)', value: (r) => model.career(r.name)?.xp ?? 0, render: (r) => { const c = model.career(r.name); return c ? `${c.level} · ${c.title}` : '–' } },
     ...(p !== 'all'
       ? [
@@ -41,6 +43,7 @@ export function Drivers() {
             key: 'season', label: `Saison ${p}`, title: 'Elo im Jahr dazugewonnen (Saisonwertung)',
             value: (r: RankRow) => seasonGain.get(r.name) ?? null,
             render: (r: RankRow) => {
+              if (seasonPlacing.has(r.name)) return <span style={{ color: 'var(--faint)' }}>–</span>
               const g = seasonGain.get(r.name)
               return g == null ? '–' : <span style={{ color: g >= 0 ? '#7BDB8A' : '#FF8A7A', fontWeight: 600 }}>{`${g >= 0 ? '+' : '−'}${Math.abs(Math.round(g))}`}</span>
             },
@@ -69,7 +72,7 @@ export function Drivers() {
     { key: 'qualis', label: 'Qualis', value: (r) => d(r)?.qualis ?? 0 },
     { key: 'poles', label: 'Pole', title: 'Schnellster im Qualifying', value: (r) => d(r)?.poles ?? 0 },
     { key: 'best', label: 'Bestzeit', asc: true, value: (r) => d(r)?.bestLapMs ?? null, render: (r) => formatTime(d(r)?.bestLapMs) },
-    { key: 'pace', label: 'Pace', title: 'Ø saubere Runde in % der typischen Streckenbestzeit', asc: true, value: (r) => d(r)?.pace ?? null, render: (r) => (d(r)?.pace != null ? `${fmtNum(d(r)!.pace)} %` : '–') },
+    { key: 'pace', label: 'Pace', title: 'Abstand der Ø sauberen Runde zur typischen Bestzeit der Strecke (schnellste 10 % aller Runden); kleiner = schneller', asc: true, value: (r) => d(r)?.paceGap ?? null, render: (r) => fmtGapSec(d(r)?.paceGap) },
     { key: 'precision', label: 'Streuung', title: 'Schwankung sauberer Runden (kleiner = präziser)', asc: true, value: (r) => d(r)?.precision ?? null, render: (r) => fmtPct(d(r)?.precision, 1) },
     { key: 'crash', label: 'Abflüge/100', title: 'Abflüge pro 100 Runden, nur Rennen ohne Tankfunktion', asc: true, value: (r) => d(r)?.crashRate ?? null, render: (r) => fmtNum(d(r)?.crashRate) },
     { key: 'loss', label: 'Ø Verlust', title: 'Ø Zeitverlust pro Abflug', asc: true, value: (r) => (d(r)?.crashes ? d(r)!.crashLossMs / d(r)!.crashes : null), render: (r) => (d(r)?.crashes ? `${fmtNum(d(r)!.crashLossMs / d(r)!.crashes / 1000)} s` : '–') },
@@ -125,10 +128,16 @@ export function Drivers() {
                   <span style={{ fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{d?.favoriteCar ?? '–'}</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span className="num" style={{ fontSize: 26, fontWeight: 800 }}>
-                    {fmtElo(r.elo)}
-                  </span>
-                  <span style={{ fontSize: 11, color: 'var(--muted)' }}>Elo</span>
+                  {model.placement(r.name) != null ? (
+                    <Placement n={model.placement(r.name)!} size={14} />
+                  ) : (
+                    <>
+                      <span className="num" style={{ fontSize: 26, fontWeight: 800 }}>
+                        {fmtElo(r.elo)}
+                      </span>
+                      <span style={{ fontSize: 11, color: 'var(--muted)' }}>Elo</span>
+                    </>
+                  )}
                   <span style={{ marginLeft: 'auto' }}>
                     <StatusIcons list={statuses.get(r.name)} size={16} max={2} />
                   </span>
@@ -146,9 +155,10 @@ export function Drivers() {
       )}
       {view === 'table' && (
         <div className="legend" style={{ gap: 18 }}>
-          <span>Pace = Ø saubere Runde in % der typischen Streckenbestzeit</span>
+          <span>Pace = Abstand der Ø sauberen Runde zur typischen Bestzeit der Strecke (Grenze der schnellsten 10 % aller Runden); minus = noch schneller</span>
           <span>Streuung = Schwankung sauberer Runden (kleiner = präziser)</span>
           <span>Abflüge nur aus Rennen ohne Tankfunktion</span>
+          <span>Einstufung = neue Fahrer, die ersten {PLACEMENT_RUNS} Läufe pendeln die Wertung ein</span>
         </div>
       )}
     </div>

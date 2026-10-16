@@ -2,7 +2,7 @@ import { formatTime } from '../data/time'
 import type { Result, Session } from '../types'
 import { isGuest } from './drivers'
 import { quantile } from './laps'
-import { carKey, computeRatings, isQuali, sortSessions, type RatingEvent, type RatingResult } from './rating'
+import { carKey, computeRatings, isQuali, RATING, sortSessions, type RatingEvent, type RatingResult } from './rating'
 
 /** „all“ oder ein Jahr wie „2025“ */
 export type Period = string
@@ -42,6 +42,8 @@ export interface DriverStats {
   bestLapMs: number | null
   /** Ø saubere Runde in % der typischen Streckenbestzeit (100 = Referenz) */
   pace: number | null
+  /** Ø saubere Runde minus typische Streckenbestzeit in ms (Pace in Sekunden) */
+  paceGap: number | null
   /** Schwankung sauberer Runden, z. B. 0.07 = 7 % */
   precision: number | null
   crashes: number
@@ -74,6 +76,7 @@ export interface CarStats {
   bestLapMs: number | null
   bestBy: string | null
   pace: number | null
+  paceGap: number | null
   /** Ø Präzision der Fahrer mit diesem Auto */
   spread: number | null
   rating: number | null
@@ -164,6 +167,8 @@ export interface SeasonRow {
   end: number
   gain: number
   races: number
+  /** Neu und am Saisonende noch in der Einstufung (Zahl der Läufe): zählt erst danach, Gewinn ist 0 */
+  placing?: number
 }
 
 export interface NewsItem {
@@ -200,7 +205,15 @@ export interface Model {
   season: (year: string) => SeasonRow[]
   /** Karriere-Level aus Erfahrungspunkten (steigt nur) */
   career: (driver: string) => Career | null
+  /**
+   * Einstufung neuer Fahrer: Nummer des Einstufungslaufs (1–5) für einen Lauf (`fileId`) bzw.
+   * ohne `fileId` die Zahl der bisher gefahrenen Läufe, solange die Einstufung läuft – sonst null.
+   */
+  placement: (driver: string, fileId?: string) => number | null
 }
+
+/** Läufe, bis die Wertung eines neuen Fahrers eingependelt ist */
+export const PLACEMENT_RUNS = RATING.provisionalRaces
 
 /** Mindestzahl Rennen für den Titel „Saisonsieger“ */
 export const SEASON_MIN_RACES = 5
@@ -208,7 +221,7 @@ export const SEASON_MIN_RACES = 5
 function emptyDriver(name: string): DriverStats {
   return {
     name, races: 0, wins: 0, podiums: 0, qualis: 0, poles: 0, beatShare: null, avgPosition: null, laps: 0, km: null,
-    bestLapMs: null, pace: null, precision: null, crashes: 0, crashBaseLaps: 0, crashRate: null,
+    bestLapMs: null, pace: null, paceGap: null, precision: null, crashes: 0, crashBaseLaps: 0, crashRate: null,
     crashLossMs: 0, cars: new Map(), favoriteCar: null, opponentsMet: new Set(), opponentsBeaten: new Set(),
     h2h: new Map(), raceDays: new Set(), streak: 0, maxStreak: 0, raceResults: [],
   }
@@ -242,13 +255,15 @@ export function buildModel(input: Session[]): Model {
     const cs = new Map<string, CarStats>()
     const get = (n: string) => ds.get(n) ?? (ds.set(n, emptyDriver(n)), ds.get(n)!)
     const getCar = (n: string): CarStats =>
-      cs.get(n) ?? (cs.set(n, { name: n, races: 0, wins: 0, podiums: 0, winRate: null, beatShare: null, avgPosition: null, laps: 0, km: null, bestLapMs: null, bestBy: null, pace: null, spread: null, rating: null, bonus: 0, drivers: new Map() }), cs.get(n)!)
+      cs.get(n) ?? (cs.set(n, { name: n, races: 0, wins: 0, podiums: 0, winRate: null, beatShare: null, avgPosition: null, laps: 0, km: null, bestLapMs: null, bestBy: null, pace: null, paceGap: null, spread: null, rating: null, bonus: 0, drivers: new Map() }), cs.get(n)!)
     const beat = new Map<string, number[]>()
     const carBeat = new Map<string, number[]>()
     const positions = new Map<string, number[]>()
     const carPositions = new Map<string, number[]>()
     const push = (m: Map<string, number[]>, k: string, v: number) => (m.get(k) ?? m.set(k, []).get(k)!).push(v)
     const paceSamples = new Map<string, number[]>()
+    const gapSamples = new Map<string, number[]>()
+    const carGap = new Map<string, number[]>()
     const carPace = new Map<string, number[]>()
     const precSamples = new Map<string, number[]>()
     const carPrec = new Map<string, number[]>()
@@ -270,6 +285,7 @@ export function buildModel(input: Session[]): Model {
         if (c != null) (carPrec.get(r.car) ?? carPrec.set(r.car, []).get(r.car)!).push(c)
         const med = median(nl)
         if (med != null && ref) (carPace.get(r.car) ?? carPace.set(r.car, []).get(r.car)!).push((med / ref) * 100)
+        if (med != null && ref) push(carGap, r.car, med - ref)
         const dEntry = car.drivers.get(r.driver) ?? { races: 0, bestLapMs: null, normal: [] }
         if (!quali) dEntry.races++
         if (best != null && (dEntry.bestLapMs == null || best < dEntry.bestLapMs)) dEntry.bestLapMs = best
@@ -295,6 +311,7 @@ export function buildModel(input: Session[]): Model {
         if (best != null && (use.bestLapMs == null || best < use.bestLapMs)) use.bestLapMs = best
         if (c != null) (precSamples.get(r.driver) ?? precSamples.set(r.driver, []).get(r.driver)!).push(c)
         if (med != null && ref) (paceSamples.get(r.driver) ?? paceSamples.set(r.driver, []).get(r.driver)!).push((med / ref) * 100)
+        if (med != null && ref) push(gapSamples, r.driver, med - ref)
         if (quali) {
           d.qualis++
           if (r.position === 1) d.poles++
@@ -326,6 +343,7 @@ export function buildModel(input: Session[]): Model {
       d.beatShare = mean(beat.get(d.name) ?? [])
       d.avgPosition = mean(positions.get(d.name) ?? [])
       d.pace = mean(paceSamples.get(d.name) ?? [])
+      d.paceGap = mean(gapSamples.get(d.name) ?? [])
       d.precision = mean(precSamples.get(d.name) ?? [])
       d.crashRate = d.crashBaseLaps >= 20 ? (d.crashes / d.crashBaseLaps) * 100 : null
       d.favoriteCar = [...d.cars].sort((a, b) => b[1].races - a[1].races || b[1].laps - a[1].laps)[0]?.[0] ?? null
@@ -344,6 +362,7 @@ export function buildModel(input: Session[]): Model {
       c.beatShare = mean(carBeat.get(c.name) ?? [])
       c.avgPosition = mean(carPositions.get(c.name) ?? [])
       c.pace = mean(carPace.get(c.name) ?? [])
+      c.paceGap = mean(carGap.get(c.name) ?? [])
       c.spread = mean(carPrec.get(c.name) ?? [])
       c.rating = carRatings.get(c.name) ?? null
       const z = ((c.rating ?? m) - m) / sd
@@ -482,9 +501,16 @@ export function buildModel(input: Session[]): Model {
     for (const [name, h] of rating.history) {
       const inYear = h.filter((e) => e.date.startsWith(year))
       if (!inYear.length) continue
-      const start = (startDate ? eloAt(name, startDate) : null) ?? inYear[0].before
       const last = eloAt(name, end) ?? inYear[inYear.length - 1].after
-      rows.push({ name, start, end: last, gain: last - start, races: st.get(name)?.races ?? 0 })
+      const races = st.get(name)?.races ?? 0
+      // Neue Fahrer zählen ab dem Ende ihrer Einstufung, damit niemand mit einem Minus einsteigt
+      const placed = h[PLACEMENT_RUNS - 1]
+      if (!placed || placed.date > end) {
+        rows.push({ name, start: last, end: last, gain: 0, races, placing: h.filter((e) => e.date <= end).length })
+        continue
+      }
+      const start = placed.date >= `${year}-01-01` ? placed.after : ((startDate ? eloAt(name, startDate) : null) ?? inYear[0].before)
+      rows.push({ name, start, end: last, gain: last - start, races })
     }
     rows.sort((a, b) => b.gain - a.gain)
     seasonCache.set(year, rows)
@@ -752,9 +778,17 @@ export function buildModel(input: Session[]): Model {
     return out.sort((a, b) => order[a.kind] - order[b.kind])
   }
 
+  // ---- Einstufung ------------------------------------------------------------------------
+  const placement = (driver: string, fileId?: string): number | null => {
+    const h = rating.history.get(driver) ?? []
+    if (fileId == null) return h.length < PLACEMENT_RUNS ? h.length : null
+    const i = h.findIndex((e) => e.fileId === fileId)
+    return i >= 0 && i < PLACEMENT_RUNS ? i + 1 : null
+  }
+
   return {
     sessions, years, tracks, rating, drivers, stats, ranking, statuses, medals,
-    trackRecords, carRecords, goals, rival, tips, eloAt, rankTimeline, news, season, career,
+    trackRecords, carRecords, goals, rival, tips, eloAt, rankTimeline, news, season, career, placement,
   }
 }
 

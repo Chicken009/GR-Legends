@@ -77,9 +77,11 @@ export function TimeTrendChart({
       <svg width={width} height={height} role="img" aria-label={label}>
         {band && (
           <defs>
+            {/* zur Mitte kräftig, zu beiden Rändern auslaufend */}
             <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0" stopColor={band.color} stopOpacity="0.32" />
-              <stop offset="1" stopColor={band.color} stopOpacity="0.04" />
+              <stop offset="0" stopColor={band.color} stopOpacity="0" />
+              <stop offset="0.5" stopColor={band.color} stopOpacity="0.34" />
+              <stop offset="1" stopColor={band.color} stopOpacity="0" />
             </linearGradient>
           </defs>
         )}
