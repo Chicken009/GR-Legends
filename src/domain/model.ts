@@ -3,7 +3,7 @@ import type { Result, Session } from '../types'
 import { isGuest } from './drivers'
 import { crashCost, crashObservations, estimateCars, paceObservations, type CarFit } from './carModel'
 import { quantile } from './laps'
-import { carKey, computeRatings, isQuali, RATING, sortSessions, type RatingEvent, type RatingResult } from './rating'
+import { carKey, computeRatings, isQuali, RATING, skillWeight, sortSessions, type RatingEvent, type RatingResult } from './rating'
 
 /** „all“ oder ein Jahr wie „2025“ */
 export type Period = string
@@ -370,7 +370,10 @@ export function buildModel(input: Session[]): Model {
     const inP = sessions.filter((x) => inPeriod(x.date, period))
     const asOf = inP.reduce((m, x) => (x.date > m ? x.date : m), '')
     const crashObs = crashObservations(inP, carKey, isQuali)
-    const est = estimateCars(paceObservations(inP, carKey, isQuali, RATING.qualiWeight), crashObs, crashCost(inP), asOf, RATING.carHalfLifeDays, RATING.carPrior, RATING.carTrendPrior)
+    const est = estimateCars(paceObservations(inP, carKey, isQuali, RATING.qualiWeight), crashObs, crashCost(inP), {
+      asOf, halfLifeDays: RATING.carHalfLifeDays, prior: RATING.carPrior, trendPrior: RATING.carTrendPrior,
+      skill: (d) => skillWeight(rating.drivers.get(d) ?? RATING.start),
+    })
     const paceFit = est.pace
     const crashFit = est.crash
     const baseCrash = crashObs.length ? crashObs.reduce((a, o) => a + o.y, 0) / crashObs.length : null

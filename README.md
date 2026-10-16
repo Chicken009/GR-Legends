@@ -153,6 +153,10 @@ sind. Zwei Teile:
   Abflugs. Abflüge sind pro Auto kaum verlässlich messbar (viel Zufall) und werden deshalb stark zum
   Schnitt gezogen.
 
+Gute Fahrer zählen mehr: Sie holen eher heraus, was im Auto steckt, und ihre Runden schwanken
+weniger durch eigene Fehler (Gewicht 1 bei 520 Elo, je 60 Punkte mehr +1, höchstens 2, mindestens
+0,2; maßgeblich ist die Wertung zum jeweiligen Zeitpunkt). Das macht die Schätzung messbar stabiler.
+
 1 % schnellere Runden ≈ 8 Elo-Punkte (abgeleitet aus Tempo und Wertung der Fahrer). Vor jedem
 Renntag wird nur aus früheren Läufen geschätzt. Über die Zeit: Der Grundwert kommt aus allen Läufen
 (alte zählen voll), dazu ein Trend aus den neueren Läufen (Halbwertszeit 120 Tage). Der Trend setzt

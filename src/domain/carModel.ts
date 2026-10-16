@@ -154,18 +154,20 @@ export interface CarEstimate {
   total: Map<string, number>
 }
 
-export function estimateCars(
-  pace: CarObs[],
-  crash: CarObs[],
-  cost: Map<string, number>,
-  asOf: string,
-  halfLifeDays: number,
-  prior: { pace: number; crash: number },
-  trendPrior: { pace: number; crash: number },
-): CarEstimate {
-  const p = fitCars(pace, asOf, halfLifeDays, prior.pace, trendPrior.pace)
+export interface EstimateOptions {
+  asOf: string
+  halfLifeDays: number
+  prior: { pace: number; crash: number }
+  trendPrior: { pace: number; crash: number }
+  /** Gewicht je Fahrer: Gute Fahrer holen eher heraus, was im Auto steckt */
+  skill: (driver: string) => number
+}
+
+export function estimateCars(pace: CarObs[], crash: CarObs[], cost: Map<string, number>, opt: EstimateOptions): CarEstimate {
+  const weigh = (obs: CarObs[]) => obs.map((o) => ({ ...o, w: o.w * opt.skill(o.driver) }))
+  const p = fitCars(weigh(pace), opt.asOf, opt.halfLifeDays, opt.prior.pace, opt.trendPrior.pace)
   // Abflüge streuen stark und hängen kaum am Auto – deshalb deutlich stärker zum Schnitt gezogen
-  const c = fitCars(crash, asOf, halfLifeDays, prior.crash, trendPrior.crash)
+  const c = fitCars(weigh(crash), opt.asOf, opt.halfLifeDays, opt.prior.crash, opt.trendPrior.crash)
   const total = new Map<string, number>()
   for (const key of new Set([...p.effect.keys(), ...c.effect.keys()])) {
     const k = cost.get(key.split('\u0000')[0]) ?? 0

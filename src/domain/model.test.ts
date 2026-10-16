@@ -3,10 +3,10 @@ import { applySettings, driveFileId, EMPTY_SETTINGS, parseScale, parseSettings }
 import { prepare } from '../data/useRaceDays'
 import { fixtureIds, readFixture } from '../test-utils'
 import type { Result, Session } from '../types'
-import { fitCars, type CarObs } from './carModel'
+import { estimateCars, fitCars, type CarObs } from './carModel'
 import { classifyIncidents, hasTankFunction } from './laps'
 import { PLACEMENT_RUNS, positionTrace } from './model'
-import { computeRatings, RATING, winChances } from './rating'
+import { computeRatings, RATING, skillWeight, winChances } from './rating'
 import { buildSession } from './sessions'
 
 function fixtureSessions(): Session[] {
@@ -272,5 +272,27 @@ describe('Autowertung über die Zeit', () => {
   it('lässt sich von einem einzelnen Ausreißer kaum bewegen', () => {
     const one = gap(obs(days, (d) => (d === 390 ? 0.05 : 0)))
     expect(Math.abs(one)).toBeLessThan(0.005)
+  })
+})
+
+describe('Autowertung gewichtet gute Fahrer', () => {
+  it('folgt eher dem, was gute Fahrer mit den Autos fahren', () => {
+    // Profi und Neuling fahren je beide Autos gegen einen Dritten im selben Lauf.
+    // Der Profi ist mit A schneller, der Neuling mit B – gleich viele Läufe.
+    const obs: CarObs[] = []
+    for (let i = 0; i < 8; i++) {
+      const date = `2026-01-${String(i + 1).padStart(2, '0')}`
+      const car = i % 2 ? 'A' : 'B'
+      obs.push({ session: `p${i}`, date, driver: 'Profi', car: `X\u0000${car}`, y: car === 'A' ? -0.02 : 0, w: 1 })
+      obs.push({ session: `p${i}`, date, driver: 'Ref', car: 'X\u0000C', y: 0, w: 1 })
+      obs.push({ session: `n${i}`, date, driver: 'Neuling', car: `X\u0000${car}`, y: car === 'B' ? -0.02 : 0, w: 1 })
+      obs.push({ session: `n${i}`, date, driver: 'Ref', car: 'X\u0000C', y: 0, w: 1 })
+    }
+    const elo: Record<string, number> = { Profi: 600, Neuling: 450, Ref: 520 }
+    const est = estimateCars(obs, [], new Map(), {
+      asOf: '2026-02-01', halfLifeDays: RATING.carHalfLifeDays, prior: RATING.carPrior, trendPrior: RATING.carTrendPrior,
+      skill: (d) => skillWeight(elo[d]),
+    })
+    expect(est.total.get('X\u0000A')!).toBeLessThan(est.total.get('X\u0000B')!)
   })
 })
