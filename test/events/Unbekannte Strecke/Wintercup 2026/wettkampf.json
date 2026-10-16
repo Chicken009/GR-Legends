@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "name": "Wintercup 2026",
+  "start": "2026-12-12",
+  "drivers": ["Anton Berger", "Mika", "Lars v. Hollen", "Pia S.", "Emil", "F. Lorenz", "Noah T."],
+  "show": "now",
+  "showPlan": "week",
+  "maxPerHeat": 4,
+  "cars": { "scale": "1:32", "mode": "random", "pool": ["Audi RS5 DTM R. Frijns", "BMW M4 DTM M. Wittmann", "Mercedes C63 AMG DTM", "Corvette"], "fixed": {} },
+  "scoring": { "method": "fair", "perBeaten": 1, "win": 1, "fastestLap": 2, "pole": 1, "driverOfDay": 2, "personalBest": 1, "clean": 1, "finaleFactor": 1 },
+  "teams": null,
+  "countInStats": true,
+  "seed": "winter",
+  "sections": [
+    { "id": "q", "name": "Qualifying", "format": "quali", "weight": 0, "seeding": "elo", "laps": 5 },
+    { "id": "k", "name": "K.-o.-Runde", "format": "ko", "weight": 1, "seeding": "previous", "maxPerHeat": 2, "advance": 1, "laps": 10 }
+  ],
+  "overrides": {},
+  "matches": {}
+}

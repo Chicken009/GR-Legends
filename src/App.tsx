@@ -13,6 +13,10 @@ import { CarProfile, Cars } from './ui/pages/Cars'
 import { Compare } from './ui/pages/Compare'
 import { DriverProfile, MedalsSheet } from './ui/pages/DriverProfile'
 import { Drivers } from './ui/pages/Drivers'
+import { EventEditor } from './ui/pages/EventEditor'
+import { EventLive } from './ui/pages/EventLive'
+import { Events } from './ui/pages/Events'
+import { EventView } from './ui/pages/EventView'
 import { History, RaceView } from './ui/pages/History'
 import { Home } from './ui/pages/Home'
 import { Season } from './ui/pages/Season'
@@ -56,8 +60,14 @@ function AppRoutes() {
           <Route path="saison" element={<Season />} />
           <Route path="saison/:year" element={<Season />} />
           <Route path="wrapped/:year/:name" element={<Wrapped />} />
+          <Route path="wettkampf" element={<Events />} />
+          <Route path="wettkampf/neu" element={<EventEditor />} />
+          <Route path="wettkampf/:id" element={<EventView />} />
+          <Route path="wettkampf/:id/bearbeiten" element={<EventEditor />} />
           <Route path="*" element={<div className="state">Seite nicht gefunden.</div>} />
         </Route>
+        {/* Leinwand: ganzer Bildschirm ohne Navigation */}
+        <Route path="wettkampf/:id/leinwand" element={<EventLive />} />
       </Routes>
       {isSheet && (
         <Routes>

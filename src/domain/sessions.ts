@@ -21,6 +21,7 @@ export function buildSession(file: SourceFile, text: string): Session | null {
     createdTime: file.createdTime,
     modifiedTime: file.modifiedTime,
     heat: 1,
+    ...(file.event ? { event: file.event } : {}),
     results: parseSmartraceCsv(text),
   }
 }
@@ -29,7 +30,7 @@ export function buildSession(file: SourceFile, text: string): Session | null {
  * Entfernt doppelte Läufe, z. B. Original und „Kopie von …“ im Drive-Ordner. Gleich ist ein Lauf,
  * wenn Strecke, Datum, Typ und alle Fahrer mit ihren Rundenzeiten übereinstimmen – die Autos
  * zählen nicht, damit eine Fassung mit nachträglich geändertem Autonamen erkannt wird. Es bleibt
- * die zuletzt geänderte Fassung.
+ * die Fassung im Wettkampf-Ordner, sonst die zuletzt geänderte.
  */
 export function dropDuplicates(sessions: Session[]): Session[] {
   const fingerprint = (s: Session) =>
@@ -38,7 +39,9 @@ export function dropDuplicates(sessions: Session[]): Session[] {
   for (const s of sessions) {
     const key = fingerprint(s)
     const other = keep.get(key)
-    if (!other || s.modifiedTime > other.modifiedTime) keep.set(key, s)
+    // Die Fassung im Wettkampf-Ordner gewinnt, sonst die zuletzt geänderte
+    const better = !other || (Boolean(s.event) !== Boolean(other.event) ? Boolean(s.event) : s.modifiedTime > other.modifiedTime)
+    if (better) keep.set(key, s)
   }
   const kept = new Set(keep.values())
   return sessions.filter((s) => kept.has(s))

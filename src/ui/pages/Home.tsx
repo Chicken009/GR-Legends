@@ -10,6 +10,9 @@ import { MedalBadge } from '../Medal'
 import { byProgress, ChallengeItem } from '../ChallengeItem'
 import { fmtElo, formatDate, formatTime, plural, shortName } from '../format'
 import { isQuali } from '../../domain/rating'
+import { addDays, eventVisible, lastDay, todayIso } from '../../domain/event/insights'
+import { EventCard } from './Events'
+import { useMe } from '../me'
 
 export function Home() {
   const { model, days } = useData()
@@ -55,6 +58,7 @@ export function Home() {
       </header>
 
       {me && <XpStrip driver={me} />}
+      <EventTeaser />
       <SeasonCard />
       <ChallengesCard />
       {me && <GoalsCard driver={me} />}
@@ -401,4 +405,17 @@ function NewsIcon({ item }: { item: NewsItem }) {
       )}
     </div>
   )
+}
+
+/** Laufender, bald anstehender (14 Tage) oder gerade beendeter (3 Tage) Wettkampf */
+function EventTeaser() {
+  const { events } = useData()
+  const { me } = useMe()
+  const today = todayIso()
+  const shown = events.filter((e) => eventVisible(e.def, today))
+  const pick =
+    shown.find((e) => e.def.start <= today && today <= lastDay(e.def)) ??
+    [...shown].filter((e) => e.def.start > today && e.def.start <= addDays(today, 14)).sort((a, b) => a.def.start.localeCompare(b.def.start))[0] ??
+    shown.find((e) => lastDay(e.def) < today && lastDay(e.def) >= addDays(today, -3))
+  return pick ? <EventCard folder={pick} me={me} /> : null
 }
