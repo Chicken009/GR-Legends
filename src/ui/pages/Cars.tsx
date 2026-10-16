@@ -6,6 +6,7 @@ import { AREA } from '../colors'
 import { CarPhoto, CarThumb, usePhotoId } from '../CarPhoto'
 import { carPath, PageHead, PeriodTabs, Tile, useData, useMyName, ViewToggle } from '../components'
 import { DataTable, type Column } from '../DataTable'
+import { LapHistogram } from '../charts/LapHistogram'
 import { CarSilhouette, Chevrons, ChevronLeft, RecordFlame } from '../icons'
 import { fmtNum, fmtPct, formatTime } from '../format'
 import { useStored } from '../useStored'
@@ -239,6 +240,33 @@ export function CarProfile() {
               </div>
             )
           })}
+        </section>
+
+        <section className="inner" style={{ padding: 14, gap: 8 }}>
+          <div className="card-head">
+            <span className="card-title">Rundenzeiten</span>
+            <span className="hint">alle sauberen Runden mit dem Auto</span>
+          </div>
+          <LapHistogram
+            laps={[...c.drivers.values()].flatMap((v) => v.normal)}
+            mine={me ? (c.drivers.get(me)?.normal ?? []) : []}
+            color="#4A515C"
+            meColor="#3BBC4A"
+            best={c.bestLapMs}
+          />
+          <div className="legend">
+            <span>
+              <span style={{ width: 10, height: 10, borderRadius: 3, background: '#4A515C' }} />
+              alle Fahrer
+            </span>
+            {me && c.drivers.has(me) && (
+              <span>
+                <span style={{ width: 10, height: 10, borderRadius: 3, background: '#3BBC4A' }} />
+                du
+              </span>
+            )}
+            <span>Säule antippen: Anzahl Runden</span>
+          </div>
         </section>
 
         {records.map(({ t, rec }) => {
