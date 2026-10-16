@@ -155,6 +155,7 @@ export interface Career {
 export const CAREER_XP = { race: 10, quali: 4, raceDay: 15, win: 10, podium: 5, km: 5, personalBest: 10 }
 const levelXp = (level: number) => 25 * level * (level - 1)
 const CAREER_TITLES: [number, string][] = [[15, 'Legende'], [10, 'Profi'], [7, 'Routinier'], [5, 'Stammfahrer'], [3, 'Hobbyfahrer'], [1, 'Rookie']]
+export const careerTitle = (level: number) => CAREER_TITLES.find(([min]) => level >= min)![1]
 
 export interface SeasonRow {
   name: string
@@ -511,7 +512,7 @@ export function buildModel(input: Session[]): Model {
     const xp = breakdown.reduce((a, b) => a + b.xp, 0)
     let level = 1
     while (levelXp(level + 1) <= xp) level++
-    const title = CAREER_TITLES.find(([min]) => level >= min)![1]
+    const title = careerTitle(level)
     const result = { xp, level, title, levelXp: levelXp(level), nextXp: levelXp(level + 1), breakdown }
     careerCache.set(driver, result)
     return result

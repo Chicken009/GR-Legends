@@ -25,7 +25,8 @@ export const RATING = {
   /**
    * Duell gegen die Bahn: Zusätzlich zu den Duellen gegeneinander fährt jeder gegen einen festen
    * Maßstab (Startwert) – gewonnen, wenn die eigene saubere Runde schneller ist als die typische
-   * Runde des Autos auf der Strecke. Werden alle schneller, steigen alle. Gewicht relativ zu einem Lauf.
+   * Runde des Autos auf der Strecke. Nur Bonus, nie Abzug. Werden alle schneller, steigen alle.
+   * Gewicht relativ zu einem Lauf.
    */
   benchWeight: 0.3,
   /** Vorsprung zur typischen Runde → Duell-Ergebnis: S = 0.5 + 0.5·tanh(Vorsprung / Skala) */
@@ -196,7 +197,8 @@ export function computeRatings(sessions: Session[], cfg = RATING): RatingResult 
       if (bRef && own.length >= 3) {
         const Sb = 0.5 + 0.5 * Math.tanh((bRef - quantile(own, 0.5)) / bRef / cfg.benchScaleRel)
         const Eb = 1 / (1 + 10 ** ((cfg.start - before) / cfg.scale))
-        bench = k * cfg.benchWeight * (Sb - Eb)
+        // nur als Bonus: wer langsamer als der Maßstab ist, verliert nichts
+        bench = Math.max(0, k * cfg.benchWeight * (Sb - Eb))
       }
       const after = before + k * (dDriver.get(a.driver) ?? 0) + bench
       drivers.set(a.driver, after)
