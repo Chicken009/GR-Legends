@@ -363,3 +363,16 @@ describe('Saisonwertung mit Punkten', () => {
     expect(ch.find((c) => c.id === 'gegner')!.value).toBe(1)
   })
 })
+
+describe('Fahrstil (Netzdiagramm)', () => {
+  it('liefert sechs Achsen mit Werten zwischen 0 und 1', () => {
+    const { model } = prepare(fixtureSessions(), EMPTY_SETTINGS)
+    const name = model.ranking('all')[0].name
+    const axes = model.driverRadar(name)
+    expect(axes.map((a) => a.key)).toEqual(['tempo', 'konstanz', 'start', 'ausdauer', 'sauber', 'zweikampf'])
+    for (const a of axes) {
+      expect(a.score).toBeGreaterThan(0)
+      expect(a.score).toBeLessThanOrEqual(1)
+    }
+  })
+})

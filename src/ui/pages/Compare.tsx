@@ -171,6 +171,23 @@ export function Compare() {
       )}
 
       {kind === 'fahrer' && <WhatIf a={a} b={b} carA={carA} carB={carB} colorA={colorA} colorB={colorB} />}
+      {kind === 'fahrer' && (all.drivers.get(a)?.races ?? 0) >= 3 && (all.drivers.get(b)?.races ?? 0) >= 3 && (
+        <section className="card" style={{ gap: 8 }}>
+          <span className="card-title">Fahrstil</span>
+          <RadarChart
+            series={[
+              { name: a, color: colorA, axes: model.driverRadar(a) },
+              { name: b, color: colorB, axes: model.driverRadar(b) },
+            ]}
+            label={`Fahrstil ${a} gegen ${b}`}
+          />
+          <div className="legend">
+            <span><span style={{ width: 10, height: 10, borderRadius: 3, background: colorA }} />{a}</span>
+            <span><span style={{ width: 10, height: 10, borderRadius: 3, background: colorB }} />{b}</span>
+            <span>außen = besser als die meisten Stammfahrer · Achse antippen</span>
+          </div>
+        </section>
+      )}
       {kind === 'auto' && (
         <section className="card" style={{ gap: 8 }}>
           <span className="card-title">Auto-Bonus in der Wertung</span>

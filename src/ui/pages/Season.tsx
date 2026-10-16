@@ -3,6 +3,7 @@ import type { SeasonStanding } from '../../domain/model'
 import { SEASON_POINTS } from '../../domain/season'
 import { CHALLENGE_XP } from '../../domain/challenges'
 import { CarThumb } from '../CarPhoto'
+import { PointsChart } from '../charts/PointsChart'
 import { BumpChart } from '../charts/StatsCharts'
 import { AREA, seriesColors } from '../colors'
 import { Avatar, carPath, driverPath, PageHead, Segment, useData, useMyName } from '../components'
@@ -97,6 +98,16 @@ function DriverStandings({ year }: { year: string }) {
           </span>
         </div>
       </section>
+      {dates.length >= 2 && (
+        <section className="card" style={{ gap: 8 }}>
+          <div className="card-head">
+            <span className="card-title">Punkteverlauf</span>
+            <span className="hint">Punkte antippen</span>
+          </div>
+          <PointsChart dates={dates} series={shown.map((n) => ({ name: n, color: colors.get(n) ?? '#9AA3AD', values: rows.find((r) => r.name === n)?.progress ?? [] }))} label={`Punkteverlauf der Saison ${year}`} />
+          <span style={{ fontSize: 11, color: 'var(--muted)' }}>Punktestand nach jedem Renntag, mit Streichresultaten.</span>
+        </section>
+      )}
       {dates.length >= 2 && (
         <section className="card" style={{ gap: 8 }}>
           <span className="card-title">Rangverlauf</span>

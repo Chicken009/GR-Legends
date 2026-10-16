@@ -3,6 +3,7 @@ import type { Result, Session } from '../types'
 import { isGuest } from './drivers'
 import { crashCost, crashObservations, estimateCars, paceObservations, type CarFit } from './carModel'
 import { carTraits, radarAxes, type RadarAxis } from './carProfile'
+export type { RadarAxis } from './carProfile'
 import { quantile } from './laps'
 import { constructorStandings, seasonStandings, type ConstructorStanding, type SeasonStanding } from './season'
 import { CHALLENGE_XP, seasonChallenges, type Challenge } from './challenges'
@@ -242,6 +243,8 @@ export interface Model {
   challenges: (driver: string, year: string) => Challenge[]
   /** Jahresrückblick („Wrapped“) */
   wrapped: (driver: string, year: string) => Wrapped | null
+  /** Fahrstil im Netzdiagramm: Perzentil unter den Stammfahrern je Stärke (außen = besser) */
+  driverRadar: (driver: string) => RadarAxis[]
   /** Karriere-Level aus Erfahrungspunkten (steigt nur) */
   career: (driver: string) => Career | null
   /**
@@ -876,6 +879,61 @@ export function buildModel(input: Session[]): Model {
     return out.sort((a, b) => order[a.kind] - order[b.kind])
   }
 
+  // ---- Fahrstil (Netzdiagramm) -------------------------------------------------------------
+  const cleanLaps = (r: Result) => r.lapTimes.filter((l) => l.status === 'normal')
+  /** Ø Zeitverlust der Startrunde gegenüber der eigenen typischen Runde */
+  const startLoss = (d: DriverStats) => {
+    const xs = d.raceResults
+      .map(({ result }) => {
+        const nl = cleanLaps(result).map((l) => l.ms)
+        const first = result.lapTimes[0]
+        return first && first.status !== 'invalid' && nl.length >= 5 ? first.ms - median(nl)! : null
+      })
+      .filter((x): x is number => x != null)
+    return xs.length >= 2 ? mean(xs) : null
+  }
+  /** Ø Unterschied zweite gegen erste Rennhälfte (ms pro Runde, + = langsamer) */
+  const fade = (d: DriverStats) => {
+    const xs = d.raceResults
+      .map(({ result }) => {
+        const nl = cleanLaps(result).filter((l) => l.number > 1).map((l) => l.ms)
+        if (nl.length < 8) return null
+        const h = Math.floor(nl.length / 2)
+        return mean(nl.slice(h))! - mean(nl.slice(0, h))!
+      })
+      .filter((x): x is number => x != null)
+    return xs.length >= 2 ? mean(xs) : null
+  }
+  let radarBase: { metrics: { key: string; label: string; higher: boolean; value: (d: DriverStats) => number | null; text: (v: number) => string }[]; regulars: DriverStats[] } | null = null
+  const driverRadar = (driver: string): RadarAxis[] => {
+    const all = stats('all').drivers
+    const d = all.get(driver)
+    if (!d) return []
+    const s1 = (ms: number) => (ms / 1000).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    const sign = (ms: number) => `${ms >= 0 ? '+' : '−'}${s1(Math.abs(ms))} s`
+    radarBase ??= {
+      regulars: [...all.values()].filter((x) => x.races >= 5 && !isGuest(x.name)),
+      metrics: [
+        { key: 'tempo', label: 'Tempo', higher: false, value: (x) => x.paceGap, text: (v) => `Ø ${sign(v)} pro Runde zur typischen Bestzeit` },
+        { key: 'konstanz', label: 'Konstanz', higher: false, value: (x) => x.precision, text: (v) => `Rundenzeiten streuen um ${(v * 100).toLocaleString('de-DE', { maximumFractionDigits: 1 })} %` },
+        { key: 'start', label: 'Start', higher: false, value: startLoss, text: (v) => `Startrunde Ø ${sign(v)} gegenüber der eigenen Normalrunde` },
+        { key: 'ausdauer', label: 'Ausdauer', higher: false, value: fade, text: (v) => `zweite Rennhälfte Ø ${sign(v)} pro Runde` },
+        { key: 'sauber', label: 'Sauberkeit', higher: false, value: (x) => x.crashRate, text: (v) => `${v.toLocaleString('de-DE', { maximumFractionDigits: 1 })} Abflüge pro 100 Runden` },
+        { key: 'zweikampf', label: 'Zweikampf', higher: true, value: (x) => x.beatShare, text: (v) => `schlägt im Schnitt ${Math.round(v * 100)} % des Feldes` },
+      ],
+    }
+    const { metrics, regulars } = radarBase
+    return metrics.map((m) => {
+      const v = m.value(d)
+      const vals = regulars.map(m.value).filter((x): x is number => x != null)
+      if (v == null || vals.length < 3) return { key: m.key, label: m.label, score: 0.5, text: 'zu wenig Daten' }
+      const better = vals.filter((x) => (m.higher ? x < v : x > v)).length
+      const ties = vals.filter((x) => x === v).length
+      const p = (better + ties / 2) / vals.length
+      return { key: m.key, label: m.label, score: Math.max(0.06, Math.min(1, p)), text: `${m.text(v)} – besser als ${Math.round(p * 100)} % der Stammfahrer` }
+    })
+  }
+
   // ---- Jahresrückblick -------------------------------------------------------------------
   const wrapped = (driver: string, year: string): Wrapped | null => {
     const d = stats(year).drivers.get(driver)
@@ -931,7 +989,7 @@ export function buildModel(input: Session[]): Model {
 
   return {
     sessions, years, tracks, rating, drivers, stats, ranking, statuses, medals,
-    trackRecords, carRecords, goals, rival, tips, eloAt, rankTimeline, news, season, constructors, challenges, wrapped, career, placement,
+    trackRecords, carRecords, goals, rival, tips, eloAt, rankTimeline, news, season, constructors, challenges, wrapped, driverRadar, career, placement,
   }
 }
 
