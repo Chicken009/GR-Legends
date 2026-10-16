@@ -5,8 +5,8 @@ import { SEASON_POINTS } from '../../domain/season'
 import { isGuest } from '../../domain/drivers'
 import { AREA, ME } from '../colors'
 import { Sparkline } from '../charts/Sparkline'
-import { driverPath, MeButton, Monogram, Placement, useData, useMyName } from '../components'
-import { Chevrons, Crown, RecordFlame, StatusIcons, Trophy } from '../icons'
+import { driverPath, MeButton, Monogram, useData, useMyName } from '../components'
+import { Chevrons, Crown, RecordFlame, Trophy } from '../icons'
 import { MedalBadge } from '../Medal'
 import { byProgress, ChallengeItem } from '../ChallengeItem'
 import { fmtElo, formatDate, formatTime, plural, shortName } from '../format'
@@ -22,7 +22,6 @@ export function Home() {
   const me = useMyName()
   const location = useLocation()
   const rows = model.ranking('all')
-  const statuses = model.statuses('all')
   const latest = days[0]
   // Der letzte Renntag ist nur „neu“, solange er höchstens 5 Tage zurückliegt
   const fresh = latest != null && daysSince(latest.date) <= 5
@@ -37,9 +36,8 @@ export function Home() {
   const dayBest = day?.sessions.flatMap((s) => s.results).filter((r) => r.validBestLapMs != null).sort((a, b) => a.validBestLapMs! - b.validBestLapMs!)[0]
   const podium = [rows[1], rows[0], rows[2]].filter(Boolean)
   const myRow = me ? rows.find((r) => r.name === me) : null
-  const above = myRow ? rows.find((r) => r.rank === myRow.rank - 1) : null
-  // Mit gewähltem Fahrer nur zeigen, wenn er in der Wertung vorkommt
-  const showRanking = !me || !!myRow
+  // Mit gewähltem Fahrer nur zeigen, wenn er auf dem Podest steht
+  const showRanking = !me || (myRow != null && myRow.rank <= 3)
   const news = fresh ? model.news().slice(0, 5) : []
   const bg = { bg: location }
 
@@ -138,26 +136,6 @@ export function Home() {
                 )
               })}
             </div>
-            {myRow && myRow.rank > 3 && (
-              <Link to={driverPath(myRow.name)} state={bg} className="me-row" style={{ display: 'flex', alignItems: 'center', gap: 10, borderRadius: 14, padding: '10px 12px', boxShadow: 'var(--sh-row)' }}>
-                <span className="rank" style={{ fontSize: 15, color: 'var(--me)', minWidth: 20 }}>
-                  {myRow.rank}
-                </span>
-                <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
-                  <span style={{ fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
-                    Du · {myRow.name} <StatusIcons list={statuses.get(myRow.name)} size={16} />
-                  </span>
-                  {above && model.placement(myRow.name) == null && <span style={{ fontSize: 12, color: 'var(--muted)' }}>{gapText(above.elo - myRow.elo, above.rank)}</span>}
-                </div>
-                {model.placement(myRow.name) != null ? (
-                  <Placement n={model.placement(myRow.name)!} />
-                ) : (
-                  <span className="num" style={{ fontSize: 15, fontWeight: 700 }}>
-                    {fmtElo(myRow.elo)}
-                  </span>
-                )}
-              </Link>
-            )}
             {!me && (
               <p style={{ margin: 0, fontSize: 12, color: 'var(--muted)' }}>
                 Tipp: Oben rechts auswählen, wer du bist – dann siehst du dich überall hervorgehoben.
@@ -397,11 +375,6 @@ function RecordsCard({ lastDate, lastFileId }: { lastDate?: string; lastFileId?:
       )}
     </section>
   )
-}
-
-function gapText(gap: number, rank: number) {
-  const g = Math.max(1, Math.ceil(gap))
-  return g <= 3 ? `nur ${g} ${g === 1 ? 'Punkt' : 'Punkte'} bis Platz ${rank}` : `${g} Punkte bis Platz ${rank}`
 }
 
 function NewsIcon({ item }: { item: NewsItem }) {
