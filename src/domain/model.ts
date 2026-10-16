@@ -2,6 +2,7 @@ import { formatTime } from '../data/time'
 import type { Result, Session } from '../types'
 import { isGuest } from './drivers'
 import { crashCost, crashObservations, estimateCars, paceObservations, type CarFit } from './carModel'
+import { carTraits, radarAxes, type RadarAxis } from './carProfile'
 import { quantile } from './laps'
 import { carKey, computeRatings, isQuali, RATING, sortSessions, type RatingEvent, type RatingResult } from './rating'
 
@@ -85,6 +86,8 @@ export interface CarStats {
   tempo: number | null
   /** Abflüge pro 100 Runden, fahrer- und laufbereinigt (nur Rennen ohne Tankfunktion) */
   crashRate: number | null
+  /** Netzdiagramm: Tempo, Spitzenrunden, Konstanz, Reifen, Sicherheit (0,5 = Ø Auto) */
+  radar: RadarAxis[]
   rating: number | null
   /** 0 = kein Bonus, 1–3 = Underdog-Bonus */
   bonus: number
@@ -264,7 +267,7 @@ export function buildModel(input: Session[]): Model {
     const cs = new Map<string, CarStats>()
     const get = (n: string) => ds.get(n) ?? (ds.set(n, emptyDriver(n)), ds.get(n)!)
     const getCar = (n: string): CarStats =>
-      cs.get(n) ?? (cs.set(n, { name: n, races: 0, qualis: 0, wins: 0, podiums: 0, winRate: null, beatShare: null, avgPosition: null, laps: 0, km: null, bestLapMs: null, bestBy: null, pace: null, paceGap: null, spread: null, tempo: null, crashRate: null, rating: null, bonus: 0, drivers: new Map() }), cs.get(n)!)
+      cs.get(n) ?? (cs.set(n, { name: n, races: 0, qualis: 0, wins: 0, podiums: 0, winRate: null, beatShare: null, avgPosition: null, laps: 0, km: null, bestLapMs: null, bestBy: null, pace: null, paceGap: null, spread: null, tempo: null, crashRate: null, radar: [], rating: null, bonus: 0, drivers: new Map() }), cs.get(n)!)
     const beat = new Map<string, number[]>()
     const carBeat = new Map<string, number[]>()
     const positions = new Map<string, number[]>()
@@ -391,6 +394,7 @@ export function buildModel(input: Session[]): Model {
       }
       return new Map([...acc].map(([car, [sum, w]]) => [car, sum / w]))
     }
+    const traits = carTraits(inP, isQuali)
     const carTempo = weighted(paceFit, (key, e) => {
       const ref = trackRef.get(key.split('\u0000')[0])
       return ref ? (Math.exp(e) - 1) * ref : null
@@ -405,6 +409,7 @@ export function buildModel(input: Session[]): Model {
       c.spread = mean(carPrec.get(c.name) ?? [])
       c.tempo = carTempo.get(c.name) ?? null
       c.crashRate = carCrash.get(c.name) ?? null
+      c.radar = radarAxes(c.tempo, c.crashRate, baseCrash != null ? baseCrash * 100 : null, traits.get(c.name))
       c.rating = carRatings.get(c.name) ?? null
       // feste Schwellen: nur spürbar schwächere Autos (6 Punkte ≈ 0,75 % langsamere Runden)
       const r = c.rating ?? 0

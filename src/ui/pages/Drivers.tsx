@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { PLACEMENT_RUNS, type RankRow } from '../../domain/model'
+import { PLACEMENT_RUNS, SEASON_MIN_RACES, type RankRow } from '../../domain/model'
 import { AREA } from '../colors'
 import { Avatar, driverPath, PageHead, PeriodTabs, Placement, Rank, SettingsHint, useData, useMyName, ViewToggle } from '../components'
 import { DataTable, type Column } from '../DataTable'
@@ -18,12 +18,17 @@ export function Drivers() {
   const p = period === 'all' || model.years.includes(period) ? period : 'all'
   const stats = model.stats(p).drivers
   const statuses = model.statuses(p)
-  const rows = model.ranking(p).filter((r) => !minRaces || r.races >= 3 || r.name === me)
+  const all = model.ranking(p).filter((r) => !minRaces || r.races >= 3 || r.name === me)
   const open = (name: string) => navigate(driverPath(name), { state: { bg: location } })
   const d = (r: RankRow) => stats.get(r.name)
   const seasonRows = p !== 'all' ? model.season(p) : []
   const seasonGain = new Map(seasonRows.map((r) => [r.name, r.gain]))
   const seasonPlacing = new Set(seasonRows.filter((r) => r.placing != null).map((r) => r.name))
+  // Gesamt: nach Elo. Jahr: nach Saisonwertung – Plätze nur für Gewertete (ab 5 Rennen, Einstufung vorbei)
+  const seasonOrder = new Map(seasonRows.map((r, i) => [r.name, i]))
+  const seasonRank = new Map(seasonRows.filter((r) => r.races >= SEASON_MIN_RACES && r.placing == null).map((r, i) => [r.name, i + 1]))
+  const rows = p === 'all' ? all : [...all].sort((a, b) => (seasonRank.has(b.name) ? 1 : 0) - (seasonRank.has(a.name) ? 1 : 0) || (seasonOrder.get(a.name) ?? 999) - (seasonOrder.get(b.name) ?? 999))
+  const rankOf = (r: RankRow) => (p === 'all' ? r.rank : (seasonRank.get(r.name) ?? null))
   const medalCount = (name: string) => (model.medals.get(name) ?? []).filter((m) => !m.former).length
   const columns: Column<RankRow>[] = [
     {
@@ -103,7 +108,7 @@ export function Drivers() {
           label="Fahrer-Rangliste"
           rows={rows}
           columns={columns}
-          rank={(r) => r.rank}
+          rank={rankOf}
           picture={(r) => <Avatar name={r.name} ring={r.name === me ? 'var(--me)' : undefined} />}
           rowKey={(r) => r.name}
           onRowClick={(r) => open(r.name)}
@@ -118,8 +123,8 @@ export function Drivers() {
               <Link key={r.name} to={driverPath(r.name)} state={{ bg: location }} className={`dcard${isMe ? ' me' : ''}`} aria-label={`Profil ${r.name}`}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1 }}>
-                    <Rank rank={r.rank} size={30} />
-                    <span style={{ fontSize: 10, letterSpacing: 1.5, color: 'var(--muted)', marginTop: 4 }}>RANG</span>
+                    {rankOf(r) != null ? <Rank rank={rankOf(r)!} size={30} /> : <span className="rank" style={{ fontSize: 30 }}>–</span>}
+                    <span style={{ fontSize: 10, letterSpacing: 1.5, color: 'var(--muted)', marginTop: 4 }}>{p === 'all' ? 'RANG' : 'SAISON'}</span>
                   </div>
                   <Avatar name={r.name} size={52} style={isMe ? { background: 'rgba(0,0,0,.28)' } : undefined} />
                 </div>
@@ -159,6 +164,7 @@ export function Drivers() {
           <span>Pace = Abstand der Ø sauberen Runde zur typischen Bestzeit der Strecke (Grenze der schnellsten 10 % aller Runden); minus = noch schneller</span>
           <span>Streuung = Schwankung sauberer Runden (kleiner = präziser)</span>
           <span>Abflüge nur aus Rennen ohne Tankfunktion</span>
+          {p !== 'all' && <span>Sortiert nach Saisonwertung {p}: Plätze ab {SEASON_MIN_RACES} Rennen</span>}
           <span>Einstufung = neue Fahrer, die ersten {PLACEMENT_RUNS} Läufe pendeln die Wertung ein</span>
         </div>
       )}
