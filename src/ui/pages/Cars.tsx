@@ -6,6 +6,7 @@ import { AREA } from '../colors'
 import { CarPhoto, CarThumb, usePhotoId } from '../CarPhoto'
 import { carPath, PageHead, PeriodTabs, SettingsHint, Tile, useData, useMyName, ViewToggle } from '../components'
 import { DataTable, type Column } from '../DataTable'
+import { BoxPlot, type BoxRow } from '../charts/BoxPlot'
 import { LapHistogram } from '../charts/LapHistogram'
 import { RadarChart } from '../charts/RadarChart'
 import { CarSilhouette, Chevrons, ChevronLeft, RecordFlame } from '../icons'
@@ -48,6 +49,15 @@ export function Cars() {
   const all = [...rated, ...rest]
   const rankOf = new Map(rated.map((c, i) => [c.name, i + 1]))
   const myFav = me ? model.stats(p).drivers.get(me)?.favoriteCar : null
+  // Verteilung der sauberen Runden je Auto (ab 5 Rennen), schnellster Median oben
+  const boxes: BoxRow[] = all
+    .filter((c) => c.races >= 5)
+    .map((c) => {
+      const xs = [...c.drivers.values()].flatMap((v) => v.normal).sort((a, b) => a - b)
+      return { key: c.name, label: c.name, n: xs.length, highlight: c.name === myFav, q: [0.05, 0.25, 0.5, 0.75, 0.95].map((q) => quantile(xs, q)) as BoxRow['q'] }
+    })
+    .filter((b) => b.n >= 20)
+    .sort((a, b) => a.q[2] - b.q[2])
   const columns: Column<CarStats>[] = [
     { key: 'name', label: 'Fahrzeug', left: true, value: (c) => c.name, render: (c) => <CarName car={c} /> },
     { key: 'rating', label: 'Wertung', title: 'Autowertung in Elo-Punkten: fahrerbereinigtes Tempo und Abflüge aus allen Rennen, gleichbleibende neue Entwicklungen zählen zusätzlich', strong: true, value: (c) => c.rating, render: (c) => (c.rating == null ? '–' : `${c.rating >= 0 ? '+' : '−'}${Math.abs(Math.round(c.rating))}`) },
@@ -91,6 +101,20 @@ export function Cars() {
             <CarCard key={c.name} car={c} rank={rankOf.get(c.name) ?? null} mine={c.name === myFav} />
           ))}
         </div>
+      )}
+      {boxes.length > 1 && (
+        <section className="card" style={{ gap: 8 }}>
+          <div className="card-head">
+            <span className="card-title">Rundenzeiten je Auto</span>
+            <span className="hint">alle sauberen Runden</span>
+          </div>
+          <BoxPlot rows={boxes} color={ACCENT} label="Verteilung der Rundenzeiten je Auto" onPick={(car) => navigate(carPath(car))} />
+          <div className="legend">
+            <span>Balken = mittlere Hälfte, Strich = Median, Linie = schnellste bis langsamste 5 %</span>
+            <span>nicht fahrerbereinigt – dafür gibt es das Netzdiagramm im Autoprofil</span>
+            {myFav && <span style={{ color: 'var(--me)' }}>Grün: dein Lieblingsauto</span>}
+          </div>
+        </section>
       )}
       <SettingsHint names={unmatched.cars} kind="Fahrzeug" />
       <div className="legend">

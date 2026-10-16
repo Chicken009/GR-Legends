@@ -5,6 +5,7 @@ import { isQuali } from '../../domain/rating'
 import type { RaceDay, Result, Session } from '../../types'
 import { AREA, seriesColors } from '../colors'
 import { carPath, driverPath, PageHead, Placement, Rank, useData, useMyName } from '../components'
+import { LAP_HEAT_RAMP, LapHeatmap } from '../charts/LapHeatmap'
 import { LapChart, PositionChart } from '../charts/RaceCharts'
 import { ChevronLeft, ChevronRight, Trophy } from '../icons'
 import { fmtDelta, formatDate, formatGap, formatTime, formatTrack, plural, sessionTitle, shortName } from '../format'
@@ -215,6 +216,34 @@ export function RaceView() {
             </span>
             <span>
               <span style={{ width: 8, height: 8, borderRadius: 2, border: '2px solid #9AA3AD' }} />
+              Box
+            </span>
+          </div>
+        </section>
+      )}
+
+      {session.results.some((r) => r.lapTimes.length > 1) && (
+        <section className="card" style={{ gap: 8 }}>
+          <div className="card-head">
+            <span className="card-title">Rundenzeiten-Heatmap</span>
+            <span className="hint">Runden antippen</span>
+          </div>
+          <LapHeatmap session={session} me={me} />
+          <div className="legend">
+            <span>
+              <span style={{ display: 'inline-flex', gap: 2 }}>
+                {LAP_HEAT_RAMP.map((c) => (
+                  <span key={c} style={{ width: 12, height: 10, borderRadius: 2, background: c }} />
+                ))}
+              </span>
+              normal → langsamer als die eigene typische Runde
+            </span>
+            <span>
+              <span style={{ width: 10, height: 10, borderRadius: 2, background: 'repeating-linear-gradient(45deg,#D95926 0 3px,#3A1B12 3px 6px)' }} />
+              Abflug
+            </span>
+            <span>
+              <span style={{ width: 10, height: 10, borderRadius: 2, background: '#EE9E10' }} />
               Box
             </span>
           </div>

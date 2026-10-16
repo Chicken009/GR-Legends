@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { CAREER_XP, PLACEMENT_RUNS, type Medal } from '../../domain/model'
-import { AREA } from '../colors'
+import { AREA, SERIES } from '../colors'
 import { Avatar, carPath, driverPath, PeriodTabs, Placement, Segment, Sheet, Tile, useData, useMyName } from '../components'
 import { isQuali } from '../../domain/rating'
 import { CarThumb } from '../CarPhoto'
+import { DonutChart, type DonutPart } from '../charts/DonutChart'
 import { LineChart, type LinePoint } from '../charts/LineChart'
+import { RadarChart } from '../charts/RadarChart'
 import { TimeTrendChart } from '../charts/TimeTrendChart'
 import { ShareIcon, StatusIcons } from '../icons'
 import { TipCarousel } from '../TipCarousel'
@@ -140,6 +142,8 @@ export function DriverProfile({ onClose }: { onClose: () => void }) {
         )}
         <DriverChart driver={driver} kind={chart} period={period} />
       </section>
+
+      <DriverStyle driver={driver} />
 
       <div className="grid-2">
         <Link className="inner" to={d.favoriteCar ? carPath(d.favoriteCar) : '#'}>
@@ -312,6 +316,62 @@ function AllRaces({ driver }: { driver: string }) {
         </section>
       ))}
     </div>
+  )
+}
+
+/** Fahrstil (Netzdiagramm) und Verteilungen (Ringe) */
+function DriverStyle({ driver }: { driver: string }) {
+  const { model } = useData()
+  const d = model.stats('all').drivers.get(driver)
+  const axes = model.driverRadar(driver)
+  if (!d || d.races === 0) return null
+  const places = [0, 0, 0, 0]
+  for (const { session, result } of d.raceResults) if (session.results.length > 1) places[Math.min(result.position, 4) - 1]++
+  const total = places.reduce((a, b) => a + b, 0)
+  const cars = [...d.cars].map(([name, u]) => ({ name, races: u.races })).filter((c) => c.races > 0).sort((a, b) => b.races - a.races)
+  const carParts: DonutPart[] = [
+    ...cars.slice(0, 4).map((c, i) => ({ label: c.name, value: c.races, color: SERIES[i] })),
+    ...(cars.length > 4 ? [{ label: 'Andere', value: cars.slice(4).reduce((a, c) => a + c.races, 0), color: '#4A515C' }] : []),
+  ]
+  return (
+    <>
+      {d.races >= 3 && (
+        <section className="inner" style={{ padding: 14, gap: 8 }}>
+          <div className="card-head">
+            <span className="card-title">Fahrstil</span>
+            <span className="hint">im Vergleich zu allen Stammfahrern</span>
+          </div>
+          <RadarChart series={[{ name: driver, color: ACCENT, axes }]} label={`Fahrstil ${driver}: ${axes.map((a) => `${a.label} ${Math.round(a.score * 100)}`).join(', ')}`} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            {axes.map((a) => (
+              <div key={a.key} style={{ display: 'flex', gap: 10, alignItems: 'baseline' }}>
+                <span style={{ fontSize: 12, fontWeight: 700, width: 84, flexShrink: 0 }}>{a.label}</span>
+                <span style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.4 }}>{a.text}</span>
+              </div>
+            ))}
+          </div>
+          <p style={{ margin: 0, fontSize: 11, color: 'var(--muted)', lineHeight: 1.45 }}>Außen = besser als die meisten Stammfahrer (ab 5 Rennen), gestrichelter Ring = Durchschnitt. Achse antippen für den Wert.</p>
+        </section>
+      )}
+      <section className="inner" style={{ padding: 14, gap: 14 }}>
+        <div className="card-head">
+          <span className="card-title">Platzierungen und Autos</span>
+          <span className="hint">alle Rennen</span>
+        </div>
+        <DonutChart
+          label="Platzierungen"
+          center={total ? `${Math.round((places[0] / total) * 100)} %` : '–'}
+          sub="Siege"
+          parts={[
+            { label: 'Siege', value: places[0], color: '#E5A51A' },
+            { label: 'Platz 2', value: places[1], color: '#B9C6D2' },
+            { label: 'Platz 3', value: places[2], color: '#C87846' },
+            { label: 'Platz 4 und dahinter', value: places[3], color: '#4A515C' },
+          ]}
+        />
+        <DonutChart label="Autos" center={String(d.races)} sub="Rennen" parts={carParts} />
+      </section>
+    </>
   )
 }
 
