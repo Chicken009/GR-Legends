@@ -4,7 +4,7 @@ import { fixtureIds, readFixture } from '../test-utils'
 import type { Result, Session, SourceFile } from '../types'
 import { canonicalDriver, isGuest } from './drivers'
 import { classifyAllLaps } from './laps'
-import { buildSession, groupRaceDays } from './sessions'
+import { buildSession, dropDuplicates, groupRaceDays } from './sessions'
 
 function fixtureSessions(trackOf: (name: string) => string = () => 'Test'): Session[] {
   return fixtureIds().map((id, i) => {
@@ -174,5 +174,24 @@ describe('drivers', () => {
     expect(isGuest('Gaston')).toBe(false)
     expect(canonicalDriver(' F. Lorenz ', { 'F. Lorenz': 'Felix Lorenz' })).toBe('Felix Lorenz')
     expect(canonicalDriver('Mika')).toBe('Mika')
+  })
+})
+
+describe('dropDuplicates', () => {
+  const csv = (car2: string) =>
+    [
+      'Position;Abstand;Fahrer;Fahrzeug;Runden;Schnellste Runde;Boxenstops;1;2;3;',
+      '1;;E. Schwager;Mercedes C63 AMG DTM;3;0:09.982;0;0:12.001;0:11.365;0:09.982;',
+      `2;+0:03.045;Ole;${car2};3;0:10.352;0;0:12.321;0:12.099;0:10.352;`,
+    ].join('\n')
+  const file = (id: string, name: string, modifiedTime: string) => ({ id, name, track: 'Musterring', createdTime: modifiedTime, modifiedTime })
+
+  it('behält von Original und Kopie nur die zuletzt geänderte Fassung', () => {
+    const original = buildSession(file('a', 'Rennen_27.02.2026.csv', '2026-03-01T10:00:00Z'), csv('Mercedes C63 AMG DTM No. 2'))!
+    const copy = buildSession(file('b', 'Kopie von Rennen_27.02.2026.csv', '2026-02-28T10:00:00Z'), csv('Mercedes C63 AMG DTM'))!
+    const other = buildSession(file('c', 'Rennen_27.02.2026.csv', '2026-02-27T21:00:00Z'), csv('X').replace('0:12.321', '0:12.555'))!
+    const kept = dropDuplicates([copy, original, other])
+    expect(kept.map((s) => s.fileId)).toEqual(['a', 'c'])
+    expect(kept[0].results[1].car).toBe('Mercedes C63 AMG DTM No. 2')
   })
 })

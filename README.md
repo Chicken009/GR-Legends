@@ -39,6 +39,9 @@ Sheets API nicht lesen). Tabs:
 - **Fahrzeuge**: Maßstab (`1:24`, leer = 1:32) und Anzeigename
 - **Korrekturen**: Drive-Link der Datei, Platz, richtiger Fahrer – für falsch zugeordnete Fahrer
 - Zeilen, die mit „Beispiel“ beginnen bzw. eine Notiz „Beispiel…“ haben, werden ignoriert.
+- Doppelte Läufe (z. B. Original und „Kopie von …“ im Ordner) zählen einmal: Es gilt die zuletzt
+  geänderte Fassung. Autonamen dürfen sich dabei unterscheiden – so lässt sich ein Auto in einer
+  CSV nachträglich umbenennen.
 - Namen werden ohne Rücksicht auf Groß-/Kleinschreibung und Leerzeichen verglichen. Einträge, die
   zu keinem Rennen passen, zeigt die App unter der Fahrer- bzw. Fahrzeugliste an.
 

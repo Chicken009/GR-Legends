@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { config, driveEnabled } from '../config'
 import { classifyAllLaps } from '../domain/laps'
 import { buildModel, type Model } from '../domain/model'
-import { buildSession, groupRaceDays } from '../domain/sessions'
+import { buildSession, dropDuplicates, groupRaceDays } from '../domain/sessions'
 import type { RaceDay, Session } from '../types'
 import { downloadDriveFile, listDriveFiles, readSettingsSheet } from './drive'
 import { applySettings, EMPTY_SETTINGS, parseSettings, unmatchedSettings, type Settings } from './settings'
@@ -63,7 +63,7 @@ async function loadRaw(): Promise<Omit<AppData, 'model' | 'days' | 'unmatched'> 
 
 /** Alle Läufe → Einstellungen → Rundenklassifizierung → Wertung und Kennzahlen. */
 export function prepare(sessions: Session[], settings: Settings) {
-  const classified = classifyAllLaps(applySettings(sessions, settings))
+  const classified = classifyAllLaps(applySettings(dropDuplicates(sessions), settings))
   // Erst gruppieren: dabei bekommen die Läufe ihre Nummer (Rennen 1, 2, …)
   const days = groupRaceDays(classified)
   return { model: buildModel(days.flatMap((d) => d.sessions)), days }

@@ -15,7 +15,8 @@ export function parseFileName(name: string): FileNameInfo | null {
   if (!m) return null
   const [, type, day, month, year] = m
   return {
-    type: type.trim(),
+    // „Kopie von …“ / „Copy of …“ entsteht beim Kopieren in Google Drive
+    type: type.replace(/^((kopie von|copy of)\s+)+/i, '').trim(),
     date: `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`,
   }
 }
