@@ -109,6 +109,8 @@ export function Compare() {
   }
 
   const options = kind === 'fahrer' ? driverOptions : carOptions
+  // Ist das gewählte Auto das meistgefahrene, heißt es „Favorit“
+  const carLabel = (driver: string, car: string) => (all.drivers.get(driver)?.favoriteCar === car ? `Favorit von ${driver}` : `Auto von ${driver}`)
   const pathOf = (n: string) => (kind === 'fahrer' ? driverPath(n) : carPath(n))
 
   return (
@@ -126,8 +128,8 @@ export function Compare() {
         <Picker label="Zweiter" value={b} color={colorB} options={options.filter((o) => o.value !== a)} onChange={(v) => set({ b: v, autoB: null })} />
         {kind === 'fahrer' && (
           <>
-            <Picker label={`Auto von ${a}`} value={carA} color="#2A2F38" options={carOptions} onChange={(v) => set({ autoA: v })} small />
-            <Picker label={`Auto von ${b}`} value={carB} color="#2A2F38" options={carOptions} onChange={(v) => set({ autoB: v })} small />
+            <Picker label={carLabel(a, carA)} value={carA} color="#2A2F38" options={carOptions} onChange={(v) => set({ autoA: v })} small />
+            <Picker label={carLabel(b, carB)} value={carB} color="#2A2F38" options={carOptions} onChange={(v) => set({ autoB: v })} small />
           </>
         )}
       </div>
