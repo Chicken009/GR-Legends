@@ -1,6 +1,5 @@
-import { useState } from 'react'
 import { formatDate, formatTime, shortName } from '../format'
-import { AXIS, GRID, linePath, niceTicks, scale, Tip, useWidth } from './common'
+import { AXIS, GRID, linePath, niceTicks, scale, Tip, useTipState, useWidth } from './common'
 
 /** Rangverlauf (Bump-Chart) für wenige ausgewählte Fahrer, Namen rechts. */
 export function BumpChart({
@@ -130,7 +129,7 @@ export function DuelMatrix({ names, h2h, me, onPick }: { names: string[]; h2h: (
 /** Bestzeit und typische Runde pro Renntag (eine Achse, Sekunden) */
 export function TrendChart({ days, color }: { days: { date: string; best: number; typical: number | null; bestBy: string }[]; color: string }) {
   const [ref, width] = useWidth<HTMLDivElement>()
-  const [open, setOpen] = useState<number | null>(null)
+  const [open, setOpen] = useTipState<number>(ref)
   if (days.length < 2) return <p className="muted" style={{ fontSize: 13, margin: 0 }}>Noch zu wenige Renntage.</p>
   const height = 150
   const vals = days.flatMap((d) => [d.best, d.typical ?? d.best])
@@ -169,7 +168,7 @@ export function TrendChart({ days, color }: { days: { date: string; best: number
         ))}
       </svg>
       {days.map((d, i) => (
-        <button key={d.date} className="hit" style={{ left: sx(i), top: sy(d.best), width: Math.max(14, Math.min(32, width / days.length)), marginLeft: -Math.max(7, Math.min(16, width / days.length / 2)) }} aria-label={`${formatDate(d.date)}: Bestzeit ${formatTime(d.best)}`} onClick={() => setOpen(open === i ? null : i)} onMouseEnter={() => setOpen(i)} />
+        <button key={d.date} className="hit" style={{ left: sx(i), top: sy(d.best), width: Math.max(14, Math.min(32, width / days.length)), marginLeft: -Math.max(7, Math.min(16, width / days.length / 2)) }} aria-label={`${formatDate(d.date)}: Bestzeit ${formatTime(d.best)}`} onClick={() => setOpen(open === i ? null : i)} onPointerEnter={(e) => e.pointerType === 'mouse' && setOpen(i)} />
       ))}
       {open != null && (
         <Tip

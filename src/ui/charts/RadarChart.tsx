@@ -1,6 +1,6 @@
-import { useState, type MouseEvent } from 'react'
+import type { MouseEvent } from 'react'
 import type { RadarAxis } from '../../domain/carProfile'
-import { AXIS, GRID, Tip, useWidth } from './common'
+import { AXIS, GRID, Tip, useTipState, useWidth } from './common'
 
 export interface RadarSeries {
   name: string
@@ -14,7 +14,7 @@ export interface RadarSeries {
  */
 export function RadarChart({ series, label, size = 320 }: { series: RadarSeries[]; label: string; size?: number }) {
   const [ref, width] = useWidth<HTMLDivElement>()
-  const [open, setOpen] = useState<{ s: number; a: number } | null>(null)
+  const [open, setOpen] = useTipState<{ s: number; a: number }>(ref)
   const axes = series[0]?.axes ?? []
   if (!axes.length) return null
   const w = width
@@ -80,6 +80,7 @@ export function RadarChart({ series, label, size = 320 }: { series: RadarSeries[
         {/* große Trefferfläche: nächste Achse zum Finger, bei zwei Autos der nähere Punkt */}
         <div
           aria-hidden="true"
+          data-tip-target
           style={{ position: 'absolute', inset: 0, cursor: 'pointer', touchAction: 'pan-y' }}
           onPointerMove={(e) => e.pointerType === 'mouse' && setOpen(pick(e))}
           onPointerLeave={(e) => e.pointerType === 'mouse' && setOpen(null)}

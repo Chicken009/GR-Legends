@@ -1,5 +1,4 @@
-import { useState } from 'react'
-import { Tip, useWidth } from './common'
+import { Tip, useTipState, useWidth } from './common'
 
 export interface MiniItem {
   label: string
@@ -11,7 +10,7 @@ export interface MiniItem {
 /** Kleine Balken ohne Achsen, Balken antippen zeigt den Wert */
 export function MiniBars({ items, color, height = 56, label }: { items: MiniItem[]; color: string; height?: number; label: string }) {
   const [ref, width] = useWidth<HTMLDivElement>(260)
-  const [open, setOpen] = useState<number | null>(null)
+  const [open, setOpen] = useTipState<number>(ref)
   if (!items.length) return null
   const max = Math.max(1, ...items.map((i) => i.value))
   const gap = 4
@@ -33,10 +32,11 @@ export function MiniBars({ items, color, height = 56, label }: { items: MiniItem
                 width={bw + gap}
                 height={height}
                 fill="transparent"
+                data-tip-target
                 style={{ cursor: 'pointer' }}
                 onClick={() => setOpen(open === i ? null : i)}
-                onMouseEnter={() => setOpen(i)}
-                onMouseLeave={() => setOpen(null)}
+                onPointerEnter={(e) => e.pointerType === 'mouse' && setOpen(i)}
+                onPointerLeave={(e) => e.pointerType === 'mouse' && setOpen(null)}
               />
             </g>
           )
@@ -50,7 +50,7 @@ export function MiniBars({ items, color, height = 56, label }: { items: MiniItem
 /** Kleine Linie ohne Achsen; `invert`: kleiner ist besser (z. B. Rundenzeiten) und steht oben */
 export function MiniLine({ items, color, height = 64, invert = false, label }: { items: MiniItem[]; color: string; height?: number; invert?: boolean; label: string }) {
   const [ref, width] = useWidth<HTMLDivElement>(260)
-  const [open, setOpen] = useState<number | null>(null)
+  const [open, setOpen] = useTipState<number>(ref)
   if (items.length < 2) return null
   const vals = items.map((i) => i.value)
   const lo = Math.min(...vals)
@@ -77,8 +77,8 @@ export function MiniLine({ items, color, height = 64, invert = false, label }: {
           aria-label={`${it.label}: ${it.text}`}
           style={{ left: x(i) - hitW / 2, top: 0, width: hitW, height, borderRadius: 6 }}
           onClick={() => setOpen(open === i ? null : i)}
-          onMouseEnter={() => setOpen(i)}
-          onMouseLeave={() => setOpen(null)}
+          onPointerEnter={(e) => e.pointerType === 'mouse' && setOpen(i)}
+          onPointerLeave={(e) => e.pointerType === 'mouse' && setOpen(null)}
         />
       ))}
       {open != null && items[open] && <Tip x={x(open)} y={y(items[open].value)} width={width} above={y(items[open].value) > height / 2} tip={{ title: items[open].label, text: items[open].text }} />}

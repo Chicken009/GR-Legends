@@ -1,6 +1,5 @@
-import { useState } from 'react'
 import { formatTime } from '../format'
-import { AXIS, GRID, Tip, useWidth } from './common'
+import { AXIS, GRID, Tip, useTipState, useWidth } from './common'
 
 /** Kürzt in der Mitte, damit Endungen wie „… 2“ unterscheidbar bleiben */
 const shorten = (s: string, max: number) => (s.length <= max ? s : `${s.slice(0, Math.max(3, max - 5)).trimEnd()}…${s.slice(-4).trimStart()}`)
@@ -20,7 +19,7 @@ export interface BoxRow {
  */
 export function BoxPlot({ rows, color, highlightColor = '#3BBC4A', onPick, label }: { rows: BoxRow[]; color: string; highlightColor?: string; onPick?: (key: string) => void; label: string }) {
   const [ref, width] = useWidth<HTMLDivElement>()
-  const [open, setOpen] = useState<number | null>(null)
+  const [open, setOpen] = useTipState<number>(ref)
   if (!rows.length) return null
   const left = Math.max(108, Math.min(170, width * 0.36))
   const maxChars = Math.floor((left - 12) / 6.2)
@@ -49,7 +48,7 @@ export function BoxPlot({ rows, color, highlightColor = '#3BBC4A', onPick, label
           const y = top + i * rowH + rowH / 2
           const c = r.highlight ? highlightColor : color
           return (
-            <g key={r.key} style={{ cursor: 'pointer' }} onClick={() => (onPick ? onPick(r.key) : setOpen(open === i ? null : i))} onMouseEnter={() => setOpen(i)} onMouseLeave={() => setOpen(null)}>
+            <g key={r.key} data-tip-target style={{ cursor: 'pointer' }} onClick={() => (onPick ? onPick(r.key) : setOpen(open === i ? null : i))} onPointerEnter={(e) => e.pointerType === 'mouse' && setOpen(i)} onPointerLeave={(e) => e.pointerType === 'mouse' && setOpen(null)}>
               <rect x={0} y={y - rowH / 2} width={width} height={rowH} fill="transparent" />
               <text x={left - 8} y={y + 4} textAnchor="end" fill={r.highlight ? highlightColor : '#C5CCD3'} fontSize="11" fontWeight="600">
                 {shorten(r.label, maxChars)}
