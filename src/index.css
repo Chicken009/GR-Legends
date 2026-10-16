@@ -1537,6 +1537,12 @@ select.select:focus {
   border-color: var(--accent);
 }
 
+/* Lauf mit dem gewählten Fahrer */
+.heat.mine {
+  background: linear-gradient(90deg, rgba(59, 188, 74, 0.22) 0%, rgba(59, 188, 74, 0.06) 60%, var(--inner-2) 100%);
+  box-shadow: inset 3px 0 0 var(--me), var(--sh2);
+}
+
 .heat .heat-head {
   display: flex;
   align-items: center;
