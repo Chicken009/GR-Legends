@@ -29,6 +29,15 @@ export interface CarFit {
   weight: Map<string, number>
 }
 
+/** Gewichtung nach Konsistenz: wie stark eigene Streuung zählt und wie stark geglättet wird */
+export interface Consistency {
+  /** Glättung in Läufen: So viele „durchschnittliche“ Läufe werden jedem Fahrer dazugerechnet */
+  prior: number
+  min: number
+  max: number
+  rounds: number
+}
+
 const daysBetween = (a: string, b: string) => (Date.parse(b) - Date.parse(a)) / 86_400_000
 
 /**
@@ -38,13 +47,12 @@ const daysBetween = (a: string, b: string) => (Date.parse(b) - Date.parse(a)) / 
  *    Der Trend wird stark zum Grundwert gezogen (`trendPrior`): Ein einzelner Ausreißer bewegt
  *    kaum etwas, erst eine über mehrere Rennen gleichbleibende Entwicklung setzt sich durch.
  */
-export function fitCars(obs: CarObs[], asOf: string, halfLifeDays: number, prior: number, trendPrior: number, iterations = 40): CarFit {
-  const rows = obs.filter((o) => o.date <= asOf)
+export function fitCars(obs: CarObs[], asOf: string, halfLifeDays: number, prior: number, trendPrior: number, consistency?: Consistency, iterations = 40): CarFit {
+  const raw = obs.filter((o) => o.date <= asOf)
+  let rows = raw
   const S = new Map<string, number>()
   const D = new Map<string, number>()
   const C = new Map<string, number>()
-  const weight = new Map<string, number>()
-  for (const o of rows) weight.set(o.car, (weight.get(o.car) ?? 0) + o.w)
   const step = (key: (o: CarObs) => string, M: Map<string, number>, rest: (o: CarObs) => number, shrink: number) => {
     const acc = new Map<string, [number, number]>()
     for (const o of rows) {
@@ -55,17 +63,46 @@ export function fitCars(obs: CarObs[], asOf: string, halfLifeDays: number, prior
     }
     for (const [k, [sum, w]] of acc) M.set(k, sum / (w + shrink))
   }
-  for (let i = 0; i < iterations; i++) {
-    step((o) => o.session, S, (o) => (D.get(o.driver) ?? 0) + (C.get(o.car) ?? 0), 0)
-    step((o) => o.driver, D, (o) => (S.get(o.session) ?? 0) + (C.get(o.car) ?? 0), 0)
-    step((o) => o.car, C, (o) => (S.get(o.session) ?? 0) + (D.get(o.driver) ?? 0), prior)
+  const fit = () => {
+    for (let i = 0; i < iterations; i++) {
+      step((o) => o.session, S, (o) => (D.get(o.driver) ?? 0) + (C.get(o.car) ?? 0), 0)
+      step((o) => o.driver, D, (o) => (S.get(o.session) ?? 0) + (C.get(o.car) ?? 0), 0)
+      step((o) => o.car, C, (o) => (S.get(o.session) ?? 0) + (D.get(o.driver) ?? 0), prior)
+    }
   }
+  const resid = (o: CarObs) => o.y - (S.get(o.session) ?? 0) - (D.get(o.driver) ?? 0) - (C.get(o.car) ?? 0)
+  fit()
+  if (consistency) {
+    // Konsistente Fahrer zählen mehr: Gewicht = 1 / eigene Rest-Streuung (geglättet bei wenigen Läufen)
+    for (let round = 0; round < consistency.rounds; round++) {
+      const acc = new Map<string, [number, number]>()
+      let pool = 0
+      let poolN = 0
+      for (const o of raw) {
+        const r2 = resid(o) ** 2
+        const a = acc.get(o.driver) ?? [0, 0]
+        acc.set(o.driver, [a[0] + r2, a[1] + 1])
+        pool += r2
+        poolN++
+      }
+      const pooled = poolN ? pool / poolN : 0
+      if (!pooled) break
+      const factor = new Map([...acc].map(([d, [sum, n]]) => {
+        const v = (sum + consistency.prior * pooled) / (n + consistency.prior)
+        return [d, Math.max(consistency.min, Math.min(consistency.max, pooled / v))] as const
+      }))
+      rows = raw.map((o) => ({ ...o, w: o.w * (factor.get(o.driver) ?? 1) }))
+      fit()
+    }
+  }
+  const weight = new Map<string, number>()
+  for (const o of rows) weight.set(o.car, (weight.get(o.car) ?? 0) + o.w)
   // Trend: Restabweichung der neueren Läufe, zeitlich gewichtet und stark geglättet
   const trend = new Map<string, [number, number]>()
   for (const o of rows) {
     const w = o.w * 0.5 ** (Math.max(0, daysBetween(o.date, asOf)) / halfLifeDays)
     const a = trend.get(o.car) ?? [0, 0]
-    a[0] += w * (o.y - (S.get(o.session) ?? 0) - (D.get(o.driver) ?? 0) - (C.get(o.car) ?? 0))
+    a[0] += w * resid(o)
     a[1] += w
     trend.set(o.car, a)
   }
@@ -159,15 +196,14 @@ export interface EstimateOptions {
   halfLifeDays: number
   prior: { pace: number; crash: number }
   trendPrior: { pace: number; crash: number }
-  /** Gewicht je Fahrer: Gute Fahrer holen eher heraus, was im Auto steckt */
-  skill: (driver: string) => number
+  /** Konsistente Fahrer zählen mehr (ihre Abweichungen sind eher echte Autounterschiede) */
+  consistency: Consistency
 }
 
 export function estimateCars(pace: CarObs[], crash: CarObs[], cost: Map<string, number>, opt: EstimateOptions): CarEstimate {
-  const weigh = (obs: CarObs[]) => obs.map((o) => ({ ...o, w: o.w * opt.skill(o.driver) }))
-  const p = fitCars(weigh(pace), opt.asOf, opt.halfLifeDays, opt.prior.pace, opt.trendPrior.pace)
+  const p = fitCars(pace, opt.asOf, opt.halfLifeDays, opt.prior.pace, opt.trendPrior.pace, opt.consistency)
   // Abflüge streuen stark und hängen kaum am Auto – deshalb deutlich stärker zum Schnitt gezogen
-  const c = fitCars(weigh(crash), opt.asOf, opt.halfLifeDays, opt.prior.crash, opt.trendPrior.crash)
+  const c = fitCars(crash, opt.asOf, opt.halfLifeDays, opt.prior.crash, opt.trendPrior.crash, opt.consistency)
   const total = new Map<string, number>()
   for (const key of new Set([...p.effect.keys(), ...c.effect.keys()])) {
     const k = cost.get(key.split('\u0000')[0]) ?? 0

@@ -6,7 +6,7 @@ import type { Result, Session } from '../types'
 import { estimateCars, fitCars, type CarObs } from './carModel'
 import { classifyIncidents, hasTankFunction } from './laps'
 import { PLACEMENT_RUNS, positionTrace } from './model'
-import { computeRatings, RATING, skillWeight, winChances } from './rating'
+import { computeRatings, RATING, winChances } from './rating'
 import { buildSession } from './sessions'
 
 function fixtureSessions(): Session[] {
@@ -275,24 +275,25 @@ describe('Autowertung über die Zeit', () => {
   })
 })
 
-describe('Autowertung gewichtet gute Fahrer', () => {
-  it('folgt eher dem, was gute Fahrer mit den Autos fahren', () => {
-    // Profi und Neuling fahren je beide Autos gegen einen Dritten im selben Lauf.
-    // Der Profi ist mit A schneller, der Neuling mit B – gleich viele Läufe.
+describe('Autowertung gewichtet konsistente Fahrer', () => {
+  it('folgt eher dem, was konsistente Fahrer mit den Autos fahren', () => {
+    // Beide fahren abwechselnd A und B gegen einen Dritten. Der Konstante ist mit A immer genau
+    // 2 % schneller, der Wechselhafte schwankt stark und ist im Schnitt mit B 2 % schneller.
     const obs: CarObs[] = []
-    for (let i = 0; i < 8; i++) {
+    const noise = [0.09, 0.08, -0.07, -0.1, 0.06, 0.1, -0.08, -0.08, 0.07, 0.09, -0.07, -0.09]
+    for (let i = 0; i < 12; i++) {
       const date = `2026-01-${String(i + 1).padStart(2, '0')}`
       const car = i % 2 ? 'A' : 'B'
-      obs.push({ session: `p${i}`, date, driver: 'Profi', car: `X\u0000${car}`, y: car === 'A' ? -0.02 : 0, w: 1 })
-      obs.push({ session: `p${i}`, date, driver: 'Ref', car: 'X\u0000C', y: 0, w: 1 })
-      obs.push({ session: `n${i}`, date, driver: 'Neuling', car: `X\u0000${car}`, y: car === 'B' ? -0.02 : 0, w: 1 })
-      obs.push({ session: `n${i}`, date, driver: 'Ref', car: 'X\u0000C', y: 0, w: 1 })
+      obs.push({ session: `k${i}`, date, driver: 'Konstant', car: `X\u0000${car}`, y: car === 'A' ? -0.02 : 0, w: 1 })
+      obs.push({ session: `k${i}`, date, driver: 'Ref', car: 'X\u0000C', y: 0, w: 1 })
+      obs.push({ session: `w${i}`, date, driver: 'Wechselhaft', car: `X\u0000${car}`, y: (car === 'B' ? -0.02 : 0) + noise[i], w: 1 })
+      obs.push({ session: `w${i}`, date, driver: 'Ref', car: 'X\u0000C', y: 0, w: 1 })
     }
-    const elo: Record<string, number> = { Profi: 600, Neuling: 450, Ref: 520 }
-    const est = estimateCars(obs, [], new Map(), {
-      asOf: '2026-02-01', halfLifeDays: RATING.carHalfLifeDays, prior: RATING.carPrior, trendPrior: RATING.carTrendPrior,
-      skill: (d) => skillWeight(elo[d]),
-    })
+    const opt = { asOf: '2026-02-01', halfLifeDays: RATING.carHalfLifeDays, prior: RATING.carPrior, trendPrior: RATING.carTrendPrior }
+    const est = estimateCars(obs, [], new Map(), { ...opt, consistency: RATING.carConsistency })
     expect(est.total.get('X\u0000A')!).toBeLessThan(est.total.get('X\u0000B')!)
+    // ohne Gewichtung nach Konsistenz zieht der Wechselhafte das Ergebnis Richtung B
+    const flat = estimateCars(obs, [], new Map(), { ...opt, consistency: { ...RATING.carConsistency, rounds: 0 } })
+    expect(flat.total.get('X\u0000A')! - flat.total.get('X\u0000B')!).toBeGreaterThan(est.total.get('X\u0000A')! - est.total.get('X\u0000B')!)
   })
 })
