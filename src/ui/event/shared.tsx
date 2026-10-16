@@ -231,8 +231,9 @@ export function HeatCard({ heat, state, me, children }: { heat: Heat; state: Eve
   }
   const inModel = heat.session && model.sessions.some((s) => s.fileId === heat.session!.fileId)
   const results = heat.session ? new Map(heat.session.results.map((r) => [r.driver, r])) : null
+  const mine = !!me && (heat.status === 'done' ? heat.order.includes(me) : heat.entrants.some((e) => e.name === me))
   return (
-    <div className={`heat${heat.status === 'next' ? ' next' : ''}`}>
+    <div className={`heat${heat.status === 'next' ? ' next' : ''}${mine ? ' mine' : ''}`}>
       <div className="heat-head">
         <b>{heat.label}</b>
         <span className={`status-chip ${heat.status}`}>{STATUS_TEXT[heat.status]}</span>
