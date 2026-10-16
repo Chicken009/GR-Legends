@@ -1,5 +1,4 @@
-import { useState } from 'react'
-import { AXIS, GRID, linePath, niceTicks, scale, Tip, useWidth, type TipContent } from './common'
+import { AXIS, GRID, linePath, niceTicks, scale, Tip, type TipContent, useTipState, useWidth } from './common'
 
 export interface TrendSeries {
   name: string
@@ -31,7 +30,7 @@ export function TimeTrendChart({
   height?: number
 }) {
   const [ref, width] = useWidth<HTMLDivElement>()
-  const [open, setOpen] = useState<number | null>(null)
+  const [open, setOpen] = useTipState<number>(ref)
   const n = Math.max(0, ...series.map((s) => s.values.length))
   const vals = [...series.flatMap((s) => s.values), ...(band ? [...band.lo, ...band.hi] : [])].filter((v): v is number => v != null)
   if (n < 2 || vals.length === 0) return <p className="muted" style={{ margin: 0, fontSize: 13 }}>Noch zu wenige Rennen.</p>
@@ -120,8 +119,8 @@ export function TimeTrendChart({
           style={{ left: sx(i), top: (top + bottom) / 2, width: hitW, height: bottom - top, marginLeft: -hitW / 2, marginTop: -(bottom - top) / 2, borderRadius: 6 }}
           aria-label={typeof tips[i]?.text === 'string' ? (tips[i].text as string) : `Rennen ${i + 1}`}
           onClick={() => setOpen(open === i ? null : i)}
-          onMouseEnter={() => setOpen(i)}
-          onMouseLeave={() => setOpen(null)}
+          onPointerEnter={(e) => e.pointerType === 'mouse' && setOpen(i)}
+          onPointerLeave={(e) => e.pointerType === 'mouse' && setOpen(null)}
         />
       ))}
       {open != null && tips[open] && <Tip x={sx(open)} y={top + 20} width={width} above={false} tip={tips[open]} />}

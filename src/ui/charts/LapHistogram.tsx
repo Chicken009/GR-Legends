@@ -1,6 +1,5 @@
-import { useState } from 'react'
 import { formatTime } from '../format'
-import { AXIS, GRID, niceTicks, scale, Tip, useWidth } from './common'
+import { AXIS, GRID, niceTicks, scale, Tip, useTipState, useWidth } from './common'
 
 interface Bin {
   from: number
@@ -15,7 +14,7 @@ interface Bin {
  */
 export function LapHistogram({ laps, mine, color, meColor, best }: { laps: number[]; mine: number[]; color: string; meColor: string; best: number | null }) {
   const [ref, width] = useWidth<HTMLDivElement>()
-  const [open, setOpen] = useState<number | null>(null)
+  const [open, setOpen] = useTipState<number>(ref)
   if (laps.length < 10) return <p className="muted" style={{ margin: 0, fontSize: 13 }}>Noch zu wenige Runden für ein Diagramm.</p>
   const sorted = [...laps].sort((a, b) => a - b)
   const q = (p: number) => sorted[Math.min(sorted.length - 1, Math.floor(p * (sorted.length - 1)))]
@@ -80,8 +79,8 @@ export function LapHistogram({ laps, mine, color, meColor, best }: { laps: numbe
           aria-label={`${s1(b.from)} bis ${s1(b.to)} s: ${b.all} Runden${b.mine ? `, davon ${b.mine} von dir` : ''}`}
           style={{ left: sx(b.from) + barW / 2 + 1, top: (top + bottom) / 2, width: Math.max(14, barW + 2), height: bottom - top, marginLeft: -Math.max(7, barW / 2 + 1), marginTop: -(bottom - top) / 2, borderRadius: 6 }}
           onClick={() => setOpen(open === i ? null : i)}
-          onMouseEnter={() => setOpen(i)}
-          onMouseLeave={() => setOpen(null)}
+          onPointerEnter={(e) => e.pointerType === 'mouse' && setOpen(i)}
+          onPointerLeave={(e) => e.pointerType === 'mouse' && setOpen(null)}
         />
       ))}
       {open != null && (

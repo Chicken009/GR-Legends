@@ -1,7 +1,6 @@
-import { useState } from 'react'
 import type { Session } from '../../types'
 import { formatTime } from '../format'
-import { Tip, useWidth } from './common'
+import { Tip, useTipState, useWidth } from './common'
 
 const BASE = '#1E3A2B'
 const HOT = '#C8F0CF'
@@ -22,7 +21,7 @@ export const LAP_HEAT_RAMP = [0, 0.25, 0.5, 0.75, 1].map((t) => mix(BASE, HOT, t
  */
 export function LapHeatmap({ session, me }: { session: Session; me: string | null }) {
   const [ref, width] = useWidth<HTMLDivElement>()
-  const [open, setOpen] = useState<{ r: number; l: number } | null>(null)
+  const [open, setOpen] = useTipState<{ r: number; l: number }>(ref)
   const rows = session.results
   const maxLaps = Math.max(0, ...rows.map((r) => r.lapTimes.length))
   if (!maxLaps) return null
@@ -74,13 +73,14 @@ export function LapHeatmap({ session, me }: { session: Session; me: string | nul
                       width={cell - 3}
                       height={rowH}
                       rx="5"
+                      data-tip-target
                       fill={fill}
                       stroke={active ? '#F2F4F5' : 'none'}
                       strokeWidth="1.5"
                       style={{ cursor: 'pointer' }}
                       onClick={() => setOpen(active ? null : { r: i, l: k })}
-                      onMouseEnter={() => setOpen({ r: i, l: k })}
-                      onMouseLeave={() => setOpen(null)}
+                      onPointerEnter={(e) => e.pointerType === 'mouse' && setOpen({ r: i, l: k })}
+                      onPointerLeave={(e) => e.pointerType === 'mouse' && setOpen(null)}
                     />
                   )
                 })}

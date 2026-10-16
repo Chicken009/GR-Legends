@@ -1,5 +1,4 @@
-import { useState } from 'react'
-import { AXIS, GRID, linePath, niceTicks, scale, Tip, useWidth, type TipContent } from './common'
+import { AXIS, GRID, linePath, niceTicks, scale, Tip, type TipContent, useTipState, useWidth } from './common'
 
 export interface LinePoint {
   y: number
@@ -35,7 +34,7 @@ export function LineChart({
   initialTip?: number | null
 }) {
   const [ref, width] = useWidth<HTMLDivElement>()
-  const [open, setOpen] = useState<number | null>(initialTip)
+  const [open, setOpen] = useTipState<number>(ref, initialTip)
   if (points.length === 0) return null
   const ys = points.map((p) => p.y)
   let min = Math.min(...ys)
@@ -86,7 +85,7 @@ export function LineChart({
             aria-label={`${typeof p.tip.title === 'string' ? p.tip.title : ''} ${typeof p.tip.text === 'string' ? p.tip.text : ''}`}
             aria-expanded={open === i}
             onClick={() => setOpen(open === i ? null : i)}
-            onMouseEnter={() => setOpen(i)}
+            onPointerEnter={(e) => e.pointerType === 'mouse' && setOpen(i)}
           />
         ) : null,
       )}

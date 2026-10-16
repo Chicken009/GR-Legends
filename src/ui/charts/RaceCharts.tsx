@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { positionTrace, raceEvents, type RaceEvent } from '../../domain/model'
 import type { Result, Session } from '../../types'
 import { formatTime, fmtSeconds, shortName } from '../format'
-import { AXIS, GRID, linePath, niceTicks, scale, Tip, useWidth } from './common'
+import { AXIS, GRID, linePath, niceTicks, scale, Tip, useTipState, useWidth } from './common'
 
 const key = (r: Result) => r.driver + '#' + r.position
 
@@ -34,7 +34,7 @@ export function PositionChart({ session, colors, me }: { session: Session; color
     }
     return out
   })()
-  const [open, setOpen] = useState<number | null>(null)
+  const [open, setOpen] = useTipState<number>(ref)
   const order = [...session.results].sort((a, b) => Number(a.driver === me) - Number(b.driver === me))
   return (
     <div ref={ref} className="chart" style={{ height }}>
@@ -90,7 +90,7 @@ export function PositionChart({ session, colors, me }: { session: Session; color
         </text>
       </svg>
       {marks.map((m, i) => (
-        <button key={i} className="hit" style={{ left: m.x, top: m.y }} aria-label={`Runde ${m.ev.lap}: ${m.ev.text}`} onClick={() => setOpen(open === i ? null : i)} onMouseEnter={() => setOpen(i)} />
+        <button key={i} className="hit" style={{ left: m.x, top: m.y }} aria-label={`Runde ${m.ev.lap}: ${m.ev.text}`} onClick={() => setOpen(open === i ? null : i)} onPointerEnter={(e) => e.pointerType === 'mouse' && setOpen(i)} />
       ))}
       {open != null && marks[open] && (
         <Tip x={marks[open].x} y={marks[open].y} width={width} above={marks[open].y > 40} tip={{ title: `R${marks[open].ev.lap}`, text: marks[open].ev.text, color: marks[open].color }} />
@@ -104,7 +104,7 @@ const kindRank = (k: RaceEvent['kind']) => (k === 'crash' ? 0 : k === 'pit' ? 1 
 /** Rundenzeiten eines Fahrers: Verlauf rot (langsam) → grün (schnell), Bestzeit, Abflüge, Boxenstopps. */
 export function LapChart({ result, color }: { result: Result; color: string }) {
   const [ref, width] = useWidth<HTMLDivElement>()
-  const [open, setOpen] = useState<number | null>(null)
+  const [open, setOpen] = useTipState<number>(ref)
   const laps = result.lapTimes.filter((l) => l.status !== 'invalid')
   if (laps.length < 2) return <p className="muted" style={{ fontSize: 13, margin: 0 }}>Zu wenige Runden für ein Diagramm.</p>
   const height = 140
@@ -160,7 +160,7 @@ export function LapChart({ result, color }: { result: Result; color: string }) {
           style={{ left: pts[i][0], top: pts[i][1], width: Math.max(16, Math.min(32, width / laps.length)), marginLeft: -Math.max(8, Math.min(16, width / laps.length / 2)) }}
           aria-label={`Runde ${l.number}: ${formatTime(l.ms)}`}
           onClick={() => setOpen(open === i ? null : i)}
-          onMouseEnter={() => setOpen(i)}
+          onPointerEnter={(e) => e.pointerType === 'mouse' && setOpen(i)}
         />
       ))}
       {open != null && <Tip x={pts[open][0]} y={pts[open][1]} width={width} tip={tipFor(open)} above={pts[open][1] > 50} />}

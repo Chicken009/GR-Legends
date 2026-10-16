@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 
 /** Breite eines Containers (für responsive SVG-Diagramme) */
 export function useWidth<T extends HTMLElement>(fallback = 326) {
@@ -14,6 +14,26 @@ export function useWidth<T extends HTMLElement>(fallback = 326) {
     return () => ro.disconnect()
   }, [])
   return [ref, width] as const
+}
+
+/**
+ * Ausgewählter Punkt eines Diagramms (Tooltip). Tippen außerhalb des Diagramms oder auf eine
+ * leere Stelle darin schließt den Tooltip; Punkte (`.hit`, `[data-tip-target]`) und der Tooltip
+ * selbst nicht – ein anderer Punkt wählt einfach diesen aus.
+ */
+export function useTipState<T>(root: RefObject<HTMLElement | null>, initial: T | null = null) {
+  const [open, setOpen] = useState<T | null>(initial)
+  useEffect(() => {
+    if (open == null) return
+    const onDown = (e: PointerEvent) => {
+      const t = e.target as Element | null
+      if (t && root.current?.contains(t) && t.closest('[data-tip-target], .hit, .tip')) return
+      setOpen(null)
+    }
+    document.addEventListener('pointerdown', onDown, true)
+    return () => document.removeEventListener('pointerdown', onDown, true)
+  }, [open, root])
+  return [open, setOpen] as const
 }
 
 export const scale = (d0: number, d1: number, r0: number, r1: number) => (v: number) => (d1 === d0 ? (r0 + r1) / 2 : r0 + ((v - d0) / (d1 - d0)) * (r1 - r0))

@@ -1,6 +1,5 @@
-import { useState } from 'react'
 import { formatDate, shortName } from '../format'
-import { AXIS, GRID, linePath, niceTicks, Tip, useWidth } from './common'
+import { AXIS, GRID, linePath, niceTicks, Tip, useTipState, useWidth } from './common'
 
 /**
  * Punkteverlauf der Saison: Punkte nach jedem Renntag, Punkte direkt verbunden, Namen rechts.
@@ -8,7 +7,7 @@ import { AXIS, GRID, linePath, niceTicks, Tip, useWidth } from './common'
  */
 export function PointsChart({ dates, series, label }: { dates: string[]; series: { name: string; color: string; values: (number | null)[] }[]; label: string }) {
   const [ref, width] = useWidth<HTMLDivElement>()
-  const [open, setOpen] = useState<{ s: number; i: number } | null>(null)
+  const [open, setOpen] = useTipState<{ s: number; i: number }>(ref)
   if (dates.length < 2 || !series.length) return null
   const h = 210
   const left = 28
@@ -77,8 +76,8 @@ export function PointsChart({ dates, series, label }: { dates: string[]; series:
               aria-label={`${s.name}, ${formatDate(dates[i])}: ${v} Punkte`}
               style={{ left: sx(i) - 13, top: sy(v) - 13, width: 26, height: 26, borderRadius: 13 }}
               onClick={() => setOpen(open?.s === si && open.i === i ? null : { s: si, i })}
-              onMouseEnter={() => setOpen({ s: si, i })}
-              onMouseLeave={() => setOpen(null)}
+              onPointerEnter={(e) => e.pointerType === 'mouse' && setOpen({ s: si, i })}
+              onPointerLeave={(e) => e.pointerType === 'mouse' && setOpen(null)}
             />
           ),
         ),
