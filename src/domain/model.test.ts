@@ -66,6 +66,24 @@ describe('Wertung', () => {
     expect(before.cars.get('X\u0000Schnell')!).toBeGreaterThan(before.cars.get('X\u0000Lahm')!)
   })
 
+  it('lässt alle steigen, wenn alle schneller werden (Duell gegen die Bahn)', () => {
+    const lapRace = (id: string, date: string, ms: number) => {
+      const s = race(id, date, [['Anna', 'Auto', 10], ['Ben', 'Auto', 10]])
+      return { ...s, results: s.results.map((r) => ({ ...r, lapTimes: r.lapTimes.map((l) => ({ ...l, ms: ms + (r.position - 1) * 50 })) })) }
+    }
+    // erst langsam, dann deutlich schneller – Platzierungen bleiben gleich
+    const sessions = [
+      ...Array.from({ length: 6 }, (_, i) => lapRace(`s${i}`, `2026-01-0${i + 1}`, 12_000)),
+      ...Array.from({ length: 6 }, (_, i) => lapRace(`f${i}`, `2026-02-0${i + 1}`, 10_500)),
+    ]
+    const r = computeRatings(sessions)
+    const avg = (r.drivers.get('Anna')! + r.drivers.get('Ben')!) / 2
+    const atMid = r.history.get('Anna')![5].after / 2 + r.history.get('Ben')![5].after / 2
+    expect(avg).toBeGreaterThan(atMid)
+    const withoutBench = computeRatings(sessions, { ...RATING, benchWeight: 0 })
+    expect((withoutBench.drivers.get('Anna')! + withoutBench.drivers.get('Ben')!) / 2).toBeCloseTo(RATING.start, 0)
+  })
+
   it('berechnet Siegchancen aus der Wertung', () => {
     const wc = winChances([{ name: 'a', strength: 600 }, { name: 'b', strength: 400 }])
     expect(wc.get('a')).toBeCloseTo(10 / 11, 5)

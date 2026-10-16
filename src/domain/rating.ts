@@ -1,6 +1,6 @@
 import type { Result, Session } from '../types'
 import { isGuest } from './drivers'
-import { cleanReference } from './laps'
+import { cleanReference, quantile } from './laps'
 
 export const RATING = {
   /** Startwert für Fahrer – mit der halben Skala bleiben die Werte dreistellig */
@@ -22,6 +22,14 @@ export const RATING = {
    * So zeigen sich mechanische Verbesserungen oder Verschleiß schnell im Auto-Bonus.
    */
   carHalfLifeDays: 120,
+  /**
+   * Duell gegen die Bahn: Zusätzlich zu den Duellen gegeneinander fährt jeder gegen einen festen
+   * Maßstab (Startwert) – gewonnen, wenn die eigene saubere Runde schneller ist als die typische
+   * Runde des Autos auf der Strecke. Werden alle schneller, steigen alle. Gewicht relativ zu einem Lauf.
+   */
+  benchWeight: 0.3,
+  /** Vorsprung zur typischen Runde → Duell-Ergebnis: S = 0.5 + 0.5·tanh(Vorsprung / Skala) */
+  benchScaleRel: 0.05,
   /** Qualifyings zählen halb */
   qualiWeight: 0.5,
   /** Abstand → Duell-Ergebnis: S = 0.5 + 0.5·tanh(Vorsprung / Skala) */
@@ -44,6 +52,8 @@ export interface RatingEvent {
   reason: string
   /** Größte Überraschung im Lauf: Erwartung gegen einen geschlagenen Gegner (0–1) */
   upsetExpectation: number | null
+  /** Anteil aus dem Duell gegen die Bahn (in der Änderung enthalten) */
+  bench: number
 }
 
 export interface RatingResult {
@@ -136,6 +146,17 @@ export function computeRatings(sessions: Session[], cfg = RATING): RatingResult 
     return cars.get(key)!
   }
 
+  // Typische saubere Runde je Auto und Strecke über alle Läufe (fester Maßstab für das Duell gegen die Bahn)
+  const lapPools = new Map<string, number[]>()
+  for (const s of sessions) {
+    for (const r of s.results) {
+      const nl = r.lapTimes.filter((l) => l.status === 'normal').map((l) => l.ms)
+      for (const key of [carKey(s.track, r.car), s.track]) lapPools.set(key, [...(lapPools.get(key) ?? []), ...nl])
+    }
+  }
+  const typical = new Map([...lapPools].map(([k, xs]) => [k, xs.length >= 30 ? quantile([...xs].sort((a, b) => a - b), 0.5) : null]))
+  const benchRef = (track: string, car: string) => typical.get(carKey(track, car)) ?? typical.get(track) ?? null
+
   for (const s of sortSessions(sessions)) {
     currentDate = s.date
     const players = s.results.filter((r) => !isGuest(r.driver))
@@ -168,7 +189,16 @@ export function computeRatings(sessions: Session[], cfg = RATING): RatingResult 
       const n = counts.get(a.driver) ?? 0
       const k = (n < cfg.provisionalRaces ? cfg.kProvisional : cfg.k) * w
       const before = drivers.get(a.driver) ?? cfg.start
-      const after = before + k * (dDriver.get(a.driver) ?? 0)
+      // Duell gegen die Bahn: eigene typische saubere Runde gegen die typische Runde des Autos
+      const own = a.lapTimes.filter((l) => l.status === 'normal').map((l) => l.ms).sort((x, y) => x - y)
+      const bRef = benchRef(s.track, a.car)
+      let bench = 0
+      if (bRef && own.length >= 3) {
+        const Sb = 0.5 + 0.5 * Math.tanh((bRef - quantile(own, 0.5)) / bRef / cfg.benchScaleRel)
+        const Eb = 1 / (1 + 10 ** ((cfg.start - before) / cfg.scale))
+        bench = k * cfg.benchWeight * (Sb - Eb)
+      }
+      const after = before + k * (dDriver.get(a.driver) ?? 0) + bench
       drivers.set(a.driver, after)
       counts.set(a.driver, n + 1)
 
@@ -191,9 +221,10 @@ export function computeRatings(sessions: Session[], cfg = RATING): RatingResult 
         reason = `Platz ${a.position} von ${field}, ${gapText(a, key.opp)} hinter ${key.opp.driver}`
       }
       reason += ` · ${a.car}`
+      if (Math.round(bench) !== 0) reason += ` · Duell gegen die Bahn ${bench > 0 ? '+' : '−'}${Math.abs(Math.round(bench))}`
       const ev: RatingEvent = {
         fileId: s.fileId, date: s.date, type: s.type, driver: a.driver, car: a.car,
-        position: a.position, field, before, after, delta: after - before, reason, upsetExpectation,
+        position: a.position, field, before, after, delta: after - before, reason, upsetExpectation, bench,
       }
       events.push(ev)
       const h = history.get(a.driver) ?? []
