@@ -192,8 +192,8 @@ export interface Wrapped {
   /** Bestes Rennen: Sieg mit den meisten geschlagenen Gegnern bzw. bestes Ergebnis */
   bestRace: { session: Session; result: Result; beaten: number } | null
   /** Am häufigsten geschlagener Gegner und wer einen am häufigsten geschlagen hat */
-  victim: { name: string; count: number } | null
-  nemesis: { name: string; count: number } | null
+  victim: { name: string; count: number; wins: number; losses: number } | null
+  nemesis: { name: string; count: number; wins: number; losses: number } | null
   bestLap: { ms: number; car: string; date: string } | null
   /** Verbesserung der persönlichen Bestzeit im Jahr (ms), null = keine */
   pbGain: number | null
@@ -203,6 +203,12 @@ export interface Wrapped {
   crashRate: number | null
   medals: Medal[]
   challenges: Challenge[]
+  /** Je Renntag des Fahrers: Rennen, Siege, beste Runde, Abflüge (für kleine Diagramme) */
+  perDay: { date: string; races: number; wins: number; bestLapMs: number | null; crashes: number }[]
+  /** Elo nach jedem Lauf im Jahr */
+  elo: { date: string; value: number; label: string }[]
+  /** Gefahrene Autos im Jahr (Rennen) */
+  cars: { name: string; races: number }[]
 }
 
 export interface NewsItem {
@@ -968,14 +974,30 @@ export function buildModel(input: Session[]): Model {
       season: standings.find((r) => r.name === driver) ?? null, seasonSize: standings.length,
       favoriteCar: d.favoriteCar && fav ? { name: d.favoriteCar, races: fav.races } : null,
       bestRace,
-      victim: victim ? { name: victim[0], count: victim[1][0] } : null,
-      nemesis: nemesis ? { name: nemesis[0], count: nemesis[1][1] } : null,
+      victim: victim ? { name: victim[0], count: victim[1][0], wins: victim[1][0], losses: victim[1][1] } : null,
+      nemesis: nemesis ? { name: nemesis[0], count: nemesis[1][1], wins: nemesis[1][0], losses: nemesis[1][1] } : null,
       bestLap, pbGain: pbGain != null && pbGain > 0 ? pbGain : null,
       eloStart: datesBefore.length ? eloAt(driver, datesBefore[datesBefore.length - 1]) : null,
       eloEnd: yearDates.length ? eloAt(driver, yearDates[yearDates.length - 1]) : null,
       crashes: d.crashes, crashRate: d.crashRate,
       medals: (medals.get(driver) ?? []).filter((m) => !m.former && m.date.startsWith(year) && !m.title),
       challenges: challenges(driver, year),
+      perDay: yearDates
+        .map((date) => {
+          const mine = inYear(year).filter((x) => x.date === date).flatMap((x) => x.results.filter((r) => r.driver === driver).map((r) => ({ x, r })))
+          const races = mine.filter(({ x }) => !isQuali(x))
+          const laps = mine.map(({ r }) => r.validBestLapMs).filter((v): v is number => v != null)
+          return {
+            date,
+            races: races.length,
+            wins: races.filter(({ x, r }) => r.position === 1 && x.results.length > 1).length,
+            bestLapMs: laps.length ? Math.min(...laps) : null,
+            crashes: races.filter(({ x }) => !x.tank).reduce((n, { r }) => n + r.lapTimes.filter((l) => l.status === 'crash').length, 0),
+          }
+        })
+        .filter((p) => p.races > 0 || p.bestLapMs != null),
+      elo: (rating.history.get(driver) ?? []).filter((e) => e.date.startsWith(year)).map((e) => ({ date: e.date, value: e.after, label: `${e.type} · Platz ${e.position} von ${e.field}` })),
+      cars: [...d.cars].map(([name, u]) => ({ name, races: u.races })).filter((c) => c.races > 0).sort((a, b) => b.races - a.races),
     }
   }
 
