@@ -190,7 +190,7 @@ export function Compare() {
           <div className="legend">
             <span><span style={{ width: 10, height: 10, borderRadius: 3, background: colorA }} />{a}</span>
             <span><span style={{ width: 10, height: 10, borderRadius: 3, background: colorB }} />{b}</span>
-            <span>außen = besser · gestrichelt = Ø Auto · Punkte antippen</span>
+            <span>außen = besser · gestrichelt = Ø Auto · Achse antippen</span>
           </div>
         </section>
       ) : null}
