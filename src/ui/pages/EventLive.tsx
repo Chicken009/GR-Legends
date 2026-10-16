@@ -128,8 +128,8 @@ export function EventLive() {
                     </span>
                     <span style={{ fontWeight: 700 }}>{n}</span>
                     <span style={{ marginLeft: 'auto', color: 'var(--muted)' }}>{r?.validBestLapMs ? formatTime(r.validBestLapMs) : ''}</span>
-                    <span className="num" style={{ minWidth: 50, textAlign: 'right', fontWeight: 800 }}>
-                      +{fmtPts(lastDone.points.get(n) ?? 0)}
+                    <span className="num" style={{ minWidth: 50, textAlign: 'right', fontWeight: 800, color: lastDone.advancing?.includes(n) ? EVENT_ACCENT : undefined }}>
+                      {lastDone.advancing?.includes(n) ? '↑ weiter' : lastDone.points.has(n) ? `+${fmtPts(lastDone.points.get(n)!)}` : ''}
                     </span>
                   </div>
                 )
