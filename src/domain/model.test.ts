@@ -206,6 +206,12 @@ describe('Einstellungen', () => {
     expect(carScale(settings, 'Mercedes C63 AMG DTM No. 2')).toBe(24)
   })
 
+  it('überspringt Datums- und Stand-Zeilen in den Namensspalten', () => {
+    const settings = parseSettings({ fahrer: [['16.10.2026'], ['2026-10-16'], ['Stand: 16.10.2026'], ['45942'], ['Jo', 'Mika']], fahrzeuge: [['16.10.2026', '1:24']] })
+    expect(Object.values(settings.labels!)).toEqual(['Jo'])
+    expect(settings.cars).toEqual({})
+  })
+
   it('meldet Einträge im Sheet, die zu keinem Rennen passen', () => {
     const settings = parseSettings({ fahrer: [['Jo', 'Mika'], ['Joo', 'Mika']], fahrzeuge: [['Mercedes C63 AMG DTM No 6', '', 'Mercedes C63 AMG DTM']] })
     const sessions = [race('f', '2026-01-01', [['Jo', 'Mercedes C63 AMG DTM No. 6', 10], ['Ben', 'X', 9]])]
