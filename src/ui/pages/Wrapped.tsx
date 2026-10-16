@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { Medal, Wrapped as WrappedData } from '../../domain/model'
 import { CarThumb } from '../CarPhoto'
@@ -10,7 +10,7 @@ import { fmtDelta, fmtElo, fmtNum, formatDate, formatTime } from '../format'
 import { ChevronLeft, ShareIcon } from '../icons'
 import { MedalBadge } from '../Medal'
 import { useMedalPopup } from '../MedalPopup'
-import { useOneStep } from '../useOneStep'
+import { useSwipePager } from '../useSwipePager'
 
 /** Hintergründe der Karten – je Karte ein eigener Farbton, Text bleibt hell */
 const BG = [
@@ -397,16 +397,8 @@ export function Wrapped() {
 
 /** Karten einzeln durchwischen; danach geht es zur Übersicht */
 function Story({ cards, w, you, onDone, onShare }: { cards: CardDef[]; w: WrappedData; you: boolean; onDone: () => void; onShare: () => void }) {
-  const ref = useRef<HTMLDivElement>(null)
-  const [index, setIndex] = useState(0)
-  useOneStep(ref)
   const total = cards.length + 1 // + Abschlusskarte
-  const go = (i: number) => {
-    const el = ref.current
-    if (!el) return
-    const next = Math.max(0, Math.min(total - 1, i))
-    el.scrollTo({ left: next * el.clientWidth, behavior: 'smooth' })
-  }
+  const { index, go, viewportProps, trackProps } = useSwipePager(total)
   useEffect(() => {
     const prev = document.body.style.overflow
     document.body.style.overflow = 'hidden'
@@ -439,36 +431,34 @@ function Story({ cards, w, you, onDone, onShare }: { cards: CardDef[]; w: Wrappe
           Überspringen
         </button>
       </div>
-      <div
-        ref={ref}
-        onScroll={(e) => setIndex(Math.round(e.currentTarget.scrollLeft / Math.max(1, e.currentTarget.clientWidth)))}
-        style={{ flex: 1, display: 'flex', overflowX: 'auto', overflowY: 'hidden', scrollSnapType: 'x mandatory', scrollbarWidth: 'none', overscrollBehaviorX: 'contain' }}
-      >
-        {cards.map((c, i) => (
-          <div key={c.key} style={{ flex: '0 0 100%', scrollSnapAlign: 'center', scrollSnapStop: 'always', padding: '16px max(16px, env(safe-area-inset-left, 0px))', display: 'flex', flexDirection: 'column', justifyContent: 'center', overflowY: 'auto' }}>
+      <div {...viewportProps} style={{ ...viewportProps.style, flex: 1, minHeight: 0, display: 'flex' }}>
+        <div {...trackProps} style={{ ...trackProps.style, flex: '1 0 100%', minHeight: 0 }}>
+          {cards.map((c, i) => (
+            <div key={c.key} style={{ flex: '0 0 100%', minHeight: 0, padding: '16px max(16px, env(safe-area-inset-left, 0px))', display: 'flex', flexDirection: 'column', justifyContent: 'center', overflowY: 'auto' }}>
+              <div style={{ maxWidth: 520, width: '100%', margin: '0 auto' }}>
+                <CardFrame i={i} kicker={c.kicker} story>
+                  {c.body}
+                </CardFrame>
+              </div>
+            </div>
+          ))}
+          <div style={{ flex: '0 0 100%', minHeight: 0, padding: 16, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
             <div style={{ maxWidth: 520, width: '100%', margin: '0 auto' }}>
-              <CardFrame i={i} kicker={c.kicker} story>
-                {c.body}
+              <CardFrame i={cards.length} kicker="Das war dein Jahr" story>
+                <span style={{ fontSize: 28, fontWeight: 800, lineHeight: 1.15 }}>{you ? `Danke fürs Mitfahren, ${w.driver}!` : `Das war ${w.year} für ${w.driver}`}</span>
+                <Line>
+                  {w.races} Rennen · {w.wins} Siege{w.season ? ` · Platz ${w.season.rank} in der Saison` : ''}
+                </Line>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 8 }}>
+                  <button className="btn round" onClick={onShare} style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                    <ShareIcon /> Teilen
+                  </button>
+                  <button className="btn round" onClick={onDone} style={{ background: '#F2F4F5', color: '#14181D', border: 'none', fontWeight: 700 }}>
+                    Zur Übersicht
+                  </button>
+                </div>
               </CardFrame>
             </div>
-          </div>
-        ))}
-        <div style={{ flex: '0 0 100%', scrollSnapAlign: 'center', scrollSnapStop: 'always', padding: 16, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-          <div style={{ maxWidth: 520, width: '100%', margin: '0 auto' }}>
-            <CardFrame i={cards.length} kicker="Das war dein Jahr" story>
-              <span style={{ fontSize: 28, fontWeight: 800, lineHeight: 1.15 }}>{you ? `Danke fürs Mitfahren, ${w.driver}!` : `Das war ${w.year} für ${w.driver}`}</span>
-              <Line>
-                {w.races} Rennen · {w.wins} Siege{w.season ? ` · Platz ${w.season.rank} in der Saison` : ''}
-              </Line>
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 8 }}>
-                <button className="btn round" onClick={onShare} style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                  <ShareIcon /> Teilen
-                </button>
-                <button className="btn round" onClick={onDone} style={{ background: '#F2F4F5', color: '#14181D', border: 'none', fontWeight: 700 }}>
-                  Zur Übersicht
-                </button>
-              </div>
-            </CardFrame>
           </div>
         </div>
       </div>
