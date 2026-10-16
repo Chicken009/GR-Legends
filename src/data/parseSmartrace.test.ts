@@ -32,6 +32,8 @@ describe('parseGap', () => {
 describe('parseFileName', () => {
   it('liest Typ und Datum', () => {
     expect(parseFileName('Rennen_07.02.2026.csv')).toEqual({ type: 'Rennen', date: '2026-02-07' })
+    expect(parseFileName('Kopie von Rennen_27.02.2026.csv')).toEqual({ type: 'Rennen', date: '2026-02-27' })
+    expect(parseFileName('Copy of Qualifikation_27.02.2026.csv')).toEqual({ type: 'Qualifikation', date: '2026-02-27' })
     expect(parseFileName('Qualifikation_05.02.2022.csv')).toEqual({
       type: 'Qualifikation',
       date: '2022-02-05',

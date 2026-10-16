@@ -26,6 +26,25 @@ export function buildSession(file: SourceFile, text: string): Session | null {
 }
 
 /**
+ * Entfernt doppelte Läufe, z. B. Original und „Kopie von …“ im Drive-Ordner. Gleich ist ein Lauf,
+ * wenn Strecke, Datum, Typ und alle Fahrer mit ihren Rundenzeiten übereinstimmen – die Autos
+ * zählen nicht, damit eine Fassung mit nachträglich geändertem Autonamen erkannt wird. Es bleibt
+ * die zuletzt geänderte Fassung.
+ */
+export function dropDuplicates(sessions: Session[]): Session[] {
+  const fingerprint = (s: Session) =>
+    [s.track, s.date, s.type, ...s.results.map((r) => `${r.position}|${r.driver}|${r.lapTimes.map((l) => l.ms).join(',')}`)].join('\n')
+  const keep = new Map<string, Session>()
+  for (const s of sessions) {
+    const key = fingerprint(s)
+    const other = keep.get(key)
+    if (!other || s.modifiedTime > other.modifiedTime) keep.set(key, s)
+  }
+  const kept = new Set(keep.values())
+  return sessions.filter((s) => kept.has(s))
+}
+
+/**
  * Gruppiert Läufe nach Strecke + Datum. Innerhalb eines Renntags werden die Läufe nach
  * Upload-Zeit sortiert und pro Typ durchnummeriert. Neueste Renntage zuerst.
  */
