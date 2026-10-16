@@ -231,7 +231,7 @@ export function CarProfile() {
           </div>
         </div>
         <p style={{ margin: '-4px 2px 0', fontSize: 11, color: 'var(--muted)', lineHeight: 1.45 }}>
-          Fahrerbereinigt: verglichen wird, was dieselben Fahrer im selben Lauf mit anderen Autos fahren – gute Fahrer zählen mehr. Alle Rennen zählen, gleichbleibende neue Entwicklungen (z. B. nach einem Umbau) zusätzlich.
+          Fahrerbereinigt: verglichen wird, was dieselben Fahrer im selben Lauf mit anderen Autos fahren – konsistente Fahrer zählen mehr. Alle Rennen zählen, gleichbleibende neue Entwicklungen (z. B. nach einem Umbau) zusätzlich.
         </p>
 
         <section className="inner" style={{ padding: 14, gap: 10 }}>

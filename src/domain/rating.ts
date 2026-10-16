@@ -34,11 +34,11 @@ export const RATING = {
    */
   carTrendPrior: { pace: 4, crash: 30 },
   /**
-   * Gute Fahrer zählen für die Autowertung mehr – sie holen eher heraus, was im Auto steckt, und
-   * ihre Runden schwanken weniger durch eigene Fehler. Gewicht 1 bei `center`, je `span` Punkte
-   * darüber +1 (höchstens `max`), darunter entsprechend weniger (mindestens `min`).
+   * Konsistente Fahrer zählen für die Autowertung mehr: Gewicht = 1 / eigene Rest-Streuung im Modell
+   * (relativ zum Schnitt, zwischen `min` und `max`). Wer gleichmäßig fährt, bei dem sind
+   * Abweichungen eher echte Autounterschiede. Bei wenigen Läufen wird zum Schnitt geglättet (`prior`).
    */
-  carSkill: { center: 520, span: 60, min: 0.2, max: 2 },
+  carConsistency: { prior: 5, min: 0.25, max: 3, rounds: 3 },
   /**
    * Halbwertszeit (Tage) für den Trend der Autowertung: So zeigen sich mechanische Verbesserungen
    * oder Verschleiß, ohne dass alte Läufe verloren gehen.
@@ -86,12 +86,6 @@ export interface RatingResult {
   history: Map<string, RatingEvent[]>
   /** Verlauf aller Läufe, für Rangverläufe */
   events: RatingEvent[]
-}
-
-/** Gewicht eines Fahrers für die Autowertung (siehe `carSkill`) */
-export function skillWeight(elo: number, cfg = RATING): number {
-  const { center, span, min, max } = cfg.carSkill
-  return Math.max(min, Math.min(max, 1 + (elo - center) / span))
 }
 
 export const carKey = (track: string, car: string) => `${track}\u0000${car}`
@@ -163,8 +157,7 @@ export function computeRatings(sessions: Session[], cfg = RATING): RatingResult 
     cars.clear()
     const est = estimateCars(paceObs.filter(before), crashObs.filter(before), cost, {
       asOf, halfLifeDays: cfg.carHalfLifeDays, prior: cfg.carPrior, trendPrior: cfg.carTrendPrior,
-      // Stand der Fahrerwertung zu diesem Zeitpunkt
-      skill: (d) => skillWeight(drivers.get(d) ?? cfg.start, cfg),
+      consistency: cfg.carConsistency,
     })
     for (const [k, e] of est.total) cars.set(k, -e * 100 * cfg.carEloPerPct)
   }
