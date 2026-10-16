@@ -6,7 +6,7 @@ import { Avatar, PageHead, Segment, useData, useMyName } from '../components'
 import type { EventState } from '../../domain/event/engine'
 import { useMe } from '../me'
 import { useStored } from '../useStored'
-import { dateRange, EVENT_ACCENT, fmtPts, HeatCard, PhasePill, phaseOf, Podium, rulesText, StandingsList, Stories, TeamStandings, useEventState } from '../event/shared'
+import { dateRange, EVENT_ACCENT, fmtPts, HeatCard, PhasePill, phaseOf, Podium, rulesText, StandingsList, Stories, teamColor, TeamStandings, TeamTag, useEventState } from '../event/shared'
 
 type Tab = 'stand' | 'ablauf' | 'regeln'
 
@@ -70,7 +70,7 @@ export function EventView() {
           <Podium state={state} />
           {state.teamStandings[0] && (
             <span style={{ fontSize: 14, textAlign: 'center' }}>
-              Bestes Team: <b>{state.teamStandings[0].name}</b> ({state.teamStandings[0].drivers.join(', ')})
+              Bestes Team: <b style={{ color: teamColor(state.teamStandings[0].id, state.teamStandings[0].name) }}>{state.teamStandings[0].name}</b> ({state.teamStandings[0].drivers.join(', ')})
             </span>
           )}
         </section>
@@ -196,7 +196,7 @@ export function EventView() {
 
 /** Vor dem ersten Lauf: Teilnehmer (und Teams) statt einer leeren Wertung */
 function Entrants({ state, me }: { state: EventState; me: string | null }) {
-  const team = new Map(state.teams.flatMap((t) => t.drivers.map((d) => [d, t.name] as const)))
+  const team = new Map(state.teams.flatMap((t) => t.drivers.map((d) => [d, t] as const)))
   return (
     <section className="card" style={{ gap: 2 }}>
       <div className="card-head">
@@ -208,7 +208,7 @@ function Entrants({ state, me }: { state: EventState; me: string | null }) {
           <Avatar name={n} ring={n === me ? 'var(--me)' : undefined} />
           <span className="grow">
             <span className="name">{n === me ? `Du · ${n}` : n}</span>
-            {team.get(n) && <span className="sub">{team.get(n)}</span>}
+            {team.get(n) && <TeamTag id={team.get(n)!.id} name={team.get(n)!.name} />}
           </span>
         </div>
       ))}

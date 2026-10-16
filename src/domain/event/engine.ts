@@ -94,6 +94,7 @@ export interface Standing {
   wins: number
   bestLapMs: number | null
   team: string | null
+  teamId: string | null
 }
 
 export interface TeamState {
@@ -758,8 +759,8 @@ export function computeEvent(def: EventDef, ctx: EventContext): EventState {
   const lastScoring = sections.map((s, i) => (s.def.weight > 0 && s.def.format !== 'free' ? i : -1)).reduce((a, b) => Math.max(a, b), -1)
   const everyone = [...new Set([...drivers, ...heats.flatMap((h) => h.order)])]
   const rows = new Map<string, Standing>()
-  const teamName = new Map(teams.flatMap((t) => t.drivers.map((d) => [d, t.name] as const)))
-  for (const n of everyone) rows.set(n, { name: n, rank: 0, total: 0, sections: sections.map(() => 0), bonuses: [], races: 0, wins: 0, bestLapMs: null, team: teamName.get(n) ?? null })
+  const teamOf = new Map(teams.flatMap((t) => t.drivers.map((d) => [d, t] as const)))
+  for (const n of everyone) rows.set(n, { name: n, rank: 0, total: 0, sections: sections.map(() => 0), bonuses: [], races: 0, wins: 0, bestLapMs: null, team: teamOf.get(n)?.name ?? null, teamId: teamOf.get(n)?.id ?? null })
   sections.forEach((s, i) => {
     const factor = s.def.weight * (i === lastScoring ? sc.finaleFactor : 1)
     for (const r of s.ranking) {

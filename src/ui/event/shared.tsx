@@ -7,12 +7,43 @@ import { eventContext } from '../../domain/event/context'
 import { computeEvent, type EventState, type Heat, type Standing } from '../../domain/event/engine'
 import { eventPhase, lastDay, todayIso, type EventPhase, type Story } from '../../domain/event/insights'
 import { FORMAT_LABEL, type EventDef } from '../../domain/event/types'
-import { AREA } from '../colors'
+import { AREA, SERIES } from '../colors'
 import { Avatar, driverPath, useData } from '../components'
 import { fmtNum, formatDate, formatTime } from '../format'
 import { Bolt, Crown, PoleFlag, Rocket, Sword, Trophy } from '../icons'
 
 export const EVENT_ACCENT = AREA.season
+
+// Steckt eine Farbe im Teamnamen („Team Rot“), gilt sie – sonst feste Farbe nach Teamnummer
+const NAMED_COLORS: [string[], string][] = [
+  [['rot', 'red'], '#E5484D'],
+  [['blau', 'blue'], '#3987E5'],
+  [['grün', 'gruen', 'green'], '#5FB84A'],
+  [['gelb', 'yellow', 'gold'], '#E2B93B'],
+  [['orange'], '#EE8A2B'],
+  [['lila', 'violett', 'purple'], '#8E7CF0'],
+  [['pink', 'rosa'], '#D55181'],
+  [['türkis', 'cyan'], '#2BA8A0'],
+  [['weiß', 'weiss', 'white', 'silber'], '#E3EAF0'],
+  [['schwarz', 'black', 'grau'], '#9AA3AD'],
+]
+
+/** Farbe eines Teams: aus dem Namen, sonst nach Teamnummer (Team 1, 2, …) */
+export function teamColor(teamId: string | null | undefined, name?: string | null): string {
+  const words = name ? name.toLocaleLowerCase('de-DE').split(/[^\p{L}]+/u) : []
+  const named = NAMED_COLORS.find(([list]) => list.some((w) => words.includes(w)))?.[1]
+  if (named) return named
+  const i = teamId ? Number(teamId.replace(/\D/g, '')) - 1 : 0
+  return SERIES[(Number.isFinite(i) && i >= 0 ? i : 0) % SERIES.length]
+}
+
+export function TeamTag({ id, name, size }: { id: string | null | undefined; name: string; size?: number | string }) {
+  return (
+    <span className="team-tag" style={{ color: teamColor(id, name), fontSize: size }}>
+      {name}
+    </span>
+  )
+}
 
 export function computeFor(data: AppData, def: EventDef, folderId: string | null): EventState {
   const sessions = folderId ? eventSessions(data.allSessions, folderId) : []
@@ -100,8 +131,8 @@ export function StandingsList({ state, me, compact }: { state: EventState; me: s
             <span className="grow" style={{ gap: 3 }}>
               <span className="name">{r.name === me ? `Du · ${r.name}` : r.name}</span>
               {!compact && (
-                <span className="sub">
-                  {r.team ? `${r.team} · ` : ''}
+                <span className="sub" style={{ display: 'flex', flexWrap: 'wrap', gap: '0 6px', alignItems: 'center' }}>
+                  {r.team && <TeamTag id={r.teamId} name={r.team} />}
                   {r.races} {r.races === 1 ? 'Rennen' : 'Rennen'}
                   {r.wins ? ` · ${r.wins} ${r.wins === 1 ? 'Sieg' : 'Siege'}` : ''}
                   {r.bestLapMs ? ` · ${formatTime(r.bestLapMs)}` : ''}
@@ -157,12 +188,12 @@ export function TeamStandings({ state }: { state: EventState }) {
         <span className="hint">Schnitt der Mitglieder</span>
       </div>
       {state.teamStandings.map((t) => (
-        <div key={t.id} className="row" style={{ padding: 8 }}>
+        <div key={t.id} className="row" style={{ padding: 8, borderLeft: `4px solid ${teamColor(t.id, t.name)}` }}>
           <span className={`rank${t.rank <= 3 ? ` r${t.rank}` : ''}`} style={{ minWidth: 22, fontSize: 16 }}>
             {t.rank}
           </span>
           <span className="grow">
-            <span className="name">{t.name}</span>
+            <span className="name" style={{ color: teamColor(t.id, t.name) }}>{t.name}</span>
             <span className="sub">{t.drivers.join(', ')}</span>
           </span>
           <span className="num" style={{ fontSize: 18, fontWeight: 800 }}>
@@ -178,9 +209,10 @@ const STATUS_TEXT = { done: 'gefahren', next: 'als Nächstes', ready: 'geplant',
 
 export function HeatCard({ heat, state, me, children }: { heat: Heat; state: EventState; me: string | null; children?: ReactNode }) {
   const { model } = useData()
-  const teamName = (n: string) => {
-    const id = heat.teamOf?.[n]
-    return id ? state.teams.find((t) => t.id === id)?.name : undefined
+  const teamTag = (n: string) => {
+    const id = heat.teamOf?.[n] ?? state.teams.find((t) => t.drivers.includes(n))?.id
+    const team = id ? state.teams.find((t) => t.id === id) : undefined
+    return team ? <TeamTag id={team.id} name={team.name} /> : null
   }
   const inModel = heat.session && model.sessions.some((s) => s.fileId === heat.session!.fileId)
   const results = heat.session ? new Map(heat.session.results.map((r) => [r.driver, r])) : null
@@ -206,7 +238,7 @@ export function HeatCard({ heat, state, me, children }: { heat: Heat; state: Eve
                   {i + 1}.
                 </span>
                 <span style={{ whiteSpace: 'nowrap' }}>{n}</span>
-                {teamName(n) && <span style={{ fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap' }}>{teamName(n)}</span>}
+                {teamTag(n)}
                 <span className="car">
                   {r?.car}
                   {r?.validBestLapMs ? ` · ${formatTime(r.validBestLapMs)}` : ''}
@@ -220,14 +252,19 @@ export function HeatCard({ heat, state, me, children }: { heat: Heat; state: Eve
         : heat.entrants.map((e, i) => (
             <div key={i} className={`entrant${e.name ? '' : ' placeholder'}`} style={e.name && e.name === me ? { color: 'var(--me)', fontWeight: 600 } : undefined}>
               <span style={{ whiteSpace: 'nowrap' }}>{e.label}</span>
-              {e.name && teamName(e.name) && <span style={{ fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap' }}>{teamName(e.name)}</span>}
+              {e.name && teamTag(e.name)}
               <span className="car">{e.name ? heat.cars[e.name] ?? '' : ''}</span>
             </div>
           ))}
       {heat.status !== 'done' && heat.carHint && <span style={{ fontSize: 11, color: 'var(--muted)' }}>{heat.carHint}</span>}
       {heat.teamPoints && (
         <span style={{ fontSize: 12, color: 'var(--text-2)' }}>
-          {[...heat.teamPoints].map(([id, p]) => `${state.teams.find((t) => t.id === id)?.name ?? id} ${fmtPts(p)}`).join(' · ')}
+          {[...heat.teamPoints].map(([id, p], i) => (
+            <span key={id}>
+              {i > 0 && ' · '}
+              <span style={{ color: teamColor(id, state.teams.find((t) => t.id === id)?.name), fontWeight: 600 }}>{state.teams.find((t) => t.id === id)?.name ?? id}</span> {fmtPts(p)}
+            </span>
+          ))}
         </span>
       )}
       {children}
