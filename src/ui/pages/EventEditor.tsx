@@ -53,11 +53,11 @@ const SEEDING_LABEL: Record<Seeding, string> = { previous: 'Ergebnis des vorigen
 
 const FORMAT_HELP: Record<SectionFormat, string> = {
   quali: 'Wertung nach der schnellsten Runde. Mit „1 gleichzeitig“ fährt jeder allein.',
-  races: 'Alle fahren in ausgeglichenen Gruppen, danach neu gemischt. Die Punkte werden addiert.',
+  races: 'Alle fahren in ausgeglichenen Gruppen, danach neu gemischt. Die Punkte werden addiert; kleinere Läufe werden hochgerechnet und reihum verteilt.',
   ladder: 'Die Langsamsten fahren zuerst, die Besten steigen ins nächste Rennen auf – bis zum Finale.',
-  ko: 'Wer weiterkommt, fährt die nächste Runde, die anderen scheiden aus.',
+  ko: 'Wer weiterkommt, fährt die nächste Runde, die anderen scheiden aus. Gruppen möglichst gleich groß, in jeder scheiden gleich viele aus.',
   team: 'Teams gegeneinander. Jedes Team bekommt den Schnitt seiner Fahrer – zusammenarbeiten lohnt sich.',
-  custom: 'Läufe mit festen Fahrern selbst festlegen.',
+  custom: 'Läufe mit festen Fahrern selbst festlegen. Punkte kleinerer Läufe werden hochgerechnet.',
   free: 'Kein Plan: Jede Datei im Ordner ist ein Lauf.',
 }
 
@@ -756,7 +756,7 @@ function SectionEditor({ sec, index, count, def, plan, onChange, onMove, onRemov
           </Group>
         )}
         {(sec.format === 'ladder' || sec.format === 'ko') && (
-          <Group label={sec.format === 'ladder' ? 'Steigen auf' : 'Kommen weiter'} help="je Lauf">
+          <Group label={sec.format === 'ladder' ? 'Steigen auf' : 'Kommen weiter'} help={sec.format === 'ko' ? 'je Lauf, in größeren Gruppen einer mehr' : 'je Lauf'}>
             <Stepper label="Weiter je Lauf" value={Math.min(sec.advance ?? (sec.format === 'ladder' ? 2 : 1), per - 1)} min={1} max={Math.max(1, per - 1)} onChange={(advance) => onChange({ advance })} />
           </Group>
         )}

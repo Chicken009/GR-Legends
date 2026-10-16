@@ -314,12 +314,14 @@ export function rulesText(def: EventDef, state: EventState): string[] {
         : d.format === 'ladder'
           ? `die Langsamsten fahren zuerst, die besten ${d.advance ?? 2} steigen jeweils auf`
           : d.format === 'ko'
-            ? `die besten ${d.advance ?? 1} je Lauf kommen weiter`
+            ? `die besten ${d.advance ?? 1} je Lauf kommen weiter; in jeder Gruppe scheiden gleich viele aus, in größeren Gruppen kommt also einer mehr weiter`
             : d.format === 'team'
               ? `${s.teamPlan?.mode === 'pairs' ? (d.half && (d.rounds ?? 1) === 1 ? 'ein halber Durchgang, Gegner nach Elo ausgeglichen; ' : `jedes Team ${d.rounds && d.rounds > 1 ? `${d.rounds}× ` : ''}gegen jedes; `) : ''}jedes Team bekommt den Schnitt seiner Fahrer, alle Mitglieder die Teampunkte. Läufe mit weniger Fahrern und Pausen werden hochgerechnet`
               : d.format === 'races'
-                ? `${d.rounds ?? 1} ${d.rounds === 1 ? 'Durchgang' : 'Durchgänge'}, Punkte addiert`
-                : 'Punkte addiert'
+                ? `${d.rounds ?? 1} ${d.rounds === 1 ? 'Durchgang' : 'Durchgänge'}, Punkte addiert; Läufe mit weniger Fahrern werden hochgerechnet`
+                : d.format === 'custom'
+                  ? 'Punkte addiert; Läufe mit weniger Fahrern werden hochgerechnet'
+                  : 'Punkte addiert'
     out.push(`${d.name} (${FORMAT_LABEL[d.format]}): ${what}${d.weight === 0 ? ' – zählt nur für die Startreihenfolge' : d.weight !== 1 ? ` – zählt ×${fmtPts(d.weight)}` : ''}.`)
   }
   if (sc.finaleFactor > 1) {
