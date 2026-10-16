@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
-import type { NewsItem } from '../../domain/model'
+import { nextCareerTitle, type NewsItem } from '../../domain/model'
 import { SEASON_POINTS } from '../../domain/season'
 import { isGuest } from '../../domain/drivers'
 import { AREA, ME } from '../colors'
@@ -54,6 +54,11 @@ export function Home() {
         </span>
       </header>
 
+      {me && <XpStrip driver={me} />}
+      <SeasonCard />
+      <ChallengesCard />
+      {me && <GoalsCard driver={me} />}
+
       <div className="cols">
         {day && (
           <Link to={`/lauf/${races[races.length - 1]?.fileId ?? day.sessions[0].fileId}`} className="card">
@@ -91,8 +96,6 @@ export function Home() {
             )}
           </Link>
         )}
-
-        {!fresh && <RecordsCard lastDate={latest?.date} lastFileId={latest?.sessions.filter((s) => !isQuali(s)).slice(-1)[0]?.fileId ?? latest?.sessions[0]?.fileId} />}
 
         <section className="card" style={{ paddingBottom: 12 }}>
           <div className="card-head">
@@ -152,9 +155,6 @@ export function Home() {
         </section>
       </div>
 
-      <SeasonCard />
-      <ChallengesCard />
-
       {news.length > 0 && (
         <section style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <span className="kicker" style={{ padding: '4px 4px 0' }}>
@@ -172,6 +172,11 @@ export function Home() {
             ))}
           </div>
         </section>
+      )}
+      {!fresh && (
+        <div className="cols">
+  {!fresh && <RecordsCard lastDate={latest?.date} lastFileId={latest?.sessions.filter((s) => !isQuali(s)).slice(-1)[0]?.fileId ?? latest?.sessions[0]?.fileId} />}
+        </div>
       )}
     </div>
   )
@@ -229,6 +234,74 @@ function SeasonCard() {
 }
 
 /** Saison-Challenges, die man angefangen hat oder leicht schaffen kann (nur mit gewähltem Namen) */
+/** Schmale Fortschrittsleiste fürs Karriere-Level (nur mit gewähltem Namen) */
+function XpStrip({ driver }: { driver: string }) {
+  const { model } = useData()
+  const location = useLocation()
+  const c = model.career(driver)
+  if (!c) return null
+  const progress = (c.xp - c.levelXp) / Math.max(1, c.nextXp - c.levelXp)
+  const next = nextCareerTitle(c.level)
+  return (
+    <Link to={driverPath(driver)} state={{ bg: location }} className="card" style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: '12px 14px' }}>
+      <span
+        aria-hidden="true"
+        style={{ width: 40, height: 40, borderRadius: 12, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, fontWeight: 800, color: '#0E1013', background: 'linear-gradient(145deg, #6BE07A, #3BBC4A 60%, #2A8F37)', boxShadow: 'var(--sh2)' }}
+      >
+        {c.level}
+      </span>
+      <span style={{ display: 'flex', flexDirection: 'column', gap: 5, flex: 1, minWidth: 0 }}>
+        <span style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'baseline' }}>
+          <span style={{ fontSize: 14, fontWeight: 700 }}>
+            Level {c.level} · {c.title}
+          </span>
+          <span className="num" style={{ fontSize: 12, color: 'var(--muted)', flexShrink: 0 }}>
+            {(c.xp - c.levelXp).toLocaleString('de-DE')} / {(c.nextXp - c.levelXp).toLocaleString('de-DE')} XP
+          </span>
+        </span>
+        <span className="bar" style={{ width: '100%', height: 7 }}>
+          <span style={{ width: `${Math.round(progress * 100)}%`, borderRadius: 4, background: 'var(--me)' }} />
+        </span>
+        <span style={{ fontSize: 11, color: 'var(--muted)' }}>
+          noch {(c.nextXp - c.xp).toLocaleString('de-DE')} XP bis Level {c.level + 1}
+          {next ? ` · „${next[1]}“ ab Level ${next[0]}` : ''}
+        </span>
+      </span>
+    </Link>
+  )
+}
+
+/** Nächste Ziele des gewählten Fahrers (Platz, Medaillen, Rekorde in Reichweite) */
+function GoalsCard({ driver }: { driver: string }) {
+  const { model } = useData()
+  const location = useLocation()
+  const goals = model.goals(driver)
+  if (!goals.length) return null
+  return (
+    <section className="card" style={{ gap: 10 }}>
+      <div className="card-head">
+        <span className="kicker" style={{ color: AREA.drivers }}>
+          Deine nächsten Ziele
+        </span>
+        <Link to={driverPath(driver)} state={{ bg: location }} style={{ fontSize: 12, color: 'var(--muted)' }}>
+          Profil ›
+        </Link>
+      </div>
+      {goals.map((g) => (
+        <div key={g.label} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 13 }}>
+            <span style={{ fontWeight: 600 }}>{g.label}</span>
+            <span style={{ color: 'var(--muted)', fontSize: 12, textAlign: 'right' }}>{g.detail}</span>
+          </div>
+          <div className="bar">
+            <div style={{ width: `${Math.round(g.progress * 100)}%` }} />
+          </div>
+        </div>
+      ))}
+    </section>
+  )
+}
+
 function ChallengesCard() {
   const { model } = useData()
   const me = useMyName()
