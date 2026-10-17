@@ -23,6 +23,24 @@ export interface RawEvent {
 }
 
 /**
+ * Namen in einer Wettkampf-Definition auf die Anzeigenamen aus dem Einstellungen-Sheet bringen.
+ * So bleibt ein Wettkampf gültig, wenn dort z. B. Initialen stehen und später ein Anzeigename dazukommt.
+ */
+export function renameEventDrivers(def: EventDef, rename: (name: string) => string): EventDef {
+  const list = (xs: string[]) => [...new Set(xs.map(rename))]
+  const keys = (rec: Record<string, string>) => Object.fromEntries(Object.entries(rec).map(([k, v]) => [rename(k), v]))
+  const cars = (rule: EventDef['cars']) => ({ ...rule, fixed: keys(rule.fixed) })
+  return {
+    ...def,
+    drivers: list(def.drivers),
+    cars: cars(def.cars),
+    teams: def.teams ? { ...def.teams, teams: def.teams.teams.map((t) => ({ ...t, drivers: list(t.drivers) })) } : null,
+    sections: def.sections.map((s) => ({ ...s, ...(s.cars ? { cars: cars(s.cars) } : {}), ...(s.heats ? { heats: s.heats.map((h) => ({ ...h, drivers: h.drivers.map(rename) })) } : {}) })),
+    overrides: Object.fromEntries(Object.entries(def.overrides).map(([id, o]) => [id, { ...o, ...(o.drivers ? { drivers: o.drivers.map(rename) } : {}), ...(o.cars ? { cars: keys(o.cars) } : {}) }])),
+  }
+}
+
+/**
  * Wettkampf-Ordner auswerten. `firstDate` liefert das erste Datum der Läufe im Ordner (für
  * Ordner ohne `wettkampf.json`).
  */

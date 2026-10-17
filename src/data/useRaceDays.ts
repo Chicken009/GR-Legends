@@ -5,9 +5,9 @@ import { buildModel, type Model } from '../domain/model'
 import { buildSession, dropDuplicates, groupRaceDays } from '../domain/sessions'
 import type { RaceDay, Session } from '../types'
 import { downloadDriveFile, listDriveFiles, readSettingsSheet } from './drive'
-import { resolveEvents, type EventFolder, type RawEvent } from './events'
+import { renameEventDrivers, resolveEvents, type EventFolder, type RawEvent } from './events'
 import { eventSlug } from '../domain/event/normalize'
-import { applySettings, EMPTY_SETTINGS, parseSettings, unmatchedSettings, type Settings } from './settings'
+import { applySettings, EMPTY_SETTINGS, nameKey, parseSettings, unmatchedSettings, type Settings } from './settings'
 
 export interface AppData {
   model: Model
@@ -107,7 +107,9 @@ export function useAppData() {
     queryFn: async (): Promise<AppData> => {
       const { sessions, rawEvents, ...rest } = await loadRaw()
       const firstDate = (folder: string) => sessions.filter((s) => s.event === folder).map((s) => s.date).sort()[0] ?? null
-      const events = resolveEvents(rawEvents, firstDate)
+      // Namen im Wettkampf wie in den Läufen: Anzeigename aus dem Sheet, sonst wie geschrieben
+      const rename = (n: string) => rest.settings.aliases[nameKey(n)] ?? n
+      const events = resolveEvents(rawEvents, firstDate).map((e) => ({ ...e, def: renameEventDrivers(e.def, rename) }))
       return { ...rest, events, unmatched: unmatchedSettings(sessions, rest.settings), ...prepare(sessions, rest.settings, events) }
     },
     staleTime: 5 * 60_000,

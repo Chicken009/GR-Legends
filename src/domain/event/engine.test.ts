@@ -417,3 +417,18 @@ describe('Ansicht', () => {
     expect(sim.winChance.get('A') ?? 0).toBeGreaterThan(sim.winChance.get('F') ?? 0)
   })
 })
+
+describe('Namen im Wettkampf', () => {
+  it('Initialen im Wettkampf passen auch, wenn später ein Anzeigename dazukommt', async () => {
+    const { renameEventDrivers } = await import('../../data/events')
+    const d = def({ drivers: ['T. J.', 'S. A.'], teams: { mode: 'manual', size: 1, teams: [{ name: 'Rot', drivers: ['T. J.'] }, { name: 'Blau', drivers: ['S. A.'] }] }, cars: { scale: '1:32', mode: 'fixed', pool: [], fixed: { 'T. J.': 'Corvette' } }, sections: [newSection('races', { id: 'r', rounds: 1 })] })
+    const aliases: Record<string, string> = { 't. j.': 'Till' }
+    const renamed = renameEventDrivers(d, (n) => aliases[n.toLowerCase()] ?? n)
+    expect(renamed.drivers).toEqual(['Till', 'S. A.'])
+    expect(renamed.teams!.teams[0].drivers).toEqual(['Till'])
+    expect(renamed.cars.fixed).toEqual({ Till: 'Corvette' })
+    // Läufe tragen nach dem Sheet ebenfalls „Till“ – der Lauf wird zugeordnet
+    const s = computeEvent(renamed, ctx([run('race', ['Till', 'S. A.'])]))
+    expect(s.heats[0].status).toBe('done')
+  })
+})

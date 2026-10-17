@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useId, useRef, type CSSProperties
 import { createPortal } from 'react-dom'
 import { useLocation, useNavigate } from 'react-router-dom'
 import type { AppData } from '../data/useRaceDays'
+import { nameKey } from '../data/settings'
 import { PLACEMENT_RUNS } from '../domain/model'
 import { StrokeIcon } from './icons'
 import { initials } from './format'
@@ -18,8 +19,12 @@ export function useData(): AppData {
 /** Eigener Fahrername, falls er im Datenstand vorkommt */
 export function useMyName(): string | null {
   const { me } = useMe()
-  const { model } = useData()
-  return me && model.drivers.includes(me) ? me : null
+  const { model, settings } = useData()
+  if (!me) return null
+  if (model.drivers.includes(me)) return me
+  // Früher gewählter Name (z. B. Initialen), der inzwischen einen Anzeigenamen hat
+  const alias = settings.aliases[nameKey(me)]
+  return alias && model.drivers.includes(alias) ? alias : null
 }
 
 export const enc = (name: string) => encodeURIComponent(name)
