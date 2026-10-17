@@ -554,6 +554,12 @@ function ScoringCard({ def, update }: { def: EventDef; update: (p: Partial<Event
           ? 'Fair: Ein Sieg gegen einen stärkeren Gegner (Fahrer + Auto laut Elo) bringt bis zu doppelt so viele Punkte, gegen einen schwächeren entsprechend weniger. Über den Abend gleicht sich die Erwartung für alle aus – Außenseiter haben eine echte Chance.'
           : 'Absolut: Punkte nur für die Platzierung – wer vorne ist, bekommt mehr.'}
       </span>
+      {sc.method === 'fair' && (
+        <label className="check" style={{ alignSelf: 'flex-start', height: 'auto', minHeight: 34, whiteSpace: 'normal' }}>
+          <input type="checkbox" checked={!!sc.fairWin} onChange={(e) => set({ fairWin: e.target.checked || undefined })} />
+          Siegbonus fair: auch den Siegbonus nach Stärke gewichten (Sieg gegen Stärkere bis doppelt)
+        </label>
+      )}
       <div className="form-grid">
         <Group label="Je geschlagenem Gegner">
           <Stepper label="Punkte je geschlagenem Gegner" value={sc.perBeaten} min={0} max={10} onChange={(perBeaten) => set({ perBeaten })} />
@@ -579,6 +585,9 @@ function ScoringCard({ def, update }: { def: EventDef; update: (p: Partial<Event
       <span className="label" style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-2)' }}>
         Bonuspunkte (0 = aus)
       </span>
+      {sc.method === 'fair' && (sc.fastestLap > 0 || sc.pole > 0) && (
+        <span style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.45 }}>Hinweis: Schnellste Runde und Pole gehen fast immer an die Schnellsten. Für einen möglichst ausgeglichenen Abend auf 0 stellen – „Fahrer des Tages“ belohnt dagegen gerade Außenseiter.</span>
+      )}
       <div className="form-grid">
         {bonus.map(([key, label, help]) => (
           <Group key={key} label={label} help={help}>
@@ -956,8 +965,23 @@ function HeatOverrideEditor({ heat, def, update }: { heat: Heat; def: EventDef; 
   )
 }
 
+function ChanceBar({ name, share }: { name: string; share: number }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
+      <span style={{ width: 130, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
+      <span className="bar" style={{ flex: 1, height: 8 }}>
+        <span style={{ width: `${Math.max(2, share * 100)}%`, borderRadius: 4, background: EVENT_ACCENT }} />
+      </span>
+      <span className="num" style={{ width: 44, textAlign: 'right' }}>
+        {Math.round(share * 100)} %
+      </span>
+    </div>
+  )
+}
+
 function SimResult({ sim }: { sim: Simulation }) {
   const chances = [...sim.winChance].sort((a, b) => b[1] - a[1])
+  const teamChances = [...sim.teamChance].sort((a, b) => b[1] - a[1])
   const per = [...sim.perDriver].sort((a, b) => b[1] - a[1])
   const minRaces = per.length ? per[per.length - 1][1] : 0
   const maxRaces = per.length ? per[0][1] : 0
@@ -982,20 +1006,29 @@ function SimResult({ sim }: { sim: Simulation }) {
           <span className="l">knappe Entscheidung</span>
         </div>
       </div>
-      <span style={{ fontSize: 12, color: 'var(--muted)' }}>Siegchance laut Probelauf</span>
+      {teamChances.length > 0 && (
+        <>
+          <span style={{ fontSize: 12, color: 'var(--muted)' }}>Siegchance je Team</span>
+          {teamChances.map(([n, c]) => (
+            <ChanceBar key={n} name={n} share={c} />
+          ))}
+        </>
+      )}
+      <span style={{ fontSize: 12, color: 'var(--muted)' }}>{teamChances.length ? 'Gesamtsieg einzeln (Teampunkte zählen für alle Mitglieder)' : 'Siegchance laut Probelauf'}</span>
       {chances.map(([n, c]) => (
-        <div key={n} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
-          <span style={{ width: 130, flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n}</span>
-          <span className="bar" style={{ flex: 1, height: 8 }}>
-            <span style={{ width: `${Math.max(2, c * 100)}%`, borderRadius: 4, background: EVENT_ACCENT }} />
-          </span>
-          <span className="num" style={{ width: 44, textAlign: 'right' }}>
-            {Math.round(c * 100)} %
-          </span>
-        </div>
+        <ChanceBar key={n} name={n} share={c} />
       ))}
       {minRaces < maxRaces && <span style={{ fontSize: 12, color: 'var(--muted)' }}>Manche fahren deutlich öfter als andere ({per.map(([n, c]) => `${n.split(' ')[0]} ${c}`).join(', ')}).</span>}
-      {chances[0] && chances[0][1] > 0.6 && <span style={{ fontSize: 12, color: 'var(--muted)' }}>Recht klarer Favorit – mit „Fair“ oder Autos nach Können wird es offener.</span>}
+      {sim.reasons.length > 0 && (
+        <div className="inner" style={{ gap: 4, padding: '10px 12px' }}>
+          <b style={{ fontSize: 13 }}>Warum es einen klaren Favoriten gibt</b>
+          {sim.reasons.map((r) => (
+            <span key={r} style={{ fontSize: 12, color: 'var(--text-2)', lineHeight: 1.45 }}>
+              • {r}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

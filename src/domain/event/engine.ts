@@ -256,10 +256,17 @@ function orderPoints(env: Env, order: string[], strength: (n: string) => number)
       if (sc.method === 'fair') p += 2 * (1 - winProb(strength(name), strength(order[j]))) * sc.perBeaten
       else p += sc.perBeaten
     }
-    if (i === 0 && order.length > 1) p += sc.win
+    if (i === 0 && order.length > 1) p += winBonus(env, name, order.slice(1), strength)
     pts.set(name, Math.round(p * 10) / 10)
   })
   return pts
+}
+
+/** Siegbonus; mit „Siegbonus fair“ nach Stärke gewichtet wie die Duelle (gegen Stärkere bis doppelt) */
+function winBonus(env: Env, winner: string, others: string[], strength: (n: string) => number): number {
+  const sc = env.def.scoring
+  if (!(sc.method === 'fair' && sc.fairWin) || !others.length) return sc.win
+  return (sc.win * others.reduce((a, o) => a + 2 * (1 - winProb(strength(winner), strength(o))), 0)) / others.length
 }
 
 function carsFor(env: Env, rule: CarRule, names: string[], heatId: string): { cars: Record<string, string>; hint: string | null } {
@@ -428,7 +435,7 @@ function rankingFromExit(env: Env, exit: Exit, detail: (n: string) => string): R
       if (other === name || !below(name, other)) continue
       p += sc.method === 'fair' ? 2 * (1 - winProb(env.ctx.elo(name), env.ctx.elo(other))) * sc.perBeaten : sc.perBeaten
     }
-    if (allDecided && name === ordered[0] && ordered.length > 1) p += sc.win
+    if (allDecided && name === ordered[0] && ordered.length > 1) p += winBonus(env, name, ordered.slice(1), (n) => env.ctx.elo(n))
     return { name, rank: 0, points: Math.round(p * 10) / 10, detail: detail(name) }
   })
   // Gleicher Platz in der gleichen Runde (K.-o. mit mehreren Läufen) = gleicher Rang
@@ -889,7 +896,9 @@ function sectionTeam(env: Env, sec: SectionDef, teams: TeamState[], per: number)
   const ranking = teams
     .flatMap((t) => t.drivers.map((d) => ({ name: d, points: teamSum.get(t.id) ?? 0, detail: t.name })))
     .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name))
-    .map((r, i) => ({ ...r, rank: i + 1, points: Math.round(r.points * 10) / 10 }))
+    .map((r) => ({ ...r, points: Math.round(r.points * 10) / 10, rank: 0 }))
+  // Gleiche Teampunkte = gleicher Platz (sonst entschiede das Alphabet zwischen Teammitgliedern)
+  ranking.forEach((r, i) => (r.rank = i > 0 && ranking[i - 1].points === r.points ? ranking[i - 1].rank : i + 1))
   return { heats, ranking, teamRanking: teamRows, started: heats.some((h) => h.status === 'done'), complete: heats.every((h) => h.status === 'done'), teamPlan: plan }
 }
 

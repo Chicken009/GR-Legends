@@ -45,6 +45,8 @@ export interface Scoring {
   clean: number
   /** Der letzte Abschnitt zählt so viel (1 = kein Finalbonus) */
   finaleFactor: number
+  /** Nur bei fair: auch den Siegbonus nach Stärke gewichten */
+  fairWin?: boolean
 }
 
 export interface TeamDef {

@@ -362,7 +362,7 @@ export function rulesText(def: EventDef, state: EventState): string[] {
   const out: string[] = []
   out.push(
     sc.method === 'fair'
-      ? `Wertung „Fair“: Für jeden geschlagenen Gegner gibt es bis zu ${fmtPts(sc.perBeaten * 2)} Punkte – je stärker der Gegner laut Elo (mit Auto), desto mehr. Gegen einen Gleichstarken ${fmtPts(sc.perBeaten)}. Sieg +${fmtPts(sc.win)}.`
+      ? `Wertung „Fair“: Für jeden geschlagenen Gegner gibt es bis zu ${fmtPts(sc.perBeaten * 2)} Punkte – je stärker der Gegner laut Elo (mit Auto), desto mehr. Gegen einen Gleichstarken ${fmtPts(sc.perBeaten)}. Sieg +${fmtPts(sc.win)}${sc.fairWin ? ', ebenfalls nach Stärke gewichtet (bis doppelt)' : ''}.`
       : `Pro Rennen ${fmtPts(sc.perBeaten)} ${sc.perBeaten === 1 ? 'Punkt' : 'Punkte'} je geschlagenem Gegner, Sieg +${fmtPts(sc.win)}.`,
   )
   for (const s of state.sections) {

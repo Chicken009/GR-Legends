@@ -185,6 +185,26 @@ describe('Rennen, K.-o. und Teams', () => {
     expect(s.teamStandings[0].name).toBe('Rot')
   })
 
+  it('punktgleiche Teammitglieder teilen sich den Platz, der Probelauf teilt den Sieg', () => {
+    const d = def({ drivers: ['A', 'B', 'C', 'D'], scoring: { fastestLap: 0, pole: 0, driverOfDay: 0, personalBest: 0 }, teams: { mode: 'manual', size: 2, teams: [{ name: 'Rot', drivers: ['A', 'D'] }, { name: 'Blau', drivers: ['B', 'C'] }] }, sections: [newSection('team', { id: 't' })] } as never)
+    const s = computeEvent(d, ctx([run('race', ['A', 'B', 'C', 'D'])]))
+    const rank = (n: string) => s.standings.find((r) => r.name === n)!.rank
+    expect(rank('A')).toBe(rank('D'))
+    expect(rank('B')).toBe(rank('C'))
+    const sim = simulate(d, ctx(), 10000, 30)
+    // Teammitglieder haben (ohne Einzelboni) die gleiche Siegchance, die Teams zusammen 100 %
+    expect(sim.winChance.get('A')).toBeCloseTo(sim.winChance.get('D') ?? 0, 5)
+    expect([...sim.teamChance.values()].reduce((a, b) => a + b, 0)).toBeCloseTo(1, 5)
+  })
+
+  it('Siegbonus fair: Sieg gegen Stärkere bringt mehr Bonus', () => {
+    const base = def({ drivers: ['A', 'G'], scoring: { method: 'fair', perBeaten: 0, win: 1, fastestLap: 0, pole: 0, driverOfDay: 0, personalBest: 0, fairWin: true }, sections: [newSection('races', { id: 'r', rounds: 1 })] } as never)
+    const upset = computeEvent(base, ctx([run('race', ['G', 'A'])]))
+    const normal = computeEvent(base, ctx([run('race', ['A', 'G'])]))
+    expect(upset.standings[0].total).toBeGreaterThan(1.5)
+    expect(normal.standings[0].total).toBeLessThan(0.5)
+  })
+
   it('lässt bei Positionsduellen den Schwächsten eines kleineren Teams doppelt fahren', () => {
     const d = def({ drivers: ['A', 'B', 'C', 'D', 'E'], maxPerHeat: 4, teams: { mode: 'manual', size: 3, teams: [{ name: 'X', drivers: ['A', 'B', 'C'] }, { name: 'Y', drivers: ['D', 'E'] }] }, sections: [newSection('team', { id: 't' })] })
     const s = computeEvent(d, ctx())
