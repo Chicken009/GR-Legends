@@ -2,7 +2,7 @@ import type { Session } from '../../types'
 import { isGuest } from '../drivers'
 import { isQuali } from '../rating'
 import { hashString, shuffle } from './random'
-import type { CarRule, EventDef, SectionDef, TeamDef } from './types'
+import { heatLength, type CarRule, type EventDef, type SectionDef, type TeamDef } from './types'
 
 /**
  * Ablauf und Wertung eines Wettkampfs. Der Plan entsteht Lauf für Lauf: Jeder Lauf wird
@@ -60,6 +60,8 @@ export interface Heat {
   advancing: string[] | null
   /** Rundenzahl laut Plan */
   laps: number | null
+  /** Auf Zeit: Minuten pro Lauf (statt Runden) */
+  minutes: number | null
 }
 
 export interface RankRow {
@@ -372,7 +374,8 @@ function addHeat(
     points: new Map(),
     teamPoints: null,
     advancing: null,
-    laps: sec.laps ?? null,
+    laps: sec.minutes ? null : (sec.laps ?? null),
+    minutes: sec.minutes ?? null,
   }
   const { session, manual } = matchSession(env, heat)
   if (session) {
@@ -467,7 +470,7 @@ function sectionQuali(env: Env, sec: SectionDef, seeds: Entrant[], per: number):
   // Stärkste zum Schluss – das macht es spannend
   const order = [...seeds].reverse()
   const groups = chunkEven(order, per)
-  const heats = groups.map((g, k) => addHeat(env, sec, { id: `${sec.id}-${k + 1}`, label: groups.length > 1 ? `Quali ${k + 1}` : 'Qualifying', kind: 'quali', entrants: g, note: sec.laps ? `${sec.laps} Runden, schnellste zählt` : 'Schnellste Runde zählt' }))
+  const heats = groups.map((g, k) => addHeat(env, sec, { id: `${sec.id}-${k + 1}`, label: groups.length > 1 ? `Quali ${k + 1}` : 'Qualifying', kind: 'quali', entrants: g, note: heatLength(sec) ? `${heatLength(sec)}, schnellste Runde zählt` : 'Schnellste Runde zählt' }))
   const best = new Map<string, number>()
   for (const h of heats) {
     for (const r of h.session?.results ?? []) {

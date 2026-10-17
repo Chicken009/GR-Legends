@@ -1,6 +1,6 @@
 import { Link, useParams } from 'react-router-dom'
 import { driverInsight, planFromText, planVisible, storylines, todayIso } from '../../domain/event/insights'
-import { FORMAT_LABEL } from '../../domain/event/types'
+import { FORMAT_LABEL, heatLength } from '../../domain/event/types'
 import { teamSplit } from '../../domain/event/engine'
 import { Avatar, PageHead, Segment, useData, useMyName } from '../components'
 import type { EventState } from '../../domain/event/engine'
@@ -159,7 +159,7 @@ export function EventView() {
                 <span className="card-title">{sec.def.name}</span>
                 <span className="hint">
                   {FORMAT_LABEL[sec.def.format]}
-                  {sec.def.laps ? ` · ${sec.def.laps} Runden` : ''}
+                  {heatLength(sec.def) ? ` · ${heatLength(sec.def)}` : ''}
                 </span>
               </div>
               {sec.heats.length === 0 && <span style={{ fontSize: 13, color: 'var(--muted)' }}>Noch keine Läufe.</span>}

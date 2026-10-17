@@ -216,6 +216,17 @@ describe('Automatische Aufstiegsleiter und Autoliste', () => {
   })
 })
 
+describe('Läufe auf Zeit', () => {
+  it('Qualifying und Rennen mit Minuten statt Runden', () => {
+    const d = def({ drivers: ['A', 'B'], sections: [newSection('quali', { id: 'q', minutes: 2 }), newSection('races', { id: 'r', minutes: 5, rounds: 1 })] })
+    const s = computeEvent(d, ctx())
+    expect(s.heats[0].note).toBe('2 Minuten, schnellste Runde zählt')
+    expect(s.heats[1].minutes).toBe(5)
+    expect(s.heats[1].laps).toBeNull()
+    expect(normalizeEvent(JSON.parse(serializeEvent(d))).sections[1].minutes).toBe(5)
+  })
+})
+
 describe('Ungleich große Läufe', () => {
   const seven = ['A', 'B', 'C', 'D', 'E', 'F', 'G']
 

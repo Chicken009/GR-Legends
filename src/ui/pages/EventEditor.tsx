@@ -753,8 +753,15 @@ function SectionEditor({ sec, index, count, def, plan, onChange, onMove, onRemov
             )}
           </span>
         </Group>
-        <Group label="Runden pro Lauf">
-          <Stepper label="Runden" value={sec.laps ?? 10} min={1} max={200} onChange={(laps) => onChange({ laps })} />
+        <Group label="Dauer pro Lauf" help={sec.minutes ? 'Wer nach Ablauf der Zeit vorne liegt, gewinnt' : undefined}>
+          <span style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+            <Segment small label="Runden oder Zeit" value={sec.minutes ? 'time' : 'laps'} onChange={(v) => onChange(v === 'time' ? { minutes: sec.minutes ?? (sec.format === 'quali' ? 2 : 5) } : { minutes: undefined })} options={[['laps', 'Runden'], ['time', 'Zeit']]} />
+            {sec.minutes ? (
+              <Stepper label="Minuten" value={sec.minutes} min={1} max={60} onChange={(minutes) => onChange({ minutes })} format={(v) => `${v} Min.`} />
+            ) : (
+              <Stepper label="Runden" value={sec.laps ?? 10} min={1} max={200} onChange={(laps) => onChange({ laps })} />
+            )}
+          </span>
         </Group>
         {(sec.format === 'races' || sec.format === 'team') && (
           <Group label="Durchgänge">
