@@ -9,7 +9,7 @@ import { eventPhase, lastDay, todayIso, type EventPhase, type Story } from '../.
 import { FORMAT_LABEL, type EventDef } from '../../domain/event/types'
 import { AREA, SERIES } from '../colors'
 import { Avatar, driverPath, useData } from '../components'
-import { fmtNum, formatDate, formatTime } from '../format'
+import { fmtElo, fmtNum, formatDate, formatTime } from '../format'
 import { Bolt, Crown, PoleFlag, Rocket, Sword, Trophy } from '../icons'
 import { CarThumb } from '../CarPhoto'
 
@@ -180,6 +180,38 @@ export function StandingsList({ state, me, compact }: { state: EventState; me: s
   )
 }
 
+/** „Elo 1.250“, bei ungleich großen Teams mit Schnitt („Elo 1.250 · Ø 417“) */
+export function teamEloText(team: { elo: number; drivers: string[] }, all: { drivers: string[] }[]): string {
+  const uneven = new Set(all.map((t) => t.drivers.length)).size > 1
+  return `Elo ${fmtElo(team.elo)}${uneven && team.drivers.length ? ` · Ø ${fmtElo(team.elo / team.drivers.length)}` : ''}`
+}
+
+/** Teams vor dem ersten Lauf: Mitglieder und Gesamt-Elo */
+export function TeamList({ state }: { state: EventState }) {
+  if (!state.teams.length) return null
+  return (
+    <section className="card" style={{ gap: 4 }}>
+      <div className="card-head">
+        <span className="card-title">Teams</span>
+        <span className="hint">Gesamt-Elo zu Beginn</span>
+      </div>
+      {[...state.teams]
+        .sort((a, b) => b.elo - a.elo)
+        .map((t) => (
+          <div key={t.id} className="row" style={{ padding: 8, borderLeft: `4px solid ${teamColor(t.id, t.name)}` }}>
+            <span className="grow">
+              <span className="name" style={{ color: teamColor(t.id, t.name) }}>{t.name}</span>
+              <span className="sub">{t.drivers.join(', ')}</span>
+            </span>
+            <span className="num" style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-2)', textAlign: 'right' }}>
+              {teamEloText(t, state.teams)}
+            </span>
+          </div>
+        ))}
+    </section>
+  )
+}
+
 export function TeamStandings({ state }: { state: EventState }) {
   if (!state.teamStandings.length) return null
   return (
@@ -195,7 +227,9 @@ export function TeamStandings({ state }: { state: EventState }) {
           </span>
           <span className="grow">
             <span className="name" style={{ color: teamColor(t.id, t.name) }}>{t.name}</span>
-            <span className="sub">{t.drivers.join(', ')}</span>
+            <span className="sub">
+              {t.drivers.join(', ')} · {teamEloText(t, state.teamStandings)}
+            </span>
           </span>
           <span className="num" style={{ fontSize: 18, fontWeight: 800 }}>
             {fmtPts(t.points)}

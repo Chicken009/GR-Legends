@@ -8,7 +8,7 @@ import { useMe } from '../me'
 import { StrokeIcon, TOOL_ICONS } from '../icons'
 import { useStored } from '../useStored'
 import { CarThumb } from '../CarPhoto'
-import { CarChips, dateRange, EVENT_ACCENT, fmtPts, HeatCard, PhasePill, phaseOf, Podium, rulesText, StandingsList, Stories, teamColor, TeamStandings, TeamTag, useEventState } from '../event/shared'
+import { CarChips, dateRange, EVENT_ACCENT, fmtPts, HeatCard, PhasePill, phaseOf, Podium, rulesText, StandingsList, Stories, teamColor, TeamList, TeamStandings, TeamTag, useEventState } from '../event/shared'
 
 type Tab = 'stand' | 'ablauf' | 'regeln'
 
@@ -145,7 +145,10 @@ export function EventView() {
             <TeamStandings state={state} />
           </>
         ) : (
-          <Entrants state={state} me={me} />
+          <>
+            <TeamList state={state} />
+            <Entrants state={state} me={me} />
+          </>
         ))}
 
       {tab === 'ablauf' &&

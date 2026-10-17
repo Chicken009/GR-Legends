@@ -5,7 +5,7 @@ import { planVisible, storylines, todayIso } from '../../domain/event/insights'
 import { Avatar, useData } from '../components'
 import { formatTime } from '../format'
 import { CarThumb } from '../CarPhoto'
-import { EVENT_ACCENT, fmtPts, PhasePill, phaseOf, Podium, StoryIcon, teamColor, TeamTag, useEventState } from '../event/shared'
+import { EVENT_ACCENT, fmtPts, PhasePill, phaseOf, Podium, StoryIcon, teamColor, teamEloText, TeamTag, useEventState } from '../event/shared'
 
 const REFRESH_MS = 30_000
 const TICKER_MS = 8_000
@@ -182,7 +182,9 @@ export function EventLive() {
                     {t.rank}
                   </span>
                   <span style={{ fontWeight: 700, color: teamColor(t.id, t.name) }}>{t.name}</span>
-                  <span style={{ color: 'var(--muted)', fontSize: '0.8em' }}>{t.drivers.join(', ')}</span>
+                  <span style={{ color: 'var(--muted)', fontSize: '0.8em' }}>
+                    {t.drivers.join(', ')} · {teamEloText(t, state.teamStandings)}
+                  </span>
                   <span className="num" style={{ marginLeft: 'auto', fontSize: '1.2em', fontWeight: 800 }}>
                     {fmtPts(t.points)}
                   </span>

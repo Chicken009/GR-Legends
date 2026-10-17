@@ -116,6 +116,8 @@ export interface TeamState {
   id: string
   name: string
   drivers: string[]
+  /** Summe der Elo der Mitglieder zu Beginn des Wettkampfs */
+  elo: number
 }
 
 export interface TeamStanding {
@@ -125,6 +127,8 @@ export interface TeamStanding {
   rank: number
   /** Schnitt der Gesamtpunkte der Mitglieder */
   points: number
+  /** Summe der Elo der Mitglieder zu Beginn des Wettkampfs */
+  elo: number
 }
 
 export interface EventState {
@@ -197,14 +201,17 @@ export function buildTeams(def: EventDef, drivers: string[], elo: (n: string) =>
       warnings.push(`Ohne Team: ${missing.join(', ')} – kommen ins kleinste Team.`)
       for (const d of missing) [...teams].sort((a, b) => a.drivers.length - b.drivers.length)[0]?.drivers.push(d)
     }
-    return { teams: teams.filter((t) => t.drivers.length), warnings }
+    return { teams: withElo(teams.filter((t) => t.drivers.length), elo), warnings }
   }
   const count = Math.max(1, Math.floor(drivers.length / Math.max(1, rule.size)))
   const ordered = rule.mode === 'random' ? shuffle(drivers, `${def.seed}|teams`) : [...drivers].sort((a, b) => elo(b) - elo(a) || a.localeCompare(b))
   const groups = rule.mode === 'random' ? ordered.reduce<string[][]>((g, d, i) => (g[i % count].push(d), g), Array.from({ length: count }, () => [])) : snake(ordered, count)
   const names = rule.teams.map((t) => t.name)
-  return { teams: groups.map((g, i) => ({ id: `t${i + 1}`, name: names[i] || `Team ${i + 1}`, drivers: g })).filter((t) => t.drivers.length), warnings }
+  return { teams: withElo(groups.map((g, i) => ({ id: `t${i + 1}`, name: names[i] || `Team ${i + 1}`, drivers: g })).filter((t) => t.drivers.length), elo), warnings }
 }
+
+const withElo = (teams: Omit<TeamState, 'elo'>[], elo: (n: string) => number): TeamState[] =>
+  teams.map((t) => ({ ...t, elo: Math.round(t.drivers.reduce((a, d) => a + elo(d), 0)) }))
 
 /** Teams als feste Liste (für den Losknopf / „Festschreiben“) */
 export const teamsAsDefs = (teams: TeamState[]): TeamDef[] => teams.map((t) => ({ name: t.name, drivers: [...t.drivers] }))
@@ -987,7 +994,7 @@ export function computeEvent(def: EventDef, ctx: EventContext): EventState {
   const teamStandings: TeamStanding[] = teams
     .map((t) => {
       const pts = t.drivers.map((d) => rows.get(d)?.total ?? 0)
-      return { id: t.id, name: t.name, drivers: t.drivers, rank: 0, points: pts.length ? Math.round((pts.reduce((a, b) => a + b, 0) / pts.length) * 10) / 10 : 0 }
+      return { id: t.id, name: t.name, drivers: t.drivers, elo: t.elo, rank: 0, points: pts.length ? Math.round((pts.reduce((a, b) => a + b, 0) / pts.length) * 10) / 10 : 0 }
     })
     .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name))
   teamStandings.forEach((t, i) => (t.rank = i > 0 && teamStandings[i - 1].points === t.points ? teamStandings[i - 1].rank : i + 1))
