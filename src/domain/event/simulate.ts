@@ -27,7 +27,8 @@ function fakeSession(i: number, def: EventDef, heat: EventState['heats'][number]
     return { n, car: car ?? '', p: s - NOISE * Math.log(-Math.log(Math.max(1e-9, rnd()))) }
   })
   perf.sort((a, b) => b.p - a.p)
-  const laps = heat.laps ?? (heat.kind === 'quali' ? 4 : 10)
+  // Auf Zeit: so viele Runden, wie in die Zeit passen
+  const laps = heat.minutes ? Math.max(1, Math.floor((heat.minutes * 60_000) / lapMs)) : (heat.laps ?? (heat.kind === 'quali' ? 4 : 10))
   const results: Result[] = perf.map((x, k) => {
     const best = Math.round(lapMs * (1 - (x.p - 500) / 800 / 100))
     return {
@@ -89,8 +90,8 @@ export function simulate(def: EventDef, ctx: EventContext, lapMs: number, runs =
   const heats = first?.heats.filter((h) => h.status === 'done') ?? []
   const perDriver = new Map<string, number>()
   for (const h of heats) for (const n of h.order) perDriver.set(n, (perDriver.get(n) ?? 0) + 1)
-  // Pro Lauf: Runden × typische Rundenzeit (+10 % für Abflüge) plus 2 Minuten Wechsel
-  const ms = heats.reduce((sum, h) => sum + (h.laps ?? (h.kind === 'quali' ? 4 : 10)) * lapMs * 1.1 + 120_000, 0)
+  // Pro Lauf: Runden × typische Rundenzeit (+10 % für Abflüge) bzw. die feste Zeit, plus 2 Minuten Wechsel
+  const ms = heats.reduce((sum, h) => sum + (h.minutes ? h.minutes * 60_000 : (h.laps ?? (h.kind === 'quali' ? 4 : 10)) * lapMs * 1.1) + 120_000, 0)
   return {
     runs,
     heats: heats.length,

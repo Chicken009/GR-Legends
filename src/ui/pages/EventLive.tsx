@@ -4,6 +4,7 @@ import { Link, useParams } from 'react-router-dom'
 import { planVisible, storylines, todayIso } from '../../domain/event/insights'
 import { Avatar, useData } from '../components'
 import { formatTime } from '../format'
+import { heatLength } from '../../domain/event/types'
 import { CarThumb } from '../CarPhoto'
 import { EVENT_ACCENT, fmtPts, PhasePill, phaseOf, Podium, StoryIcon, teamColor, teamEloText, TeamTag, useEventState } from '../event/shared'
 
@@ -94,6 +95,7 @@ export function EventLive() {
             <section className="card" style={{ borderColor: EVENT_ACCENT }}>
               <span className="kicker" style={{ color: EVENT_ACCENT }}>
                 Als Nächstes · {state.next.label}
+                {heatLength(state.next) ? ` · ${heatLength(state.next)}` : ''}
               </span>
               {state.next.note && <span style={{ color: 'var(--muted)' }}>{state.next.note}</span>}
               {state.next.entrants.map((e, i) => (

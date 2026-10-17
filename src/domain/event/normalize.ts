@@ -58,6 +58,7 @@ function normalizeSection(v: Obj, i: number): SectionDef {
   if (v.maxPerHeat != null) out.maxPerHeat = num(v.maxPerHeat, 4, 1, 12)
   if (v.cars != null) out.cars = normalizeCars(v.cars)
   if (v.laps != null) out.laps = num(v.laps, 10, 1, 999)
+  if (v.minutes != null) out.minutes = num(v.minutes, 5, 1, 240)
   if (v.rounds != null) out.rounds = num(v.rounds, 1, 1, 20)
   if (v.half === true) out.half = true
   if (v.teamMode === 'teams' || v.teamMode === 'single') out.teamMode = v.teamMode

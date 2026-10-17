@@ -83,6 +83,8 @@ export interface SectionDef {
   cars?: CarRule
   /** Runden pro Lauf – zur Anzeige und für die Zeitschätzung */
   laps?: number
+  /** Stattdessen auf Zeit: Minuten pro Lauf (hat Vorrang vor `laps`) */
+  minutes?: number
   /** races / team: Durchgänge (team mit zwei Teams je Lauf: 1 Durchgang = jedes Team einmal gegen jedes) */
   rounds?: number
   /** team: auto = nach Spurzahl · teams = Team gegen Team (notfalls mit einem Teil der Fahrer) · single = ein Fahrer je Team */
@@ -142,6 +144,13 @@ export const DEFAULT_SCORING: Scoring = {
   personalBest: 1,
   clean: 0,
   finaleFactor: 1,
+}
+
+/** Länge eines Laufs als Text: „10 Runden“ oder „5 Minuten“ (leer, wenn nichts festgelegt) */
+export function heatLength(x: { laps?: number | null; minutes?: number | null }): string {
+  if (x.minutes) return `${x.minutes} ${x.minutes === 1 ? 'Minute' : 'Minuten'}`
+  if (x.laps) return `${x.laps} ${x.laps === 1 ? 'Runde' : 'Runden'}`
+  return ''
 }
 
 export const DEFAULT_CARS: CarRule = { scale: '1:32', mode: 'free', pool: [], fixed: {} }
