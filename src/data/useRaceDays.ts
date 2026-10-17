@@ -16,6 +16,8 @@ export interface AppData {
   photos: Record<string, string>
   /** Einträge im Einstellungen-Sheet ohne passenden Namen in den Rennen */
   unmatched: { drivers: number[]; cars: string[] }
+  /** Warum die Einstellungen nicht gelesen werden konnten (null = alles gut oder kein Sheet) */
+  settingsProblem: string | null
   source: 'drive' | 'local' | 'fixtures'
   /** Wettkämpfe (Unterordner der Streckenordner) */
   events: EventFolder[]
@@ -29,11 +31,15 @@ async function loadRaw(): Promise<Raw> {
   if (driveEnabled) {
     const apiKey = config.googleApiKey!
     const listing = await listDriveFiles(config.driveFolderId!, apiKey)
+    let settingsProblem: string | null = listing.settingsNotSheet
+      ? 'Die Einstellungen liegen als Datei (z. B. Excel) im Ordner und nicht als Google-Tabelle. In Drive „Öffnen mit → Google Tabellen“ wählen und danach die Datei löschen.'
+      : null
     const settingsPromise = listing.settingsSheetId
       ? readSettingsSheet(listing.settingsSheetId, apiKey)
           .then(parseSettings)
           .catch((err) => {
             console.warn('Einstellungen übersprungen', err)
+            settingsProblem = 'Das Einstellungen-Sheet konnte nicht gelesen werden. Bitte Freigabe („Jeder mit dem Link“) und die Tabs „Fahrer“, „Fahrzeuge“, „Korrekturen“ prüfen.'
             return EMPTY_SETTINGS
           })
       : Promise.resolve(EMPTY_SETTINGS)
@@ -60,9 +66,11 @@ async function loadRaw(): Promise<Raw> {
         return { name: e.name, track: e.track, json }
       }),
     )
+    const settings = await settingsPromise
     return {
       sessions: sessions.filter((s): s is Session => s != null),
-      settings: await settingsPromise,
+      settings,
+      settingsProblem,
       photos: listing.photos,
       source: 'drive',
       rawEvents,
@@ -75,6 +83,7 @@ async function loadRaw(): Promise<Raw> {
     return {
       sessions: files.map(({ file, text }) => buildSession(file, text)).filter((s): s is Session => s != null),
       settings: EMPTY_SETTINGS,
+      settingsProblem: null,
       photos: {},
       source: files.some(({ file }) => file.id.startsWith('local-') && !file.event) ? 'local' : 'fixtures',
       rawEvents: events,

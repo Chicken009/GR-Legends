@@ -306,6 +306,17 @@ export function SettingsHint({ names, kind }: { names: string[]; kind: 'Fahrzeug
   )
 }
 
+/** Einstellungen nicht lesbar (z. B. als Excel-Datei statt Google-Tabelle hochgeladen) */
+export function SettingsProblem() {
+  const { settingsProblem } = useData()
+  if (!settingsProblem) return null
+  return (
+    <p className="inner" style={{ margin: 0, padding: '10px 12px', fontSize: 12, color: 'var(--muted)', lineHeight: 1.45, boxShadow: 'inset 3px 0 0 var(--crash), var(--sh2)' }}>
+      <b style={{ color: 'var(--text-2)' }}>Einstellungen werden nicht verwendet:</b> {settingsProblem}
+    </p>
+  )
+}
+
 /** Fahrer-Einträge im Sheet ohne Treffer – nur mit Zeilennummer, Namen bleiben aus Datenschutzgründen unsichtbar */
 export function DriverSettingsHint({ rows }: { rows: number[] }) {
   if (!rows.length) return null

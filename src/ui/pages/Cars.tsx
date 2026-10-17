@@ -5,7 +5,7 @@ import { quantile } from '../../domain/laps'
 import { AREA } from '../colors'
 import { CarPhoto, CarThumb, usePhotoId } from '../CarPhoto'
 import { FieldSwitch } from '../FieldSwitch'
-import { carPath, PageHead, PeriodTabs, SettingsHint, Sheet, Tile, useData, useMyName, ViewToggle } from '../components'
+import { carPath, PageHead, PeriodTabs, SettingsHint, SettingsProblem, Sheet, Tile, useData, useMyName, ViewToggle } from '../components'
 import { DataTable, type Column } from '../DataTable'
 import { BoxPlot, type BoxRow } from '../charts/BoxPlot'
 import { LapHistogram } from '../charts/LapHistogram'
@@ -118,6 +118,7 @@ export function Cars() {
           </div>
         </section>
       )}
+      <SettingsProblem />
       <SettingsHint names={unmatched.cars} kind="Fahrzeug" />
       <div className="legend">
         <span>Rang nach Autowertung: Tempo und Abflüge des Autos, umgerechnet in Elo-Punkte (ab 3 Rennen)</span>

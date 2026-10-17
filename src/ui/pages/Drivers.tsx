@@ -3,7 +3,7 @@ import { PLACEMENT_RUNS, type RankRow } from '../../domain/model'
 import { SEASON_POINTS } from '../../domain/season'
 import { AREA } from '../colors'
 import { FieldSwitch } from '../FieldSwitch'
-import { Avatar, DriverSettingsHint, driverPath, PageHead, PeriodTabs, Placement, Rank, useData, useMyName, ViewToggle } from '../components'
+import { Avatar, DriverSettingsHint, driverPath, PageHead, PeriodTabs, Placement, Rank, SettingsProblem, useData, useMyName, ViewToggle } from '../components'
 import { DataTable, type Column } from '../DataTable'
 import { StatusIcons } from '../icons'
 import { fmtElo, fmtGapSec, fmtNum, fmtPct, formatTime } from '../format'
@@ -159,6 +159,7 @@ export function Drivers() {
           })}
         </div>
       )}
+      <SettingsProblem />
       <DriverSettingsHint rows={unmatched.drivers} />
       {view === 'table' && (
         <div className="legend" style={{ gap: 18 }}>

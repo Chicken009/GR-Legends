@@ -61,6 +61,8 @@ export interface DriveListing {
   files: SourceFile[]
   /** Google-Tabelle mit „Einstellungen“ im Namen (im Hauptordner) */
   settingsSheetId: string | null
+  /** Einstellungen-Datei, die keine Google-Tabelle ist (z. B. hochgeladene Excel-Datei) */
+  settingsNotSheet: boolean
   /** Fahrzeugfotos aus dem Unterordner „Fotos“: vereinfachter Dateiname (`photoKey`) → Datei-ID */
   photos: Record<string, string>
   events: EventSource[]
@@ -122,6 +124,7 @@ export async function listDriveFiles(folderId: string, apiKey: string): Promise<
   return {
     files: [...root.filter(isCsv).map((f) => toSource(f, UNKNOWN_TRACK)), ...nested.flatMap((n) => n.files)],
     settingsSheetId: sheet?.id ?? null,
+    settingsNotSheet: !sheet && root.some((f) => f.mimeType !== FOLDER_MIME && /einstellungen/i.test(f.name)),
     photos,
     events: nested.flatMap((n) => n.events),
   }
