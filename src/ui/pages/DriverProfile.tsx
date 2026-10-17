@@ -7,6 +7,7 @@ import { isQuali } from '../../domain/rating'
 import { CarThumb } from '../CarPhoto'
 import { DonutChart, type DonutPart } from '../charts/DonutChart'
 import { LineChart, type LinePoint } from '../charts/LineChart'
+import { PointsChart } from '../charts/PointsChart'
 import { RadarChart } from '../charts/RadarChart'
 import { TimeTrendChart } from '../charts/TimeTrendChart'
 import { ShareIcon, StatusIcons } from '../icons'
@@ -23,7 +24,7 @@ export function DriverProfile({ onClose }: { onClose: () => void }) {
   const { model } = useData()
   const me = useMyName()
   const navigate = useNavigate()
-  const [chart, setChart] = useState<'elo' | 'rank' | 'lap'>('elo')
+  const [chart, setChart] = useState<ChartKind>('elo')
   const [period, setPeriod] = useState('all')
   const [showOpponents, setShowOpponents] = useState(false)
   const [showRaces, setShowRaces] = useState(false)
@@ -48,6 +49,10 @@ export function DriverProfile({ onClose }: { onClose: () => void }) {
   // Jahresrückblicke, neueste zuerst (höchstens drei)
   const wrappedYears = model.years.filter((y) => model.season(y).some((r) => r.name === driver)).slice(0, 3)
   const goals = model.goals(driver)
+  // Challenges der letzten Saison, in der der Fahrer gefahren ist
+  const challengeYear = wrappedYears[0] as string | undefined
+  const challengeList = challengeYear ? model.challenges(driver, challengeYear) : []
+  const challengesDone = challengeList.filter((c) => c.done).length
   const tips = model.tips(driver)
   const fav = d.favoriteCar ? d.cars.get(d.favoriteCar) : null
   const isMe = driver === me
@@ -109,8 +114,13 @@ export function DriverProfile({ onClose }: { onClose: () => void }) {
       </div>
 
       <CareerCard driver={driver} />
-      {wrappedYears.length > 0 && (
+      {(wrappedYears.length > 0 || challengeYear) && (
         <div className="chips" style={{ marginTop: -4 }}>
+          {challengeYear && (
+            <Link to={`/saison/${challengeYear}`} state={{ tab: 'challenges', driver }} className="pill" style={{ color: AREA.season }}>
+              Saisonchallenges{challengeYear === model.years[0] ? '' : ` ${challengeYear}`} {challengesDone}/{challengeList.length}
+            </Link>
+          )}
           {wrappedYears.map((y) => (
             <Link key={y} to={`/wrapped/${y}/${encodeURIComponent(driver)}`} className="pill">
               ✦ Rückblick {y}
@@ -134,7 +144,7 @@ export function DriverProfile({ onClose }: { onClose: () => void }) {
       <section className="inner" style={{ padding: '14px 14px 10px', gap: 8 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 14, fontWeight: 600 }}>Entwicklung</span>
-          <Segment small label="Diagramm wählen" value={chart} onChange={setChart} options={[['elo', 'Elo'], ['rank', 'Rang'], ['lap', 'Rundenzeiten']]} />
+          <Segment small label="Diagramm wählen" value={chart} onChange={setChart} options={[['elo', 'Elo'], ['rank', 'Rang'], ['lap', 'Runden'], ['season', 'Saison']]} />
         </div>
         {driverYears.length > 1 && (
           <div style={{ ['--accent' as string]: ACCENT }}>
@@ -397,8 +407,39 @@ function MedalChip({ medal, driver }: { medal: Medal; driver: string }) {
   )
 }
 
-function DriverChart({ driver, kind, period }: { driver: string; kind: 'elo' | 'rank' | 'lap'; period: string }) {
+type ChartKind = 'elo' | 'rank' | 'lap' | 'season'
+
+/**
+ * Punkteverlauf in der gewählten Saison (bei „Gesamt“ die letzte Saison des Fahrers), mit dem
+ * Spitzenreiter zum Vergleich – oder dem Verfolger, wenn der Fahrer selbst vorne liegt.
+ */
+function SeasonChart({ driver, period }: { driver: string; period: string }) {
   const { model } = useData()
+  const year = period !== 'all' ? period : model.years.find((y) => model.season(y).some((r) => r.name === driver))
+  const rows = year ? model.season(year) : []
+  const mine = rows.find((r) => r.name === driver)
+  if (!year || !mine) return <p className="muted" style={{ margin: 0, fontSize: 13 }}>In dieser Saison keine Rennen.</p>
+  const dates = [...new Set(model.sessions.filter((s) => s.date.startsWith(year)).map((s) => s.date))].sort()
+  if (dates.length < 2) return <p className="muted" style={{ margin: 0, fontSize: 13 }}>Noch zu wenige Renntage in der Saison {year}.</p>
+  const other = mine.rank === 1 ? rows[1] : rows[0]
+  const series = [
+    ...(other ? [{ name: other.name, color: '#7D8691', values: other.progress }] : []),
+    { name: driver, color: ACCENT, values: mine.progress },
+  ]
+  return (
+    <>
+      <PointsChart dates={dates} series={series} label={`Punkteverlauf von ${driver} in der Saison ${year}`} />
+      <span style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.45 }}>
+        Saison {year}: Platz {mine.rank} von {rows.length} · {mine.points.toLocaleString('de-DE')} Punkte. Punktestand nach jedem Renntag, mit Streichresultaten
+        {other ? `; grau: ${other.name} (${mine.rank === 1 ? 'Verfolger' : 'Spitze'})` : ''}.
+      </span>
+    </>
+  )
+}
+
+function DriverChart({ driver, kind, period }: { driver: string; kind: ChartKind; period: string }) {
+  const { model } = useData()
+  if (kind === 'season') return <SeasonChart driver={driver} period={period} />
   const inP = (date: string) => period === 'all' || date.startsWith(period)
   const history = (model.rating.history.get(driver) ?? []).filter((e) => inP(e.date))
   if (history.length === 0) return <p className="muted" style={{ margin: 0, fontSize: 13 }}>Keine Läufe in diesem Zeitraum.</p>

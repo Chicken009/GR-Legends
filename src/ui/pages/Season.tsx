@@ -28,6 +28,8 @@ export function Season() {
   const [storedTab, setStoredTab] = useStored<Tab>('season:tab', 'fahrer')
   // Link mit state { tab } (z. B. von der Startseite) öffnet direkt diesen Reiter
   const stateTab = (location.state as { tab?: Tab } | null)?.tab
+  // Vom Fahrerprofil aus: dessen Challenges zeigen
+  const stateDriver = (location.state as { driver?: string } | null)?.driver
   const tab = stateTab ?? storedTab
   const setTab = (t: Tab) => {
     setStoredTab(t)
@@ -51,7 +53,7 @@ export function Season() {
       {tab === 'fahrer' && <DriverStandings year={year} />}
       {tab === 'autos' && <Constructors year={year} />}
       {tab === 'awards' && <Awards year={year} running={running} />}
-      {tab === 'challenges' && <Challenges year={year} />}
+      {tab === 'challenges' && <Challenges year={year} driver={stateDriver} />}
     </div>
   )
 }
@@ -275,9 +277,11 @@ function Awards({ year, running }: { year: string; running: boolean }) {
   )
 }
 
-function Challenges({ year }: { year: string }) {
+function Challenges({ year, driver }: { year: string; driver?: string }) {
   const { model } = useData()
-  const me = useMyName()
+  const myName = useMyName()
+  const me = driver ?? myName
+  const own = me === myName
   const location = useLocation()
   const drivers = model.season(year).map((r) => r.name)
   const mine = me && drivers.includes(me) ? model.challenges(me, year) : null
@@ -289,7 +293,7 @@ function Challenges({ year }: { year: string }) {
   return (
     <section className="card" style={{ gap: 10 }}>
       <div className="card-head">
-        <span className="card-title">{mine ? 'Deine Challenges' : 'Challenges'}</span>
+        <span className="card-title">{mine ? (own ? 'Deine Challenges' : `Challenges von ${me}`) : 'Challenges'}</span>
         <span className="hint">{mine ? `${doneCount} von ${mine.length} geschafft · ${doneCount * CHALLENGE_XP} XP` : `je +${CHALLENGE_XP} XP`}</span>
       </div>
       {!me && <p style={{ margin: 0, fontSize: 12, color: 'var(--muted)' }}>Oben rechts auswählen, wer du bist – dann siehst du deinen Fortschritt.</p>}
