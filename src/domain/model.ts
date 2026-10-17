@@ -211,6 +211,16 @@ export interface Wrapped {
   elo: { date: string; value: number; label: string }[]
   /** Gefahrene Autos im Jahr (Rennen) */
   cars: { name: string; races: number }[]
+  /** Renntag mit den meisten Saisonpunkten */
+  bestDay: { date: string; points: number; races: number; wins: number } | null
+  /** Größter Elo-Sprung im Jahr (ohne Einstufungsläufe) */
+  moment: { date: string; delta: number; reason: string; fileId: string; position: number; field: number; type: string; car: string } | null
+  /** Vergleich mit dem Vorjahr (wenn der Fahrer da auch gefahren ist) */
+  prev: { year: string; races: number; wins: number; bestLapMs: number | null; rank: number | null; km: number | null } | null
+  /** Platz der schnellsten Runde unter allen Fahrern des Jahres auf derselben Strecke */
+  lapRank: { rank: number; of: number; track: string } | null
+  /** Fahrerprofil (Netzdiagramm über alle Jahre) */
+  radar: RadarAxis[]
 }
 
 export interface NewsItem {
@@ -1010,6 +1020,39 @@ export function buildModel(input: Session[]): Model {
         .filter((p) => p.races > 0 || p.bestLapMs != null),
       elo: (rating.history.get(driver) ?? []).filter((e) => e.date.startsWith(year)).map((e) => ({ date: e.date, value: e.after, label: `${e.type} · Platz ${e.position} von ${e.field}` })),
       cars: [...d.cars].map(([name, u]) => ({ name, races: u.races })).filter((c) => c.races > 0).sort((a, b) => b.races - a.races),
+      bestDay: (() => {
+        const st = standings.find((r) => r.name === driver)
+        const best = st ? [...st.days].sort((a, b) => b.points - a.points)[0] : undefined
+        if (!best) return null
+        const wins = inYear(year).filter((x) => x.date === best.date && !isQuali(x) && x.results.length > 1 && x.results[0]?.driver === driver).length
+        return { date: best.date, points: best.points, races: best.races, wins }
+      })(),
+      moment: (() => {
+        const hist = rating.history.get(driver) ?? []
+        const top = hist.filter((e, i) => i >= PLACEMENT_RUNS && e.date.startsWith(year) && e.delta > 0).sort((a, b) => b.delta - a.delta)[0]
+        return top ? { date: top.date, delta: top.delta, reason: top.reason, fileId: top.fileId, position: top.position, field: top.field, type: top.type, car: top.car } : null
+      })(),
+      prev: (() => {
+        const py = String(Number(year) - 1)
+        const p = stats(py).drivers.get(driver)
+        if (!p || p.races === 0) return null
+        const laps = inYear(py).flatMap((x) => x.results.filter((r) => r.driver === driver && r.validBestLapMs != null).map((r) => r.validBestLapMs!))
+        return { year: py, races: p.races, wins: p.wins, bestLapMs: laps.length ? Math.min(...laps) : null, rank: season(py).find((r) => r.name === driver)?.rank ?? null, km: p.km }
+      })(),
+      lapRank: (() => {
+        if (!bestLap) return null
+        const track = inYear(year).find((x) => x.date === bestLap!.date && x.results.some((r) => r.driver === driver && r.validBestLapMs === bestLap!.ms))?.track
+        if (!track) return null
+        const best = new Map<string, number>()
+        for (const x of inYear(year)) {
+          if (x.track !== track) continue
+          for (const r of x.results) if (r.validBestLapMs != null && !isGuest(r.driver) && r.validBestLapMs < (best.get(r.driver) ?? Infinity)) best.set(r.driver, r.validBestLapMs)
+        }
+        const mine = best.get(driver)
+        if (mine == null) return null
+        return { rank: 1 + [...best.values()].filter((v) => v < mine).length, of: best.size, track }
+      })(),
+      radar: d.races >= 5 ? driverRadar(driver) : [],
     }
   }
 
