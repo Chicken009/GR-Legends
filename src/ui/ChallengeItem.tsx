@@ -1,7 +1,7 @@
-import type { ReactNode } from 'react'
+import { useCallback, useState, type ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { CHALLENGE_XP, type Challenge } from '../domain/challenges'
-import { Avatar, driverPath } from './components'
+import { Avatar, driverPath, Sheet } from './components'
 import { CurrencyIcon, XP_COLOR } from './currency'
 import { NAV_ICONS, StrokeIcon } from './icons'
 import { rarity } from './challengeUtils'
@@ -70,24 +70,64 @@ export function XpChip({ done }: { done: boolean }) {
   )
 }
 
-/** Kleine Avatar-Reihe der Fahrer, die es geschafft haben */
-export function AvatarStack({ names, me, max = 6 }: { names: string[]; me?: string | null; max?: number }) {
-  const location = useLocation()
+/** Kleine Avatar-Reihe der Fahrer, die es geschafft haben – Tippen öffnet die ganze Liste */
+export function AvatarStack({ names, me, title, max = 6 }: { names: string[]; me?: string | null; title?: string; max?: number }) {
+  const [open, setOpen] = useState(false)
+  const close = useCallback(() => setOpen(false), [])
   if (!names.length) return null
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center' }} aria-label={`Geschafft: ${names.join(', ')}`} title={names.join(', ')}>
-      {names.slice(0, max).map((n, i) => (
-        <Link key={n} to={driverPath(n)} state={{ bg: location }} style={{ marginLeft: i ? -7 : 0, borderRadius: '50%', boxShadow: '0 0 0 2px var(--inner)' }}>
-          <Avatar name={n} size={22} ring={n === me ? 'var(--me)' : undefined} />
-        </Link>
-      ))}
-      {names.length > max && <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 4 }}>+{names.length - max}</span>}
-    </span>
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        aria-label={`Geschafft von ${names.length} ${names.length === 1 ? 'Fahrer' : 'Fahrern'} – Liste anzeigen`}
+        style={{ display: 'inline-flex', alignItems: 'center', background: 'none', border: 'none', padding: '4px 2px', margin: '-4px -2px', cursor: 'pointer', color: 'inherit' }}
+      >
+        {names.slice(0, max).map((n, i) => (
+          <span key={n} style={{ marginLeft: i ? -7 : 0, borderRadius: '50%', boxShadow: '0 0 0 2px var(--inner)', display: 'inline-flex' }}>
+            <Avatar name={n} size={22} ring={n === me ? 'var(--me)' : undefined} />
+          </span>
+        ))}
+        {names.length > max && <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 4 }}>+{names.length - max}</span>}
+      </button>
+      {open && <DoneBySheet names={names} me={me} title={title} onClose={close} />}
+    </>
+  )
+}
+
+/** Liste aller Fahrer, die eine Challenge geschafft haben; jede Zeile führt zum Profil */
+function DoneBySheet({ names, me, title, onClose }: { names: string[]; me?: string | null; title?: string; onClose: () => void }) {
+  const location = useLocation()
+  return (
+    <Sheet onClose={onClose} label={title ? `Geschafft: ${title}` : 'Geschafft'}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 600 }}>Geschafft von {names.length} {names.length === 1 ? 'Fahrer' : 'Fahrern'}</span>
+          {title && <h2 style={{ fontSize: 20, fontWeight: 800, margin: 0 }}>{title}</h2>}
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {names.map((n) => (
+            <Link
+              key={n}
+              to={driverPath(n)}
+              state={{ bg: location }}
+              className="inner"
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: '8px 12px', color: 'inherit', textDecoration: 'none', ...(n === me ? { boxShadow: 'inset 0 0 0 1.5px var(--me)' } : null) }}
+            >
+              <Avatar name={n} size={34} ring={n === me ? 'var(--me)' : undefined} />
+              <span style={{ fontSize: 15, fontWeight: 700, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n}</span>
+              {n === me && <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: 0.5, color: 'var(--me)' }}>DU</span>}
+              <StrokeIcon d="M9 6l6 6-6 6" size={16} color="var(--faint)" width={2} />
+            </Link>
+          ))}
+        </div>
+      </div>
+    </Sheet>
   )
 }
 
 /** Seltenheit als kleines Etikett plus Avatar-Reihe */
-export function RarityLine({ doneBy, total, me }: { doneBy: string[]; total: number; me?: string | null }) {
+export function RarityLine({ doneBy, total, me, title }: { doneBy: string[]; total: number; me?: string | null; title?: string }) {
   const r = rarity(doneBy.length, total)
   return (
     <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -96,7 +136,7 @@ export function RarityLine({ doneBy, total, me }: { doneBy: string[]; total: num
         {r.label}
         {doneBy.length > 0 && <span style={{ color: 'var(--faint)', fontWeight: 600, textTransform: 'none', letterSpacing: 0 }}>· {doneBy.length} von {total}</span>}
       </span>
-      <AvatarStack names={doneBy} me={me} />
+      <AvatarStack names={doneBy} me={me} title={title} />
     </span>
   )
 }
