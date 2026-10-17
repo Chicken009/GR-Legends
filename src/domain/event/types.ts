@@ -85,6 +85,8 @@ export interface SectionDef {
   laps?: number
   /** races / team: Durchgänge (team mit zwei Teams je Lauf: 1 Durchgang = jedes Team einmal gegen jedes) */
   rounds?: number
+  /** team: auto = nach Spurzahl · teams = Team gegen Team (notfalls mit einem Teil der Fahrer) · single = ein Fahrer je Team */
+  teamMode?: 'auto' | 'teams' | 'single'
   /** team mit zwei Teams je Lauf, 1 Durchgang: nur etwa die Hälfte der Paarungen, Gegner nach Elo ausgeglichen */
   half?: boolean
   /** ladder / ko: so viele kommen pro Lauf weiter */

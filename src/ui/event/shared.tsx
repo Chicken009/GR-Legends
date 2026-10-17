@@ -375,7 +375,7 @@ export function rulesText(def: EventDef, state: EventState): string[] {
           : d.format === 'ko'
             ? `die besten ${d.advance ?? 1} je Lauf kommen weiter; in jeder Gruppe scheiden gleich viele aus, in größeren Gruppen kommt also einer mehr weiter`
             : d.format === 'team'
-              ? `${s.teamPlan?.mode === 'pairs' ? (d.half && (d.rounds ?? 1) === 1 ? 'ein halber Durchgang, Gegner nach Elo ausgeglichen; ' : `jedes Team ${d.rounds && d.rounds > 1 ? `${d.rounds}× ` : ''}gegen jedes; `) : ''}jedes Team bekommt den Schnitt seiner Fahrer, alle Mitglieder die Teampunkte. Läufe mit weniger Fahrern und Pausen werden hochgerechnet`
+              ? `${s.teamPlan?.mode === 'pairs' || s.teamPlan?.mode === 'split' ? (d.half && (d.rounds ?? 1) === 1 ? 'ein halber Durchgang, Gegner nach Elo ausgeglichen; ' : `jedes Team ${d.rounds && d.rounds > 1 ? `${d.rounds}× ` : ''}gegen jedes; `) : ''}${s.teamPlan?.mode === 'split' ? `je ${s.teamPlan.perTeam} Fahrer pro Team und Rennen, die Aufstellung wechselt reihum; ` : ''}${s.teamPlan?.mode === 'slots' ? 'die Nr. 1 jedes Teams gegeneinander, dann die Nr. 2 usw.; ' : ''}jedes Team bekommt den Schnitt seiner Fahrer, alle Mitglieder die Teampunkte. Läufe mit weniger Fahrern und Pausen werden hochgerechnet`
               : d.format === 'races'
                 ? `${d.rounds ?? 1} ${d.rounds === 1 ? 'Durchgang' : 'Durchgänge'}, Punkte addiert; Läufe mit weniger Fahrern werden hochgerechnet`
                 : d.format === 'custom'

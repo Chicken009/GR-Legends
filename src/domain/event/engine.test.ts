@@ -285,6 +285,29 @@ describe('Teamrennen: Paarungen und Ausgleich', () => {
     expect(played.heats[1].teamPoints!.get('t4')).toBe(2.7) // (1 + Sieg) × (4/3) / 1
   })
 
+  it('Team gegen Team mit geteilten Teams: Aufstellung wechselt reihum, jeder gleich oft', () => {
+    const teams = teamsOf([['A', 'C', 'E'], ['B', 'D', 'F']])
+    const d = def({ drivers: ['A', 'B', 'C', 'D', 'E', 'F'], maxPerHeat: 4, teams: { mode: 'manual', size: 3, teams }, sections: [newSection('team', { id: 't', teamMode: 'teams' })] })
+    const s = computeEvent(d, ctx())
+    expect(s.sections[0].teamPlan).toMatchObject({ mode: 'split', perTeam: 2, perRound: 3 })
+    expect(s.heats.every((h) => h.entrants.length === 4)).toBe(true)
+    const count = new Map<string, number>()
+    for (const h of s.heats) for (const e of h.entrants) count.set(e.name!, (count.get(e.name!) ?? 0) + 1)
+    expect([...count.values()]).toEqual([2, 2, 2, 2, 2, 2])
+    // jeder trifft auf jeden Gegner
+    const met = (x: string, y: string) => s.heats.some((h) => h.entrants.some((e) => e.name === x) && h.entrants.some((e) => e.name === y))
+    for (const a of ['A', 'C', 'E']) for (const b of ['B', 'D', 'F']) expect(met(a, b)).toBe(true)
+    // automatisch bleiben es Positionsduelle
+    expect(computeEvent({ ...d, sections: [newSection('team', { id: 't' })] }, ctx()).sections[0].teamPlan?.mode).toBe('slots')
+  })
+
+  it('Ein Fahrer je Team, auch wenn alle Teams auf die Bahn passen', () => {
+    const teams = teamsOf([['A', 'D'], ['B', 'E']])
+    const d = def({ drivers: ['A', 'B', 'D', 'E'], maxPerHeat: 4, teams: { mode: 'manual', size: 2, teams }, sections: [newSection('team', { id: 't', teamMode: 'single' })] })
+    const s = computeEvent(d, ctx())
+    expect(s.heats.map((h) => h.entrants.map((e) => e.name))).toEqual([['A', 'B'], ['D', 'E']])
+  })
+
   it('mischt Positionsduelle, wenn nicht alle Teams in einen Lauf passen', () => {
     const teams = teamsOf([['A', 'E'], ['B', 'F'], ['C', 'G'], ['D', 'H']])
     const d = def({ drivers: ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'], maxPerHeat: 3, teams: { mode: 'manual', size: 2, teams }, sections: [newSection('team', { id: 't', rounds: 3 })] })
