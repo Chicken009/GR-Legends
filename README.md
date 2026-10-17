@@ -83,6 +83,9 @@ GR Legends
   gegen jedes“ (4 Teams = 6 Rennen); optional nur ein halber Durchgang mit nach Elo ausgeglichenen
   Gegnern. Der Editor zeigt die Rennzahl je Durchgang. Läufe mit weniger Fahrern werden auf die
   größte Laufgröße hochgerechnet, Pausen (ungerade Teamzahl) über die Zahl der Läufe ausgeglichen.
+- **Teamrennen-Aufteilung:** Automatisch (nach Spurzahl), Team gegen Team oder ein Fahrer je
+  Team. Passen bei „Team gegen Team“ keine zwei ganzen Teams auf die Bahn, schickt jedes Team einen
+  Teil seiner Fahrer; wer fährt, wechselt reihum (jeder gleich oft), die Aufstellungen sind versetzt.
 - **Ungleich große Läufe:** Bei „Rennen in Gruppen“ und „Eigene Läufe“ werden die Punkte kleinerer
   Läufe auf die größte Laufgröße hochgerechnet (eine Nachkommastelle); den kleineren Lauf fährt bei
   „Rennen in Gruppen“ reihum, wer bisher am seltensten drin war. K.-o.: Gruppen möglichst gleich

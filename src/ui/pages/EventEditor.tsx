@@ -800,6 +800,7 @@ const TEAM_PLAN_TEXT: Record<TeamPlan['mode'], string> = {
   all: 'alle Teams zusammen',
   pairs: 'jedes Team einmal gegen jedes',
   groups: 'jedes Team einmal, Gruppen je Durchgang neu gemischt',
+  split: 'jedes Team gegen jedes, mit wechselnder Aufstellung',
   slots: 'die Nr. 1 jedes Teams gegeneinander, dann die Nr. 2 usw.',
 }
 
@@ -811,10 +812,30 @@ function TeamPlanHint({ plan, sec, onChange }: { plan: TeamPlan; sec: SectionDef
   const total = half ? null : plan.perRound * rounds
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-2)' }}>Aufteilung</span>
+      <Segment
+        small
+        label="Aufteilung"
+        value={sec.teamMode ?? 'auto'}
+        onChange={(v) => onChange({ teamMode: v === 'auto' ? undefined : v })}
+        options={[
+          ['auto', 'Auto'],
+          ['teams', 'Team gegen Team'],
+          ['single', 'Einer je Team'],
+        ]}
+      />
       <span style={{ fontSize: 12, color: 'var(--text-2)', lineHeight: 1.45 }}>
         1 Durchgang = {plan.perRound} Rennen ({TEAM_PLAN_TEXT[plan.mode]}){total != null && rounds > 1 ? ` · insgesamt ${total} Rennen` : ''}
         {half && ` · halber Durchgang: ${halfCount} Rennen, Gegner nach Elo ausgeglichen`}
       </span>
+      {plan.mode === 'split' && (
+        <span style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.45 }}>
+          Ganze Teams passen nicht auf die Bahn: Jedes Team schickt {plan.perTeam} Fahrer pro Rennen. Wer fährt, wechselt reihum, sodass jeder gleich oft dran ist; die Aufstellungen sind versetzt, damit möglichst jeder einmal auf jeden trifft.
+        </span>
+      )}
+      {sec.teamMode === 'single' && plan.mode === 'slots' && (
+        <span style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.45 }}>Die Stärksten jedes Teams fahren gegeneinander, dann die Zweitstärksten usw. Ist ein Team kleiner, fährt sein Schwächster doppelt.</span>
+      )}
       {plan.halfPossible && rounds === 1 && (
         <label className="check" style={{ alignSelf: 'flex-start', background: 'var(--card)' }}>
           <input type="checkbox" checked={!!sec.half} onChange={(e) => onChange({ half: e.target.checked || undefined })} />

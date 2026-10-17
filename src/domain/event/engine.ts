@@ -72,8 +72,13 @@ export interface RankRow {
 
 /** Wie ein Teamrennen-Abschnitt aufgeteilt wird (für den Editor) */
 export interface TeamPlan {
-  /** all = alle zusammen · pairs = zwei Teams je Lauf · groups = mehrere Teams je Lauf · slots = Positionsduelle */
-  mode: 'all' | 'pairs' | 'groups' | 'slots'
+  /**
+   * all = alle zusammen · pairs = zwei Teams je Lauf · groups = mehrere Teams je Lauf ·
+   * split = zwei Teams je Lauf mit einem Teil der Fahrer (reihum) · slots = Positionsduelle
+   */
+  mode: 'all' | 'pairs' | 'groups' | 'split' | 'slots'
+  /** split: Fahrer je Team und Lauf */
+  perTeam?: number
   /** Läufe in einem vollen Durchgang */
   perRound: number
   /** Halber Durchgang möglich (pairs mit mindestens 4 Teams) */
@@ -777,30 +782,8 @@ function sectionTeam(env: Env, sec: SectionDef, teams: TeamState[], per: number)
     for (const n of entrants) teamOf[n] = teamOfAll[n]
     heats.push(addHeat(env, sec, { id: `${sec.id}-${k}`, label: `Teamrennen ${k}`, kind: 'race', entrants: entrants.map(named), teamOf, note: note ?? ts.map((t) => t.name).join(' gegen ') }))
   }
-  let plan: TeamPlan
-  if (total <= per) {
-    plan = { mode: 'all', perRound: 1, halfPossible: false, halfCount: 1 }
-    for (let r = 0; r < rounds; r++) add(teams, teams.flatMap((t) => members.get(t.id)!), rounds > 1 ? `Durchgang ${r + 1}` : null)
-  } else if (maxSize * 2 <= per && Math.floor(per / maxSize) === 2) {
-    const rr = roundRobin(teams)
-    const perRound = rr.reduce((a, p) => a + p.length, 0)
-    plan = { mode: 'pairs', perRound, halfPossible: rr.length >= 3, halfCount: Math.ceil(rr.length / 2) * (rr[0]?.length ?? 0) }
-    const strength = (t: TeamState) => t.drivers.reduce((a, d) => a + env.ctx.elo(d), 0) / t.drivers.length
-    const list = plan.halfPossible && sec.half && rounds === 1 ? balancedHalf(rr, strength) : Array.from({ length: rounds }, () => rr).flat()
-    list.forEach((pairs, i) => {
-      const r = Math.floor(i / rr.length)
-      for (const [a, b] of pairs) add([a, b], [...members.get(a.id)!, ...members.get(b.id)!], rounds > 1 ? `${a.name} gegen ${b.name} · Durchgang ${r + 1}` : null)
-    })
-  } else if (maxSize * 2 <= per) {
-    const perHeat = Math.floor(per / maxSize)
-    plan = { mode: 'groups', perRound: Math.ceil(teams.length / perHeat), halfPossible: false, halfCount: 0 }
-    for (let r = 0; r < rounds; r++) {
-      const order = r === 0 ? teams : shuffle(teams, `${env.def.seed}|${sec.id}|${r}`)
-      // Ein Team allein wäre kein Rennen: Pause, wird über die Zahl der Läufe ausgeglichen
-      for (const g of chunkEven(order, perHeat)) if (g.length > 1) add(g, g.flatMap((t) => members.get(t.id)!), null)
-    }
-  } else {
-    plan = { mode: 'slots', perRound: maxSize * Math.ceil(teams.length / per), halfPossible: false, halfCount: 0 }
+  // Positionsduelle: die Nr. 1 jedes Teams gegeneinander, dann die Nr. 2 usw.
+  function slots(): TeamPlan {
     for (let r = 0; r < rounds; r++) {
       for (let slot = 0; slot < maxSize; slot++) {
         // Passen nicht alle Teams in einen Lauf, wird für jede Position neu gemischt – so trifft jedes Team mal auf jedes
@@ -812,6 +795,73 @@ function sectionTeam(env: Env, sec: SectionDef, teams: TeamState[], per: number)
         for (const g of chunkEven(pick, per)) if (g.length > 1) add(g.map((x) => x.t), g.map((x) => x.driver), g.length === teams.length ? `Die Nr. ${slot + 1} jedes Teams` : `Nr. ${slot + 1}: ${g.map((x) => x.t.name).join(' gegen ')}`)
       }
     }
+    return { mode: 'slots', perRound: maxSize * Math.ceil(teams.length / per), halfPossible: false, halfCount: 0 }
+  }
+  let plan: TeamPlan
+  const choice = sec.teamMode ?? 'auto'
+  const fitsTwo = maxSize * 2 <= per
+  const strength = (t: TeamState) => t.drivers.reduce((a, d) => a + env.ctx.elo(d), 0) / t.drivers.length
+  // Jeder gegen jeden (Kreis-Verfahren), Durchgänge hintereinander oder ein halber Durchgang
+  const pairRounds = () => {
+    const rr = roundRobin(teams)
+    const halfPossible = rr.length >= 3
+    const half = halfPossible && sec.half && rounds === 1 ? balancedHalf(rr, strength) : null
+    return { rr, halfPossible, half, list: half ?? Array.from({ length: rounds }, () => rr).flat() }
+  }
+  if (choice === 'single' && teams.length > 1) {
+    plan = slots()
+  } else if (total <= per) {
+    plan = { mode: 'all', perRound: 1, halfPossible: false, halfCount: 1 }
+    for (let r = 0; r < rounds; r++) add(teams, teams.flatMap((t) => members.get(t.id)!), rounds > 1 ? `Durchgang ${r + 1}` : null)
+  } else if (fitsTwo && Math.floor(per / maxSize) === 2) {
+    const { rr, halfPossible, list } = pairRounds()
+    plan = { mode: 'pairs', perRound: rr.reduce((a, p) => a + p.length, 0), halfPossible, halfCount: Math.ceil(rr.length / 2) * (rr[0]?.length ?? 0) }
+    list.forEach((pairs, i) => {
+      const r = Math.floor(i / rr.length)
+      for (const [a, b] of pairs) add([a, b], [...members.get(a.id)!, ...members.get(b.id)!], rounds > 1 ? `${a.name} gegen ${b.name} · Durchgang ${r + 1}` : null)
+    })
+  } else if (fitsTwo) {
+    const perHeat = Math.floor(per / maxSize)
+    plan = { mode: 'groups', perRound: Math.ceil(teams.length / perHeat), halfPossible: false, halfCount: 0 }
+    for (let r = 0; r < rounds; r++) {
+      const order = r === 0 ? teams : shuffle(teams, `${env.def.seed}|${sec.id}|${r}`)
+      // Ein Team allein wäre kein Rennen: Pause, wird über die Zahl der Läufe ausgeglichen
+      for (const g of chunkEven(order, perHeat)) if (g.length > 1) add(g, g.flatMap((t) => members.get(t.id)!), null)
+    }
+  } else if (choice === 'teams' && teams.length > 1) {
+    // Team gegen Team, aber nicht alle passen auf die Bahn: jedes Team schickt einen Teil seiner
+    // Fahrer. Wer fährt, wechselt reihum (jeder gleich oft); die Aufstellungen beider Teams sind
+    // versetzt, damit möglichst jeder einmal auf jeden trifft.
+    const k = Math.max(1, Math.floor(per / 2))
+    const kOf = (t: TeamState) => Math.min(k, t.drivers.length)
+    const gcd = (x: number, y: number): number => (y ? gcd(y, x % y) : x)
+    const cycle = (t: TeamState) => t.drivers.length / gcd(t.drivers.length, kOf(t))
+    const racesFor = (a: TeamState, b: TeamState) => {
+      const ca = cycle(a)
+      const cb = cycle(b)
+      const lcm = (ca * cb) / gcd(ca, cb)
+      return lcm <= 6 ? lcm : Math.max(ca, cb)
+    }
+    const lineup = (t: TeamState, j: number) => {
+      const m = members.get(t.id)!
+      const kt = kOf(t)
+      const start = (j * kt) % m.length
+      return Array.from({ length: kt }, (_, x) => m[(start + x) % m.length])
+    }
+    const { rr, halfPossible, half, list } = pairRounds()
+    const count = (rounds2: [TeamState, TeamState][][]) => rounds2.flat().reduce((a, [x, y]) => a + racesFor(x, y), 0)
+    plan = { mode: 'split', perTeam: k, perRound: count(rr), halfPossible, halfCount: count(half ?? balancedHalf(rr, strength)) }
+    list.forEach((pairs, i) => {
+      const r = Math.floor(i / rr.length)
+      for (const [a, b] of pairs) {
+        const n = racesFor(a, b)
+        for (let j = 0; j < n; j++) {
+          add([a, b], [...lineup(a, j), ...lineup(b, j + r)], `${a.name} gegen ${b.name} · Aufstellung ${j + 1} von ${n}${rounds > 1 ? ` · Durchgang ${r + 1}` : ''}`)
+        }
+      }
+    })
+  } else {
+    plan = slots()
   }
   // Teampunkte je Lauf: Schnitt der Fahrerpunkte, auf die größte Laufgröße hochgerechnet
   const biggest = Math.max(0, ...heats.map((h) => h.entrants.length))
