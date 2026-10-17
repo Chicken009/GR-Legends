@@ -164,6 +164,10 @@ export function EventEditor() {
           Schließen
         </Link>
       </PageHead>
+      <div className="inner" role="note" style={{ padding: '10px 12px', gap: 2, boxShadow: `inset 3px 0 0 ${EVENT_ACCENT}, var(--sh2)` }}>
+        <b style={{ fontSize: 13 }}>Nur für die Rennleitung</b>
+        <span style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.45 }}>Hier wird der Wettkampf geplant und eingerichtet. Zum Mitfahren und Zuschauen brauchst du diesen Bildschirm nicht.</span>
+      </div>
       <p style={{ margin: 0, fontSize: 13, color: 'var(--muted)', lineHeight: 1.5 }}>
         Der Editor speichert nichts online. Am Ende lädst du <b>wettkampf.json</b> herunter und legst sie in den Wettkampf-Ordner in Drive. Die App rechnet daraus Ablauf und Wertung.
         {isNew && ' Dein Entwurf bleibt auf diesem Gerät erhalten.'}

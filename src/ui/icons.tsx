@@ -67,6 +67,12 @@ export const NAV_ICONS = {
   events: 'M3 20h18M4 20v-5h5v5M9.5 20V9h5v11M15 20v-7h5v7M12 3.5l.9 1.8 2 .3-1.45 1.4.35 2-1.8-.95-1.8.95.35-2L9.1 5.6l2-.3z',
 }
 
+/** Kleine Symbole für Rennleitungs-Knöpfe */
+export const TOOL_ICONS = {
+  plus: 'M12 5v14M5 12h14',
+  pencil: 'M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4',
+}
+
 export function StrokeIcon({ d, size = 22, color = 'currentColor', width = 2 }: { d: string; size?: number; color?: string; width?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
