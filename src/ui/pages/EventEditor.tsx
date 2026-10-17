@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { eventSessions } from '../../data/useRaceDays'
 import { isGuest } from '../../domain/drivers'
 import { eventContext, typicalLapMs } from '../../domain/event/context'
-import { carCap, teamsAsDefs, teamSplit, type Heat, type TeamPlan } from '../../domain/event/engine'
+import { carCap, teamsAsDefs, teamSplit, type Heat, type TeamPlan, type TeamState } from '../../domain/event/engine'
 import { todayIso } from '../../domain/event/insights'
 import { eventSlug, normalizeEvent, serializeEvent } from '../../domain/event/normalize'
 import { newSeed } from '../../domain/event/random'
@@ -12,7 +12,7 @@ import { newEvent, newSection, TEMPLATES } from '../../domain/event/templates'
 import { FORMAT_LABEL, type CarRule, type EventDef, type HeatOverride, type SectionDef, type SectionFormat, type Seeding } from '../../domain/event/types'
 import { PageHead, Segment, useData } from '../components'
 import { CarRuleEditor, Field, Group, Stepper, ToggleChip, useCarOptions } from '../event/form'
-import { computeFor, EVENT_ACCENT, fmtPts, HeatCard, teamColor } from '../event/shared'
+import { computeFor, EVENT_ACCENT, fmtPts, HeatCard, teamColor, teamEloText } from '../event/shared'
 import { formatDate } from '../format'
 
 const DRAFT_KEY = 'gr-legends:event-draft'
@@ -594,7 +594,7 @@ function ScoringCard({ def, update }: { def: EventDef; update: (p: Partial<Event
   )
 }
 
-function TeamEditor({ def, update, teams, warnings }: { def: EventDef; update: (p: Partial<EventDef>) => void; teams: { id: string; name: string; drivers: string[] }[]; warnings: string[] }) {
+function TeamEditor({ def, update, teams, warnings }: { def: EventDef; update: (p: Partial<EventDef>) => void; teams: TeamState[]; warnings: string[] }) {
   const rule = def.teams!
   const set = (patch: Partial<NonNullable<EventDef['teams']>>) => update({ teams: { ...rule, ...patch } })
   const uneven = rule.mode !== 'manual' && def.drivers.length > 0 && def.drivers.length % rule.size !== 0
@@ -646,7 +646,7 @@ function TeamEditor({ def, update, teams, warnings }: { def: EventDef; update: (
         <>
           <div className="form-grid">
             {manualTeams.map((t, i) => (
-              <Field key={i} label={`Team ${i + 1}`}>
+              <Field key={i} label={`Team ${i + 1}${teams[i] && teams[i].name === t.name ? ` · ${teamEloText(teams[i], teams)}` : ''}`}>
                 <input className="input" style={{ borderLeft: `4px solid ${teamColor(`t${i + 1}`, t.name)}` }} value={t.name} onChange={(e) => set({ teams: manualTeams.map((x, k) => (k === i ? { ...x, name: e.target.value } : x)) })} />
               </Field>
             ))}
@@ -686,6 +686,7 @@ function TeamEditor({ def, update, teams, warnings }: { def: EventDef; update: (
             <div key={t.id} className="inner" style={{ padding: 10, borderRadius: 12, display: 'flex', flexDirection: 'column', gap: 4, borderLeft: `4px solid ${teamColor(t.id, t.name)}` }}>
               <b style={{ fontSize: 13, color: teamColor(t.id, t.name) }}>{t.name}</b>
               <span style={{ fontSize: 12, color: 'var(--text-2)' }}>{t.drivers.join(', ')}</span>
+              <span className="num" style={{ fontSize: 12, color: 'var(--muted)' }}>{teamEloText(t, teams)}</span>
             </div>
           ))}
         </div>
