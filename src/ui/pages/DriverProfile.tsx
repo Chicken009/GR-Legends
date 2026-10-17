@@ -114,13 +114,8 @@ export function DriverProfile({ onClose }: { onClose: () => void }) {
       </div>
 
       <CareerCard driver={driver} />
-      {(wrappedYears.length > 0 || challengeYear) && (
+      {wrappedYears.length > 0 && (
         <div className="chips" style={{ marginTop: -4 }}>
-          {challengeYear && (
-            <Link to={`/saison/${challengeYear}`} state={{ tab: 'challenges', driver }} className="pill" style={{ color: AREA.season }}>
-              Saisonchallenges{challengeYear === model.years[0] ? '' : ` ${challengeYear}`} {challengesDone}/{challengeList.length}
-            </Link>
-          )}
           {wrappedYears.map((y) => (
             <Link key={y} to={`/wrapped/${y}/${encodeURIComponent(driver)}`} className="pill">
               ✦ Rückblick {y}
@@ -153,6 +148,23 @@ export function DriverProfile({ onClose }: { onClose: () => void }) {
         )}
         <DriverChart driver={driver} kind={chart} period={period} />
       </section>
+
+      {challengeYear && challengeList.length > 0 && (
+        <Link to={`/saison/${challengeYear}`} state={{ tab: 'challenges', driver }} className="inner" style={{ gap: 10 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 14, fontWeight: 600 }}>Saisonchallenges{challengeYear === model.years[0] ? '' : ` ${challengeYear}`}</span>
+            <span style={{ fontSize: 13, color: 'var(--muted)' }}>
+              <b className="num" style={{ color: 'var(--text)' }}>
+                {challengesDone}/{challengeList.length}
+              </b>{' '}
+              geschafft ›
+            </span>
+          </div>
+          <div className="bar" style={{ ['--accent' as string]: AREA.season }}>
+            <div style={{ width: `${Math.round((challengesDone / challengeList.length) * 100)}%` }} />
+          </div>
+        </Link>
+      )}
 
       <DriverStyle driver={driver} />
 
