@@ -16,6 +16,7 @@ import { MedalBadge, TIERS } from '../Medal'
 import { useMedalPopup } from '../MedalPopup'
 import { fmtDelta, fmtElo, fmtGapSec, fmtNum, fmtPct, formatDate, formatMonth, formatTime } from '../format'
 import { quantile } from '../../domain/laps'
+import { Amount, XP_COLOR, XP_GRADIENT } from '../currency'
 
 const ACCENT = AREA.drivers
 
@@ -107,7 +108,7 @@ export function DriverProfile({ onClose }: { onClose: () => void }) {
       </div>
 
       <div className="tiles">
-        {placing != null ? <Tile value={`${placing}/${PLACEMENT_RUNS}`} label="Einstufung" color={ACCENT} /> : <Tile value={fmtElo(model.rating.drivers.get(driver))} label="Elo" color={ACCENT} />}
+        {placing != null ? <Tile value={`${placing}/${PLACEMENT_RUNS}`} label="Einstufung" color={ACCENT} /> : <Tile value={<Amount kind="elo" value={model.rating.drivers.get(driver) ?? 0} size={20} unit={false} />} label="Elo" />}
         <Tile value={d.races} label="Rennen" />
         <Tile value={d.wins} label="Siege" />
         <Tile value={fmtPct(d.beatShare)} label="Ø geschlagen" />
@@ -576,7 +577,7 @@ function CareerCard({ driver }: { driver: string }) {
     <button className="inner" onClick={() => setOpen(!open)} aria-expanded={open} style={{ border: 'none', textAlign: 'left', gap: 6 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <span
-          style={{ width: 40, height: 40, borderRadius: 12, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, fontWeight: 800, color: '#0E1013', background: 'linear-gradient(145deg, #6BE07A, #3BBC4A 60%, #2A8F37)', boxShadow: 'var(--sh2)' }}
+          style={{ width: 40, height: 40, borderRadius: 12, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, fontWeight: 800, color: '#1A1205', background: XP_GRADIENT, boxShadow: 'var(--sh2)' }}
           aria-hidden="true"
         >
           {c.level}
@@ -586,12 +587,12 @@ function CareerCard({ driver }: { driver: string }) {
             Level {c.level} · {c.title}
           </span>
           <span style={{ fontSize: 12, color: 'var(--muted)' }}>
-            {c.xp.toLocaleString('de-DE')} XP · noch {(c.nextXp - c.xp).toLocaleString('de-DE')} bis Level {c.level + 1}
+            <Amount kind="xp" value={c.xp} size={12} /> · noch {(c.nextXp - c.xp).toLocaleString('de-DE')} bis Level {c.level + 1}
           </span>
         </span>
         <span style={{ fontSize: 12, color: 'var(--muted)' }}>{open ? '▴' : '▾'}</span>
       </div>
-      <div className="bar" style={{ ['--accent' as string]: ACCENT, width: '100%', height: 7 }}>
+      <div className="bar" style={{ ['--accent' as string]: XP_COLOR, width: '100%', height: 7 }}>
         <div style={{ width: `${Math.round(progress * 100)}%` }} />
       </div>
       {open && (
@@ -603,9 +604,7 @@ function CareerCard({ driver }: { driver: string }) {
                 <span style={{ color: 'var(--text-2)' }}>
                   {b.count.toLocaleString('de-DE')} {b.label}
                 </span>
-                <span className="num" style={{ fontWeight: 600 }}>
-                  +{b.xp.toLocaleString('de-DE')} XP
-                </span>
+                <Amount kind="xp" value={b.xp} signed size={13} />
               </div>
             ))}
           <span style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.45, marginTop: 4 }}>

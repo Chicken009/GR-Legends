@@ -4,6 +4,7 @@ import { Placement, useData, useMyName } from './components'
 import { Chevrons } from './icons'
 import { MedalArt, TIERS } from './Medal'
 import { fmtDelta, fmtElo } from './format'
+import { XP_COLOR, XP_GRADIENT } from './currency'
 
 const KEY = (me: string) => `gr-legends:seen-medals:${me}`
 
@@ -175,14 +176,14 @@ function LevelUp({ me }: { me: string }) {
       {CONFETTI.map((c, i) => (
         <span key={i} className="confetti" style={{ left: `${8 + i * 9}%`, background: c, animationDelay: `${(i * 0.37) % 3}s` }} />
       ))}
-      <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: 3, textTransform: 'uppercase', color: '#6BE07A' }}>Aufgestiegen</span>
+      <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: 3, textTransform: 'uppercase', color: XP_COLOR }}>Aufgestiegen</span>
       <div style={{ position: 'relative', width: 240, height: 240, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <svg className="rays" width="240" height="240" viewBox="0 0 260 260" aria-hidden="true" style={{ position: 'absolute', inset: 0 }}>
-          <path d="M130 130L118 0h24zM130 130l12 130h-24zM130 130L0 118v24zM130 130l130 12v-24zM130 130L32 15l17-17zM130 130l98 115-17 17zM130 130L15 228l-17-17zM130 130L245 32l17 17z" fill="#3BBC4A" opacity="0.14" />
+          <path d="M130 130L118 0h24zM130 130l12 130h-24zM130 130L0 118v24zM130 130l130 12v-24zM130 130L32 15l17-17zM130 130l98 115-17 17zM130 130L15 228l-17-17zM130 130L245 32l17 17z" fill="#F4B43A" opacity="0.16" />
         </svg>
         <div
           className="pop"
-          style={{ width: 140, height: 140, borderRadius: 36, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(145deg, #8CF09A, #3BBC4A 55%, #23802F)', boxShadow: '0 18px 40px -10px rgba(59,188,74,.55), inset 0 2px 0 rgba(255,255,255,.35)', color: '#0E1013' }}
+          style={{ width: 140, height: 140, borderRadius: 36, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: XP_GRADIENT, boxShadow: '0 18px 40px -10px rgba(244,180,58,.55), inset 0 2px 0 rgba(255,255,255,.35)', color: '#1A1205' }}
         >
           <span style={{ fontSize: 14, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', opacity: 0.75 }}>Level</span>
           <span style={{ fontSize: 64, fontWeight: 800, lineHeight: 1 }}>{career.level}</span>
@@ -190,7 +191,7 @@ function LevelUp({ me }: { me: string }) {
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, textAlign: 'center' }}>
         <h1 style={{ fontSize: 32, fontWeight: 800, textShadow: '0 3px 12px rgba(0,0,0,.6)' }}>Level {career.level} erreicht!</h1>
-        <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', color: '#6BE07A' }}>{newTitle ? `Neuer Titel: ${career.title}` : career.title}</span>
+        <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', color: XP_COLOR }}>{newTitle ? `Neuer Titel: ${career.title}` : career.title}</span>
         <p style={{ margin: '6px 0 0', fontSize: 15, color: 'var(--text-2)', lineHeight: 1.5, maxWidth: 300 }}>
           {career.xp.toLocaleString('de-DE')} XP gesammelt – noch {(career.nextXp - career.xp).toLocaleString('de-DE')} bis Level {career.level + 1}.
         </p>
@@ -199,7 +200,7 @@ function LevelUp({ me }: { me: string }) {
         <button className="btn" style={{ flex: 1, minHeight: 52, borderRadius: 16, fontSize: 15, fontWeight: 600, background: 'var(--nav)' }} onClick={share}>
           Teilen
         </button>
-        <button className="btn" style={{ flex: 1, minHeight: 52, borderRadius: 16, border: 'none', background: '#3BBC4A', color: '#0E1013', fontSize: 15, fontWeight: 700 }} onClick={done} autoFocus>
+        <button className="btn" style={{ flex: 1, minHeight: 52, borderRadius: 16, border: 'none', background: XP_COLOR, color: '#1A1205', fontSize: 15, fontWeight: 700 }} onClick={done} autoFocus>
           Weiter
         </button>
       </div>

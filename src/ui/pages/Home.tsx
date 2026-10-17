@@ -8,14 +8,16 @@ import { Sparkline } from '../charts/Sparkline'
 import { driverPath, MeButton, Monogram, useData, useMyName } from '../components'
 import { Chevrons, Crown, RecordFlame, Trophy } from '../icons'
 import { MedalBadge } from '../Medal'
-import { byProgress, ChallengeItem } from '../ChallengeItem'
-import { fmtElo, formatDate, formatTime, plural, shortName } from '../format'
+import { ChallengeBadge, ChallengeItem } from '../ChallengeItem'
+import { byProgress, unseenDone } from '../challengeUtils'
+import { formatDate, formatTime, plural, shortName } from '../format'
 import { isQuali } from '../../domain/rating'
 import { addDays, driverInsight, eventVisible, lastDay, planVisible, todayIso } from '../../domain/event/insights'
 import { computeFor, EVENT_ACCENT } from '../event/shared'
 import { CarThumb } from '../CarPhoto'
 import { EventCard } from './Events'
 import { useMe } from '../me'
+import { Amount, CurrencyIcon, XP_COLOR, XP_GRADIENT } from '../currency'
 
 export function Home() {
   const { model, days } = useData()
@@ -124,7 +126,7 @@ export function Home() {
                     {r.rank === 1 && <Crown size={22} animate />}
                     <span style={{ fontSize: 14, fontWeight: 600, maxWidth: '100%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: r.name === me ? 'var(--me)' : undefined }}>{r.name}</span>
                     <span className="num" style={{ fontSize: 12, color: 'var(--muted)' }}>
-                      {fmtElo(r.elo)}
+                      <Amount kind="elo" value={r.elo} size={12} plain />
                     </span>
                     <div
                       className={`rank r${r.rank}`}
@@ -196,10 +198,7 @@ function SeasonCard() {
           {r.days.length} {r.days.length === 1 ? 'Renntag' : 'Renntage'} · {r.wins} {r.wins === 1 ? 'Sieg' : 'Siege'}
         </span>
       </span>
-      <span className="num" style={{ fontSize: 15, fontWeight: 800 }}>
-        {r.points}
-        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', marginLeft: 3 }}>P</span>
-      </span>
+      <Amount kind="pts" value={r.points} size={15} />
       <Sparkline values={r.progress} color={r.name === me ? ME : '#8A94A0'} label={`Punkteverlauf ${r.name}`} width={48} />
     </Link>
   )
@@ -236,7 +235,7 @@ function XpStrip({ driver }: { driver: string }) {
     <Link to={driverPath(driver)} state={{ bg: location }} className="card" style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: '12px 14px' }}>
       <span
         aria-hidden="true"
-        style={{ width: 40, height: 40, borderRadius: 12, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, fontWeight: 800, color: '#0E1013', background: 'linear-gradient(145deg, #6BE07A, #3BBC4A 60%, #2A8F37)', boxShadow: 'var(--sh2)' }}
+        style={{ width: 40, height: 40, borderRadius: 12, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, fontWeight: 800, color: '#1A1205', background: XP_GRADIENT, boxShadow: 'var(--sh2)' }}
       >
         {c.level}
       </span>
@@ -245,12 +244,13 @@ function XpStrip({ driver }: { driver: string }) {
           <span style={{ fontSize: 14, fontWeight: 700 }}>
             Level {c.level} · {c.title}
           </span>
-          <span className="num" style={{ fontSize: 12, color: 'var(--muted)', flexShrink: 0 }}>
-            {(c.xp - c.levelXp).toLocaleString('de-DE')} / {(c.nextXp - c.levelXp).toLocaleString('de-DE')} XP
+          <span className="num" style={{ fontSize: 12, color: 'var(--muted)', flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <CurrencyIcon kind="xp" size={12} />
+            {(c.xp - c.levelXp).toLocaleString('de-DE')} / {(c.nextXp - c.levelXp).toLocaleString('de-DE')} <span style={{ color: XP_COLOR, fontWeight: 700 }}>XP</span>
           </span>
         </span>
         <span className="bar" style={{ width: '100%', height: 7 }}>
-          <span style={{ width: `${Math.round(progress * 100)}%`, borderRadius: 4, background: 'var(--me)' }} />
+          <span style={{ width: `${Math.round(progress * 100)}%`, borderRadius: 4, background: XP_COLOR }} />
         </span>
         <span style={{ fontSize: 11, color: 'var(--muted)' }}>
           noch {(c.nextXp - c.xp).toLocaleString('de-DE')} XP bis Level {c.level + 1}
@@ -297,12 +297,15 @@ function ChallengesCard() {
   const me = useMyName()
   if (!me) return null
   const year = CURRENT_YEAR
-  const open = model
-    .challenges(me, year)
+  const list = model.challenges(me, year)
+  const open = list
     .filter((c) => !c.done && (c.value > 0 || c.target - c.value <= 1))
     .sort(byProgress)
     .slice(0, 3)
-  if (!open.length) return null
+  // Geschafft, aber noch nicht in der Saison angesehen
+  const unseen = unseenDone(me, year, list)
+  const fresh = list.filter((c) => unseen.has(c.id))
+  if (!open.length && !fresh.length) return null
   return (
     <section className="card" style={{ gap: 8 }}>
       <div className="card-head">
@@ -313,6 +316,21 @@ function ChallengesCard() {
           Alle Challenges ›
         </Link>
       </div>
+      {fresh.length > 0 && (
+        <Link to={`/saison/${year}`} state={{ tab: 'challenges' }} className="inner" style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: '10px 12px' }}>
+          <span style={{ display: 'inline-flex' }}>
+            {fresh.slice(0, 3).map((c, i) => (
+              <span key={c.id} style={{ marginLeft: i ? -10 : 0 }}>
+                <ChallengeBadge c={c} accent={AREA.season} size={36} fresh />
+              </span>
+            ))}
+          </span>
+          <span style={{ fontSize: 13, fontWeight: 600, flex: 1 }}>
+            Neu geschafft: {fresh.map((c) => c.label).join(', ')}
+          </span>
+          <span style={{ fontSize: 12, color: 'var(--muted)' }}>›</span>
+        </Link>
+      )}
       {open.map((c) => (
         <ChallengeItem key={c.id} c={c} accent={AREA.season} />
       ))}
