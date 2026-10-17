@@ -4,6 +4,7 @@ import { AREA } from './colors'
 import { Avatar, useData, useMyName, useOpenMe, Wordmark } from './components'
 import { NAV_ICONS, StrokeIcon } from './icons'
 import { useStored } from './useStored'
+import { PrivacyFooter } from './Privacy'
 
 const isField = (p: string) => /^\/(fahrer|autos)/.test(p)
 
@@ -64,6 +65,7 @@ export function Layout() {
       </nav>
       <div className="content">
         <Outlet />
+        <PrivacyFooter />
       </div>
       <nav className="bottom-nav" aria-label="Hauptnavigation">
         {items.map((it) => (
