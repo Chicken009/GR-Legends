@@ -1,5 +1,6 @@
-import { useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { useMe } from '../me'
 import { CAREER_XP, PLACEMENT_RUNS, type Medal } from '../../domain/model'
 import { AREA, SERIES } from '../colors'
 import { Avatar, carPath, driverPath, PeriodTabs, Placement, Segment, Sheet, Tile, useData, useMyName } from '../components'
@@ -30,6 +31,14 @@ export function DriverProfile({ onClose }: { onClose: () => void }) {
   const [showOpponents, setShowOpponents] = useState(false)
   const [showRaces, setShowRaces] = useState(false)
   const driver = decodeURIComponent(name)
+  const { openPicker } = useMe()
+  const location = useLocation()
+  // Im eigenen Profil einen anderen Fahrer gewählt: gleich dessen Profil zeigen
+  const prevMe = useRef(me)
+  useEffect(() => {
+    if (prevMe.current === driver && me && me !== driver) navigate(driverPath(me), { replace: true, state: location.state })
+    prevMe.current = me
+  }, [me, driver, navigate, location.state])
   const d = model.stats('all').drivers.get(driver)
   const history = model.rating.history.get(driver) ?? []
   if (!d || history.length === 0) {
@@ -104,6 +113,11 @@ export function DriverProfile({ onClose }: { onClose: () => void }) {
             )}
             {isMe && ' · Das bist du'}
           </span>
+          {isMe && (
+            <button className="btn ghost" onClick={openPicker} style={{ alignSelf: 'flex-start', minHeight: 30, padding: '0 10px', fontSize: 12, marginTop: 2 }}>
+              Anderen Fahrer wählen
+            </button>
+          )}
         </div>
       </div>
 
@@ -115,6 +129,22 @@ export function DriverProfile({ onClose }: { onClose: () => void }) {
       </div>
 
       <CareerCard driver={driver} />
+      {challengeYear && challengeList.length > 0 && (
+        <Link to={`/saison/${challengeYear}`} state={{ tab: 'challenges', driver }} className="inner" style={{ gap: 10 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 14, fontWeight: 600 }}>Saisonchallenges{challengeYear === model.years[0] ? '' : ` ${challengeYear}`}</span>
+            <span style={{ fontSize: 13, color: 'var(--muted)' }}>
+              <b className="num" style={{ color: 'var(--text)' }}>
+                {challengesDone}/{challengeList.length}
+              </b>{' '}
+              geschafft ›
+            </span>
+          </div>
+          <div className="bar" style={{ ['--accent' as string]: AREA.season }}>
+            <div style={{ width: `${Math.round((challengesDone / challengeList.length) * 100)}%` }} />
+          </div>
+        </Link>
+      )}
       {wrappedYears.length > 0 && (
         <div className="chips" style={{ marginTop: -4 }}>
           {wrappedYears.map((y) => (
@@ -149,23 +179,6 @@ export function DriverProfile({ onClose }: { onClose: () => void }) {
         )}
         <DriverChart driver={driver} kind={chart} period={period} />
       </section>
-
-      {challengeYear && challengeList.length > 0 && (
-        <Link to={`/saison/${challengeYear}`} state={{ tab: 'challenges', driver }} className="inner" style={{ gap: 10 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 14, fontWeight: 600 }}>Saisonchallenges{challengeYear === model.years[0] ? '' : ` ${challengeYear}`}</span>
-            <span style={{ fontSize: 13, color: 'var(--muted)' }}>
-              <b className="num" style={{ color: 'var(--text)' }}>
-                {challengesDone}/{challengeList.length}
-              </b>{' '}
-              geschafft ›
-            </span>
-          </div>
-          <div className="bar" style={{ ['--accent' as string]: AREA.season }}>
-            <div style={{ width: `${Math.round((challengesDone / challengeList.length) * 100)}%` }} />
-          </div>
-        </Link>
-      )}
 
       <DriverStyle driver={driver} />
 

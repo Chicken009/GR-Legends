@@ -1,9 +1,8 @@
 import { useEffect } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { AREA } from './colors'
-import { Avatar, useData, useMyName, Wordmark } from './components'
+import { Avatar, useData, useMyName, useOpenMe, Wordmark } from './components'
 import { NAV_ICONS, StrokeIcon } from './icons'
-import { useMe } from './me'
 import { useStored } from './useStored'
 
 const isField = (p: string) => /^\/(fahrer|autos)/.test(p)
@@ -30,7 +29,7 @@ function useNavItems(pathname: string) {
 
 export function Layout() {
   const me = useMyName()
-  const { openPicker } = useMe()
+  const openMe = useOpenMe()
   const { source } = useData()
   const { pathname } = useLocation()
   const items = useNavItems(pathname)
@@ -53,13 +52,13 @@ export function Layout() {
           </span>
         )}
         <button
-          onClick={openPicker}
+          onClick={openMe}
           style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', gap: 10, minHeight: 56, padding: '0 12px', borderRadius: 16, border: '1px solid var(--line-2)', background: 'var(--inner-2)', textAlign: 'left', boxShadow: 'var(--sh2)' }}
         >
           {me ? <Avatar name={me} size={36} ring="var(--me)" /> : <span className="avatar" style={{ width: 36, height: 36, border: '2px dashed var(--muted)' }} />}
           <span style={{ display: 'flex', flexDirection: 'column' }}>
             <span style={{ fontSize: 14, fontWeight: 600 }}>{me ?? 'Wer bist du?'}</span>
-            <span style={{ fontSize: 11, color: 'var(--muted)' }}>{me ? 'Das bin ich · ändern' : 'Fahrer auswählen'}</span>
+            <span style={{ fontSize: 11, color: 'var(--muted)' }}>{me ? 'Mein Profil' : 'Fahrer auswählen'}</span>
           </span>
         </button>
       </nav>

@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useId, useRef, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import type { AppData } from '../data/useRaceDays'
 import { PLACEMENT_RUNS } from '../domain/model'
 import { StrokeIcon } from './icons'
@@ -37,12 +38,25 @@ export function Avatar({ name, size = 30, ring, style }: { name: string; size?: 
   )
 }
 
-/** Runder Knopf oben rechts: „Das bin ich“ */
-export function MeButton() {
+/** Mit gewähltem Namen: eigenes Profil öffnen (dort lässt sich der Fahrer wechseln), sonst die Auswahl */
+export function useOpenMe() {
   const { openPicker } = useMe()
   const me = useMyName()
+  const navigate = useNavigate()
+  const location = useLocation()
+  return () => {
+    if (!me) return openPicker()
+    if (decodeURIComponent(location.pathname) === driverPath(me)) return
+    navigate(driverPath(me), { state: { bg: location } })
+  }
+}
+
+/** Runder Knopf oben rechts: eigenes Profil bzw. „Wer bist du?“ */
+export function MeButton() {
+  const openMe = useOpenMe()
+  const me = useMyName()
   return (
-    <button className={`me-btn${me ? '' : ' empty'}`} onClick={openPicker} aria-label={me ? `Das bin ich: ${me} – ändern` : 'Wer bist du? Fahrer auswählen'}>
+    <button className={`me-btn${me ? '' : ' empty'}`} onClick={openMe} aria-label={me ? `Mein Profil: ${me}` : 'Wer bist du? Fahrer auswählen'}>
       {me ? initials(me) : <StrokeIcon d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21c0-4 3.6-6 8-6s8 2 8 6" size={20} color="#9AA3AD" />}
     </button>
   )
