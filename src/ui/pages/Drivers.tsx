@@ -8,6 +8,7 @@ import { DataTable, type Column } from '../DataTable'
 import { StatusIcons } from '../icons'
 import { fmtElo, fmtGapSec, fmtNum, fmtPct, formatTime } from '../format'
 import { useStored } from '../useStored'
+import { Amount } from '../currency'
 
 export function Drivers() {
   const { model, unmatched } = useData()
@@ -140,10 +141,7 @@ export function Drivers() {
                     <Placement n={model.placement(r.name)!} size={14} />
                   ) : (
                     <>
-                      <span className="num" style={{ fontSize: 26, fontWeight: 800 }}>
-                        {fmtElo(r.elo)}
-                      </span>
-                      <span style={{ fontSize: 11, color: 'var(--muted)' }}>Elo</span>
+                      <Amount kind="elo" value={r.elo} size={24} plain />
                     </>
                   )}
                   <span style={{ marginLeft: 'auto' }}>

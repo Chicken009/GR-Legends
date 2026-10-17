@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import type { SeasonStanding } from '../../domain/model'
 import { SEASON_POINTS } from '../../domain/season'
@@ -12,7 +13,9 @@ import { formatDate } from '../format'
 import { MedalBadge } from '../Medal'
 import { useMedalPopup } from '../MedalPopup'
 import { useStored } from '../useStored'
-import { byProgress, ChallengeItem } from '../ChallengeItem'
+import { ChallengeBadge, ChallengeItem, RarityLine, XpChip } from '../ChallengeItem'
+import { byProgress, rarity, useMarkChallengesSeen } from '../challengeUtils'
+import { Amount } from '../currency'
 
 const ACCENT = AREA.season
 const CURRENT_YEAR = String(new Date().getFullYear())
@@ -176,8 +179,7 @@ function StandingRow({ row: r, me, bg }: { row: SeasonStanding; me: string | nul
         </span>
       </span>
       <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', paddingTop: 4 }}>
-        <span className="num" style={{ fontSize: 20, fontWeight: 800 }}>{r.points}</span>
-        <span style={{ fontSize: 10, color: 'var(--muted)' }}>Punkte</span>
+        <Amount kind="pts" value={r.points} size={18} />
       </span>
       <span style={{ paddingTop: 8 }}>
         <Sparkline values={r.progress} color={r.name === me ? ME : '#8A94A0'} label={`Punkteverlauf ${r.name}`} />
@@ -211,7 +213,7 @@ function Constructors({ year }: { year: string }) {
               {r.races} Rennen · {r.wins} {r.wins === 1 ? 'Sieg' : 'Siege'} · {r.drivers} {r.drivers === 1 ? 'Fahrer' : 'Fahrer'}
             </span>
           </span>
-          <span className="num" style={{ fontSize: 18, fontWeight: 800 }}>{r.points}</span>
+          <Amount kind="pts" value={r.points} size={16} />
         </Link>
       ))}
       <p style={{ margin: '6px 0 0', fontSize: 11, color: 'var(--muted)', lineHeight: 1.45 }}>
@@ -282,51 +284,113 @@ function Challenges({ year, driver }: { year: string; driver?: string }) {
   const myName = useMyName()
   const me = driver ?? myName
   const own = me === myName
-  const location = useLocation()
+  const [picked, setPicked] = useState<string | null>(null)
   const drivers = model.season(year).map((r) => r.name)
   const mine = me && drivers.includes(me) ? model.challenges(me, year) : null
+  const fresh = useMarkChallengesSeen(own && mine ? me : null, year, mine)
   const all = drivers.map((n) => ({ n, list: model.challenges(n, year) }))
   const doneBy = (id: string) => all.filter((x) => x.list.find((c) => c.id === id)?.done).map((x) => x.n)
-  // mit Namen: nach eigenem Fortschritt, sonst danach, wie viele es geschafft haben
-  const list = mine ? [...mine].sort(byProgress) : [...(all[0]?.list ?? [])].sort((a, b) => doneBy(b.id).length - doneBy(a.id).length)
-  const doneCount = mine?.filter((c) => c.done).length ?? 0
+  const total = drivers.length
+  if (!mine) {
+    // Ohne Namen: alle Challenges mit Seltenheit, die am häufigsten geschafften zuerst
+    const list = [...(all[0]?.list ?? [])].sort((a, b) => doneBy(b.id).length - doneBy(a.id).length)
+    return (
+      <section className="card" style={{ gap: 10 }}>
+        <div className="card-head">
+          <span className="card-title">Challenges</span>
+          <span className="hint">je +{CHALLENGE_XP} XP</span>
+        </div>
+        {!myName && <p style={{ margin: 0, fontSize: 12, color: 'var(--muted)' }}>Oben rechts auswählen, wer du bist – dann siehst du deinen Fortschritt.</p>}
+        {list.map((c) => (
+          <ChallengeItem key={c.id} c={c} accent={ACCENT} showProgress={false} footer={<RarityLine doneBy={doneBy(c.id)} total={total} me={myName} />} />
+        ))}
+      </section>
+    )
+  }
+  const done = mine.filter((c) => c.done)
+  const open = mine.filter((c) => !c.done).sort(byProgress)
+  const counts = all.map((x) => x.list.filter((c) => c.done).length)
+  const rank = 1 + counts.filter((d) => d > done.length).length
+  const sel = done.find((c) => c.id === picked)
   return (
-    <section className="card" style={{ gap: 10 }}>
-      <div className="card-head">
-        <span className="card-title">{mine ? (own ? 'Deine Challenges' : `Challenges von ${me}`) : 'Challenges'}</span>
-        <span className="hint">{mine ? `${doneCount} von ${mine.length} geschafft · ${doneCount * CHALLENGE_XP} XP` : `je +${CHALLENGE_XP} XP`}</span>
-      </div>
-      {!me && <p style={{ margin: 0, fontSize: 12, color: 'var(--muted)' }}>Oben rechts auswählen, wer du bist – dann siehst du deinen Fortschritt.</p>}
-      {list.map((c) => {
-        const names = doneBy(c.id)
-        return (
-          <ChallengeItem
-            key={c.id}
-            c={mine ? c : { ...c, done: false }}
-            accent={ACCENT}
-            showProgress={!!mine}
-            footer={
-              <span style={{ fontSize: 11, color: 'var(--faint)' }}>
-                {names.length ? (
-                  <>
-                    Geschafft:{' '}
-                    {names.map((n, k) => (
-                      <span key={n}>
-                        {k > 0 && ', '}
-                        <Link to={driverPath(n)} state={{ bg: location }} style={{ color: n === me ? 'var(--me)' : 'var(--text-2)' }}>
-                          {n}
-                        </Link>
-                      </span>
-                    ))}
-                  </>
-                ) : (
-                  'Noch niemand geschafft'
-                )}
+    <>
+      <section className="card" style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+        <ProgressRing value={done.length} total={mine.length} color={ACCENT} />
+        <span style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+          <span className="card-title">{own ? 'Deine Challenges' : `Challenges von ${me}`}</span>
+          <Amount kind="xp" value={done.length * CHALLENGE_XP} size={15} />
+          <span style={{ fontSize: 12, color: 'var(--muted)' }}>
+            Platz {rank} von {total} bei den Challenges
+            {fresh.size > 0 && <b style={{ color: ACCENT }}> · {fresh.size} neu geschafft</b>}
+          </span>
+        </span>
+      </section>
+      {open.length > 0 && (
+        <section className="card" style={{ gap: 8 }}>
+          <div className="card-head">
+            <span className="card-title">Offen</span>
+            <span className="hint">{open.length} übrig · nächste zuerst</span>
+          </div>
+          {open.map((c) => (
+            <ChallengeItem key={c.id} c={c} accent={ACCENT} footer={<RarityLine doneBy={doneBy(c.id)} total={total} me={me} />} />
+          ))}
+        </section>
+      )}
+      {done.length > 0 && (
+        <section className="card" style={{ gap: 10 }}>
+          <div className="card-head">
+            <span className="card-title">Geschafft</span>
+            <span className="hint">Abzeichen antippen</span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(92px, 1fr))', gap: 8 }}>
+            {done.map((c) => {
+              const r = rarity(doneBy(c.id).length, total)
+              return (
+                <button
+                  key={c.id}
+                  className="inner"
+                  aria-pressed={picked === c.id}
+                  onClick={() => setPicked(picked === c.id ? null : c.id)}
+                  style={{ alignItems: 'center', gap: 6, padding: '12px 6px', border: picked === c.id ? `1.5px solid ${ACCENT}` : '1.5px solid transparent', textAlign: 'center' }}
+                >
+                  <ChallengeBadge c={c} accent={ACCENT} size={56} fresh={fresh.has(c.id)} />
+                  <span style={{ fontSize: 12, fontWeight: 700, lineHeight: 1.2 }}>{c.label}</span>
+                  <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: 0.4, textTransform: 'uppercase', color: fresh.has(c.id) ? ACCENT : r.color }}>{fresh.has(c.id) ? 'Neu' : r.label.split(' ·')[0]}</span>
+                </button>
+              )
+            })}
+          </div>
+          {sel && (
+            <div className="inner" style={{ gap: 6, padding: '10px 12px' }}>
+              <span style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
+                <b style={{ fontSize: 14 }}>{sel.label}</b>
+                <XpChip done />
               </span>
-            }
-          />
-        )
-      })}
-    </section>
+              <span style={{ fontSize: 12, color: 'var(--muted)' }}>{sel.detail}</span>
+              <RarityLine doneBy={doneBy(sel.id)} total={total} me={me} />
+            </div>
+          )}
+        </section>
+      )}
+    </>
+  )
+}
+
+/** Großer Ring „5/7“ */
+function ProgressRing({ value, total, color, size = 84 }: { value: number; total: number; color: string; size?: number }) {
+  const stroke = 8
+  const r = (size - stroke) / 2
+  const len = 2 * Math.PI * r
+  return (
+    <span style={{ position: 'relative', width: size, height: size, flexShrink: 0 }} role="img" aria-label={`${value} von ${total} geschafft`}>
+      <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#2A3038" strokeWidth={stroke} />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={stroke} strokeLinecap="round" strokeDasharray={`${len * (total ? value / total : 0)} ${len}`} />
+      </svg>
+      <span className="num" style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 800 }}>
+        {value}
+        <span style={{ fontSize: 13, color: 'var(--muted)', fontWeight: 600 }}>/{total}</span>
+      </span>
+    </span>
   )
 }
