@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-do
 import { PLACEMENT_RUNS } from '../../domain/model'
 import { carKey, duelDelta, winChances } from '../../domain/rating'
 import { CarThumb } from '../CarPhoto'
+import { UnderdogBonus } from './Cars'
 import { RadarChart } from '../charts/RadarChart'
 import { AREA, ME, SERIES } from '../colors'
 import { Avatar, carPath, driverPath, Segment, Sheet, useData, useMyName } from '../components'
@@ -20,6 +21,8 @@ interface Metric {
   lower?: boolean
 }
 
+/** Autowertung: Minus (schwächeres Auto, Underdog) in der Farbe des Underdog-Bonus, Plus neutral */
+const carColor = (v: number) => (Math.round(v) < 0 ? AREA.cars : 'var(--text-2)')
 const signed = (v: number | null | undefined) => (v == null ? '–' : `${v >= 0 ? '+' : '−'}${Math.abs(Math.round(v))}`)
 
 export function Compare() {
@@ -190,7 +193,7 @@ export function Compare() {
       )}
       {kind === 'auto' && (
         <section className="card" style={{ gap: 8 }}>
-          <span className="card-title">Auto-Bonus in der Wertung</span>
+          <span className="card-title">Autowertung</span>
           <CarBonus a={a} b={b} rA={carRating(a)} rB={carRating(b)} colorA={colorA} colorB={colorB} />
         </section>
       )}
@@ -254,10 +257,15 @@ function CarBonus({ a, b, rA, rB, colorA, colorB }: { a: string; b: string; rA: 
   const diff = Math.abs(ra - rb)
   const stronger = ra > rb ? a : b
   const weaker = ra > rb ? b : a
+  const { model } = useData()
+  const bonus = (name: string) => model.stats('all').cars.get(name)?.bonus ?? 0
   const row = (name: string, v: number, color: string) => (
-    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 14 }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, fontSize: 14 }}>
       <span style={{ fontWeight: 600, color, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
-      <span className="num" style={{ fontWeight: 700, color: v >= 0 ? '#7BDB8A' : '#FF8A7A' }}>{signed(v)}</span>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+        <UnderdogBonus bonus={bonus(name)} compact />
+        <span className="num" style={{ fontWeight: 700, color: carColor(v) }}>{signed(v)}</span>
+      </span>
     </div>
   )
   return (
@@ -269,13 +277,13 @@ function CarBonus({ a, b, rA, rB, colorA, colorB }: { a: string; b: string; rA: 
         <span className="num" style={{ fontWeight: 700 }}>{diff === 0 ? 'gleich stark' : `${diff} Punkte für ${stronger}`}</span>
       </div>
       <p style={{ margin: 0, fontSize: 12, color: 'var(--muted)', lineHeight: 1.45 }}>
-        Die Autowertung wird zur Elo des Fahrers addiert. {diff > 0 ? `Wer im ${weaker} gegen jemanden im ${stronger} gewinnt, bekommt deshalb mehr Elo.` : 'Keins der beiden Autos bringt einen Vorteil.'}
+        Die Autowertung wird zur Elo des Fahrers addiert. Minus = schwächeres Auto: Siege bringen mehr Elo (Underdog-Bonus). {diff > 0 ? `Wer im ${weaker} gegen jemanden im ${stronger} gewinnt, bekommt deshalb mehr Elo.` : 'Keins der beiden Autos bringt einen Vorteil.'}
       </p>
     </>
   )
 }
 
-/** Auto-Bonus und hypothetische Elo-Änderung für ein Rennen zu zweit */
+/** Autowertung und hypothetische Elo-Änderung für ein Rennen zu zweit */
 function WhatIf({ a, b, carA, carB, colorA, colorB }: { a: string; b: string; carA: string; carB: string; colorA: string; colorB: string }) {
   const { model } = useData()
   const track = model.tracks[0]
@@ -306,7 +314,7 @@ function WhatIf({ a, b, carA, carB, colorA, colorB }: { a: string; b: string; ca
       <div style={{ display: 'grid', gridTemplateColumns: '1fr auto auto auto', gap: '6px 12px', alignItems: 'center', fontSize: 13 }}>
         <span />
         <span style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'right' }}>Elo</span>
-        <span style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'right' }}>Auto-Bonus</span>
+        <span style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'right' }}>Autowertung</span>
         <span style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'right' }}>Stärke</span>
         {[
           [a, carA, eloA, colorA],
@@ -317,7 +325,10 @@ function WhatIf({ a, b, carA, carB, colorA, colorB }: { a: string; b: string; ca
               {n as string} <span style={{ color: 'var(--muted)', fontWeight: 400 }}>· {car as string}</span>
             </span>
             <span className="num" style={{ textAlign: 'right' }}>{fmtElo(elo as number)}</span>
-            <span className="num" style={{ textAlign: 'right', color: carR(car as string) >= 0 ? '#7BDB8A' : '#FF8A7A' }}>{signed(carR(car as string))}</span>
+            <span className="num" style={{ textAlign: 'right', color: carColor(carR(car as string)), display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
+              <UnderdogBonus bonus={model.stats('all').cars.get(car as string)?.bonus ?? 0} compact />
+              {signed(carR(car as string))}
+            </span>
             <span className="num" style={{ textAlign: 'right', fontWeight: 700 }}>{fmtElo(Math.round(elo as number) + Math.round(carR(car as string)))}</span>
           </div>
         ))}
@@ -335,7 +346,7 @@ function WhatIf({ a, b, carA, carB, colorA, colorB }: { a: string; b: string; ca
         ))}
       </div>
       <p style={{ margin: 0, fontSize: 11, color: 'var(--muted)', lineHeight: 1.45 }}>
-        Stärke = Elo + Auto-Bonus. Je größer der Abstand im Ziel, desto mehr Punkte. Bei mehr Fahrern verteilt sich das auf alle Duelle im Rennen.
+        Stärke = Elo + Autowertung. Minus = schwächeres Auto: Siege bringen mehr Elo (Underdog-Bonus). Je größer der Abstand im Ziel, desto mehr Punkte. Bei mehr Fahrern verteilt sich das auf alle Duelle im Rennen.
         {Math.abs(sA - sB) > 10 && ' Als Außenseiter bringt sogar eine knappe Niederlage Punkte – weil sie besser ist als erwartet.'}
         {(runsA < 5 || runsB < 5) && ' Fahrer mit weniger als 5 Läufen bewegen sich doppelt so stark.'}
       </p>
