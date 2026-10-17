@@ -12,6 +12,8 @@ export interface Settings {
   corrections: Correction[]
   /** Schreibweise im Sheet je Fahrer-Schlüssel (für Hinweise) */
   labels?: Record<string, string>
+  /** Zeile im Tab „Fahrer“ je Fahrer-Schlüssel (für Hinweise ohne Namen) */
+  rows?: Record<string, number>
 }
 
 export interface Correction {
@@ -52,13 +54,24 @@ export function driveFileId(link: string): string | null {
 
 /** Wertet die Zeilen der drei Tabs aus (ohne Kopfzeile). */
 export function parseSettings(tabs: { fahrer?: string[][]; fahrzeuge?: string[][]; korrekturen?: string[][] }): Settings {
-  const out: Settings = { aliases: {}, guests: [], cars: {}, corrections: [], labels: {} }
-  for (const row of tabs.fahrer ?? []) {
+  const out: Settings = { aliases: {}, guests: [], cars: {}, corrections: [], labels: {}, rows: {} }
+  ;(tabs.fahrer ?? []).forEach((row, i) => {
     const [name = '', display = '', guest = ''] = row.map((c) => clean(c ?? ''))
-    if (!name || isExample(row)) continue
+    if (!name || isExample(row)) return
     out.labels![nameKey(name)] = name
+    out.rows![nameKey(name)] = i + 2
     if (display && display !== name) out.aliases[nameKey(name)] = display
     if (/^x$/i.test(guest)) out.guests.push(nameKey(name))
+  })
+  // Ketten auflösen: „Smartrace-Name → Fahrer 01“ und „Fahrer 01 → Anzeigename“ ergeben „Smartrace-Name → Anzeigename“
+  for (const key of Object.keys(out.aliases)) {
+    let target = out.aliases[key]
+    const seen = new Set([key])
+    while (out.aliases[nameKey(target)] && !seen.has(nameKey(target))) {
+      seen.add(nameKey(target))
+      target = out.aliases[nameKey(target)]
+    }
+    out.aliases[key] = target
   }
   for (const row of tabs.fahrzeuge ?? []) {
     const [name = '', scale = '', display = ''] = row.map((c) => clean(c ?? ''))
@@ -107,7 +120,7 @@ export function carScale(settings: Settings, car: string): number {
 }
 
 /** Einträge im Sheet, die zu keinem Namen in den Rennen passen (meist Tippfehler) */
-export function unmatchedSettings(sessions: Session[], settings: Settings): { drivers: string[]; cars: string[] } {
+export function unmatchedSettings(sessions: Session[], settings: Settings): { drivers: number[]; cars: string[] } {
   const drivers = new Set<string>()
   const cars = new Set<string>()
   for (const s of sessions) {
@@ -117,8 +130,13 @@ export function unmatchedSettings(sessions: Session[], settings: Settings): { dr
     }
   }
   for (const c of settings.corrections) drivers.add(nameKey(c.correctDriver))
+  // Anzeigenamen, die in den Rennen vorkommen: Einträge, die auf so einen Namen zeigen, sind gewollte
+  // Zusammenführungen (z. B. alter Smartrace-Name → Fahrer 01) und kein Tippfehler
+  const shown = new Set([...drivers].map((k) => nameKey(settings.aliases[k] ?? settings.labels?.[k] ?? k)))
+  const unused = (k: string) => !drivers.has(k) && !(settings.aliases[k] && shown.has(nameKey(settings.aliases[k])))
   return {
-    drivers: [...new Set([...Object.keys(settings.aliases), ...settings.guests])].filter((k) => !drivers.has(k)).map((k) => settings.labels?.[k] ?? k),
+    // Nur Zeilennummern – Namen aus dem Sheet sollen nicht öffentlich auf der Seite erscheinen
+    drivers: [...new Set([...Object.keys(settings.aliases), ...settings.guests])].filter(unused).map((k) => settings.rows?.[k] ?? 0).filter((r) => r > 0).sort((a, b) => a - b),
     cars: Object.entries(settings.cars).filter(([k]) => !cars.has(k)).map(([k, e]) => e.name ?? k),
   }
 }

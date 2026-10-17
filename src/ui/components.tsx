@@ -297,11 +297,21 @@ export function Placement({ n, size = 12, short }: { n: number; size?: number; s
 }
 
 /** Hinweis auf Einträge im Einstellungen-Sheet, die zu keinem Rennen passen (meist Tippfehler) */
-export function SettingsHint({ names, kind }: { names: string[]; kind: 'Fahrer' | 'Fahrzeug' }) {
+export function SettingsHint({ names, kind }: { names: string[]; kind: 'Fahrzeug' }) {
   if (!names.length) return null
   return (
     <p className="inner" style={{ margin: 0, padding: '10px 12px', fontSize: 12, color: 'var(--muted)', lineHeight: 1.45 }}>
       <b style={{ color: 'var(--text-2)' }}>Einstellungen-Sheet:</b> {names.length === 1 ? `Dieser ${kind}name kommt` : `Diese ${kind}namen kommen`} in keinem Rennen vor – bitte die Schreibweise mit Smartrace vergleichen: {names.map((n) => `„${n}“`).join(', ')}
+    </p>
+  )
+}
+
+/** Fahrer-Einträge im Sheet ohne Treffer – nur mit Zeilennummer, Namen bleiben aus Datenschutzgründen unsichtbar */
+export function DriverSettingsHint({ rows }: { rows: number[] }) {
+  if (!rows.length) return null
+  return (
+    <p className="inner" style={{ margin: 0, padding: '10px 12px', fontSize: 12, color: 'var(--muted)', lineHeight: 1.45 }}>
+      <b style={{ color: 'var(--text-2)' }}>Einstellungen-Sheet:</b> Im Tab „Fahrer“ {rows.length === 1 ? `passt Zeile ${rows[0]}` : `passen die Zeilen ${rows.join(', ')}`} zu keinem Namen in den Rennen – bitte die Schreibweise mit Smartrace vergleichen.
     </p>
   )
 }

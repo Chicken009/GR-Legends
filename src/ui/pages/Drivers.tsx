@@ -3,7 +3,7 @@ import { PLACEMENT_RUNS, type RankRow } from '../../domain/model'
 import { SEASON_POINTS } from '../../domain/season'
 import { AREA } from '../colors'
 import { FieldSwitch } from '../FieldSwitch'
-import { Avatar, driverPath, PageHead, PeriodTabs, Placement, Rank, SettingsHint, useData, useMyName, ViewToggle } from '../components'
+import { Avatar, DriverSettingsHint, driverPath, PageHead, PeriodTabs, Placement, Rank, useData, useMyName, ViewToggle } from '../components'
 import { DataTable, type Column } from '../DataTable'
 import { StatusIcons } from '../icons'
 import { fmtElo, fmtGapSec, fmtNum, fmtPct, formatTime } from '../format'
@@ -159,7 +159,7 @@ export function Drivers() {
           })}
         </div>
       )}
-      <SettingsHint names={unmatched.drivers} kind="Fahrer" />
+      <DriverSettingsHint rows={unmatched.drivers} />
       {view === 'table' && (
         <div className="legend" style={{ gap: 18 }}>
           <span>Pace = Abstand der Ø sauberen Runde zur typischen Bestzeit der Strecke (Grenze der schnellsten 10 % aller Runden); minus = noch schneller</span>

@@ -207,9 +207,22 @@ describe('Einstellungen', () => {
   })
 
   it('meldet Einträge im Sheet, die zu keinem Rennen passen', () => {
-    const settings = parseSettings({ fahrer: [['Jo', 'Mika'], ['Joo', 'Mika']], fahrzeuge: [['Mercedes C63 AMG DTM No 6', '', 'Mercedes C63 AMG DTM']] })
+    const settings = parseSettings({ fahrer: [['Jo', 'Mika'], ['Joo', 'Moritz']], fahrzeuge: [['Mercedes C63 AMG DTM No 6', '', 'Mercedes C63 AMG DTM']] })
     const sessions = [race('f', '2026-01-01', [['Jo', 'Mercedes C63 AMG DTM No. 6', 10], ['Ben', 'X', 9]])]
-    expect(unmatchedSettings(sessions, settings)).toEqual({ drivers: ['Joo'], cars: ['Mercedes C63 AMG DTM No 6'] })
+    // Fahrer nur als Zeilennummer (Zeile 1 ist die Kopfzeile), Namen erscheinen nicht auf der Seite
+    expect(unmatchedSettings(sessions, settings)).toEqual({ drivers: [3], cars: ['Mercedes C63 AMG DTM No 6'] })
+  })
+
+  it('löst Ketten auf: alter Name → Pseudonym → Anzeigename', () => {
+    const settings = parseSettings({ fahrer: [['Fahrer 01', 'Anton'], ['Anton Berger', 'Fahrer 01'], ['Fahrer 02', '']] })
+    expect(settings.aliases).toEqual({ 'fahrer 01': 'Anton', 'anton berger': 'Anton' })
+    const [s] = applySettings([race('f', '2026-01-01', [['Fahrer 01', 'X', 10], ['Anton Berger', 'X', 9], ['Fahrer 02', 'X', 8]])], settings)
+    expect(s.results.map((r) => r.driver)).toEqual(['Anton', 'Anton', 'Fahrer 02'])
+    // Der alte Name kommt in keinem Rennen mehr vor, zeigt aber auf einen genutzten Namen: kein Hinweis
+    const only = [race('g', '2026-01-02', [['Fahrer 01', 'X', 10], ['Fahrer 02', 'X', 9]])]
+    expect(unmatchedSettings(only, settings).drivers).toEqual([])
+    // Ringverweise führen nicht in eine Endlosschleife
+    expect(parseSettings({ fahrer: [['A', 'B'], ['B', 'A']] }).aliases).toBeTruthy()
   })
 })
 

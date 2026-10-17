@@ -43,7 +43,10 @@ Sheets API nicht lesen). Tabs:
   geänderte Fassung. Autonamen dürfen sich dabei unterscheiden – so lässt sich ein Auto in einer
   CSV nachträglich umbenennen.
 - Namen werden ohne Rücksicht auf Groß-/Kleinschreibung und Leerzeichen verglichen. Einträge, die
-  zu keinem Rennen passen, zeigt die App unter der Fahrer- bzw. Fahrzeugliste an.
+  zu keinem Rennen passen, zeigt die App unter der Fahrer- bzw. Fahrzeugliste an – bei Fahrern nur
+  mit Zeilennummer, damit keine Namen aus dem Sheet öffentlich erscheinen.
+- Anzeigenamen dürfen eine Kette bilden: „alter Name → Fahrer 01“ und „Fahrer 01 → Anzeigename“
+  ergeben für beide den Anzeigenamen.
 
 ## Wettkämpfe
 

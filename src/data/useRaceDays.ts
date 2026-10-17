@@ -15,7 +15,7 @@ export interface AppData {
   settings: Settings
   photos: Record<string, string>
   /** Einträge im Einstellungen-Sheet ohne passenden Namen in den Rennen */
-  unmatched: { drivers: string[]; cars: string[] }
+  unmatched: { drivers: number[]; cars: string[] }
   source: 'drive' | 'local' | 'fixtures'
   /** Wettkämpfe (Unterordner der Streckenordner) */
   events: EventFolder[]

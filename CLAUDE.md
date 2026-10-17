@@ -15,9 +15,12 @@ Smartrace-CSVs und dem Einstellungen-Sheet sind **für jeden lesbar**. Deshalb g
   prüfen, dass keine Namen aus `local-data/` im Diff stehen.
 - Was einmal gepusht ist, bleibt in der Git-Historie und kann nur mit Umschreiben der Historie plus
   GitHub-Support wieder entfernt werden – also vorher prüfen, nicht hinterher.
-- Die Fahrer stehen in Smartrace und den CSVs nur als Initialen. Was angezeigt wird, legt jede Person
-  selbst fest (Spalte „Anzeigename“ im Einstellungen-Sheet). Die App muss mit beidem funktionieren
-  (Initialen als Schlüssel, Anzeigename zur Anzeige).
+- Die Fahrer stehen in Smartrace und den CSVs nur als Pseudonym (z. B. „Fahrer 01“). Was angezeigt
+  wird, legt jede Person selbst fest (Spalte „Anzeigename“ im Einstellungen-Sheet, auch als Kette
+  „alter Name → Fahrer 01 → Anzeigename“). Die App muss mit beidem funktionieren (Pseudonym als
+  Schlüssel, Anzeigename zur Anzeige).
+- Namen aus dem Einstellungen-Sheet nie ungefragt in der Oberfläche zeigen (z. B. Hinweise auf
+  Tippfehler nur mit Zeilennummer) – dort können Zuordnungen zu echten Namen stehen.
 - Kein Tracking, keine Cookies, keine externen Dienste außer Google Drive/Sheets (Daten) und GitHub
   Pages (Hosting). Schriften und Bibliotheken lokal einbinden, nichts von fremden Servern nachladen.
   Neue externe Dienste nur nach Rückfrage – und dann den Datenschutzhinweis anpassen.
