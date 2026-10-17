@@ -434,8 +434,9 @@ function Story({ cards, w, you, onDone, onShare }: { cards: CardDef[]; w: Wrappe
       <div {...viewportProps} style={{ ...viewportProps.style, flex: 1, minHeight: 0, display: 'flex' }}>
         <div {...trackProps} style={{ ...trackProps.style, flex: '0 0 100%', width: '100%', minWidth: 0, minHeight: 0 }}>
           {cards.map((c, i) => (
-            <div key={c.key} style={{ flex: '0 0 100%', minWidth: 0, minHeight: 0, padding: '16px max(16px, env(safe-area-inset-left, 0px))', display: 'flex', flexDirection: 'column', justifyContent: 'center', overflowY: 'auto' }}>
-              <div style={{ maxWidth: 520, width: '100%', margin: '0 auto' }}>
+            // Eigene Scrollfläche: pan-y hier noch einmal, sonst übernimmt der Browser auch waagerechte Wische
+            <div key={c.key} style={{ flex: '0 0 100%', minWidth: 0, minHeight: 0, padding: '16px max(16px, env(safe-area-inset-left, 0px))', display: 'flex', flexDirection: 'column', overflowY: 'auto', overflowX: 'hidden', touchAction: 'pan-y', overscrollBehavior: 'contain' }}>
+              <div style={{ maxWidth: 520, width: '100%', margin: 'auto' }}>
                 <CardFrame i={i} kicker={c.kicker} story>
                   {c.body}
                 </CardFrame>

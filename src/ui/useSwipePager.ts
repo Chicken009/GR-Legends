@@ -39,10 +39,11 @@ export function useSwipePager(count: number) {
     const dx = e.clientX - d.x
     const dy = e.clientY - d.y
     if (!d.axis) {
-      if (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy)) {
+      // Leicht schräge Wische zählen noch als waagerecht
+      if (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy) * 0.7) {
         d.axis = 'x'
         e.currentTarget.setPointerCapture(e.pointerId)
-      } else if (Math.abs(dy) > 8) {
+      } else if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) {
         drag.current = null
         return
       } else return
@@ -79,7 +80,9 @@ export function useSwipePager(count: number) {
     onPointerUp: onPointerEnd,
     onPointerCancel: onPointerEnd,
     onClickCapture,
-    style: { overflow: 'hidden', touchAction: 'pan-y' } as CSSProperties,
+    // Bilder und Text nicht mitziehen, sonst bricht der Browser die Geste ab
+    onDragStart: (e: MouseEvent) => e.preventDefault(),
+    style: { overflow: 'hidden', touchAction: 'pan-y', userSelect: 'none', WebkitUserSelect: 'none' } as CSSProperties,
   }
   const trackProps = {
     ref: track,
