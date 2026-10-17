@@ -4,6 +4,7 @@ import type { EventFolder } from '../../data/events'
 import { driverInsight, eventVisible, todayIso } from '../../domain/event/insights'
 import { PageHead, useData } from '../components'
 import { useMe } from '../me'
+import { StrokeIcon, TOOL_ICONS } from '../icons'
 import { CarThumb } from '../CarPhoto'
 import { computeFor, dateRange, EVENT_ACCENT, fmtPts, PhasePill, phaseOf } from '../event/shared'
 
@@ -17,19 +18,14 @@ export function EventList() {
   const hidden = data.events.filter((e) => !eventVisible(e.def, today))
   return (
     <>
-      <div className="filters" style={{ justifyContent: 'space-between' }}>
-        <span style={{ fontSize: 13, color: 'var(--muted)' }}>
-          {data.events.length ? `${visible.length} ${visible.length === 1 ? 'Wettkampf' : 'Wettkämpfe'}` : 'Noch keine Wettkämpfe'}
-        </span>
-        <Link to="/wettkampf/neu" className="btn round primary">
-          + Neuer Wettkampf
-        </Link>
-      </div>
+      <span style={{ fontSize: 13, color: 'var(--muted)' }}>
+        {data.events.length ? `${visible.length} ${visible.length === 1 ? 'Wettkampf' : 'Wettkämpfe'}` : 'Noch keine Wettkämpfe'}
+      </span>
       {!data.events.length && (
         <section className="inner" style={{ padding: 14, gap: 6 }}>
           <span className="card-title">So funktioniert’s</span>
           <p style={{ margin: 0, fontSize: 13, color: 'var(--muted)', lineHeight: 1.55 }}>
-            Wettkampf im Editor anlegen und <b>wettkampf.json</b> herunterladen. Im Drive-Ordner der Strecke einen Unterordner mit dem Namen des Wettkampfs anlegen, die Datei hineinlegen – und die Smartrace-Exporte des Abends ebenfalls dort speichern. Die App ordnet jede
+            Wettkampf mit dem Plus oben anlegen (Rennleitung) und <b>wettkampf.json</b> herunterladen. Im Drive-Ordner der Strecke einen Unterordner mit dem Namen des Wettkampfs anlegen, die Datei hineinlegen – und die Smartrace-Exporte des Abends ebenfalls dort speichern. Die App ordnet jede
             Datei dem passenden Lauf zu.
           </p>
         </section>
@@ -92,7 +88,11 @@ export function EventCard({ folder, me }: { folder: EventFolder; me: string | nu
 export function Events() {
   return (
     <div className="page" style={{ ['--accent' as string]: EVENT_ACCENT }}>
-      <PageHead title="Events" kicker="Wettkämpfe" color={EVENT_ACCENT} />
+      <PageHead title="Events" kicker="Wettkämpfe" color={EVENT_ACCENT}>
+        <Link to="/wettkampf/neu" className="icon-btn" aria-label="Neuer Wettkampf (Rennleitung)" title="Neuer Wettkampf (Rennleitung)">
+          <StrokeIcon d={TOOL_ICONS.plus} size={20} color="var(--muted)" />
+        </Link>
+      </PageHead>
       <EventList />
     </div>
   )

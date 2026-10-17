@@ -5,6 +5,7 @@ import { teamSplit } from '../../domain/event/engine'
 import { Avatar, PageHead, Segment, useData, useMyName } from '../components'
 import type { EventState } from '../../domain/event/engine'
 import { useMe } from '../me'
+import { StrokeIcon, TOOL_ICONS } from '../icons'
 import { useStored } from '../useStored'
 import { CarThumb } from '../CarPhoto'
 import { CarChips, dateRange, EVENT_ACCENT, fmtPts, HeatCard, PhasePill, phaseOf, Podium, rulesText, StandingsList, Stories, teamColor, TeamStandings, TeamTag, useEventState } from '../event/shared'
@@ -38,7 +39,11 @@ export function EventView() {
   const stories = storylines(state)
   return (
     <div className="page" style={{ ['--accent' as string]: EVENT_ACCENT }}>
-      <PageHead title={def.name} kicker={`Wettkampf · ${dateRange(def)}`} color={EVENT_ACCENT} />
+      <PageHead title={def.name} kicker={`Wettkampf · ${dateRange(def)}`} color={EVENT_ACCENT}>
+        <Link to={`/wettkampf/${id}/bearbeiten`} className="icon-btn" aria-label="Bearbeiten (Rennleitung)" title="Bearbeiten (Rennleitung)">
+          <StrokeIcon d={TOOL_ICONS.pencil} size={18} color="var(--muted)" />
+        </Link>
+      </PageHead>
       <div className="filters">
         <PhasePill phase={phase} />
         <span className="pill">{folder.tracks.join(', ')}</span>
@@ -48,9 +53,6 @@ export function EventView() {
         <span style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
           <Link to={`/wettkampf/${id}/leinwand`} className="btn round">
             Leinwand
-          </Link>
-          <Link to={`/wettkampf/${id}/bearbeiten`} className="btn round">
-            Bearbeiten
           </Link>
         </span>
       </div>
