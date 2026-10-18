@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { isGuest } from '../../domain/drivers'
+import { SPLIT_LAPS, splitTime } from '../../domain/laps'
 import { isQuali } from '../../domain/rating'
 import type { RaceDay, Result, Session } from '../../types'
 import { AREA, seriesColors } from '../colors'
@@ -142,6 +143,21 @@ function gapOf(s: Session, r: Result): string {
   return diff > 0 ? formatGap({ kind: 'time', ms: diff }) : '–'
 }
 
+/** „10 Rd. 2:08.412 · 20 Rd. 4:16.903 PB“ unter dem Auto */
+function SplitLine({ splits }: { splits: { n: number; ms: number; pb: boolean }[] }) {
+  if (!splits.length) return null
+  return (
+    <span className="num" style={{ display: 'flex', flexWrap: 'wrap', gap: '0 10px', fontSize: 11, color: 'var(--muted)', marginTop: 1 }}>
+      {splits.map((x) => (
+        <span key={x.n} title={`Gesamtzeit der ersten ${x.n} Runden${x.pb ? ' – persönliche Bestmarke auf dieser Strecke' : ''}`}>
+          {x.n} Rd. <span style={{ color: 'var(--text-2)', fontWeight: 600 }}>{formatTime(x.ms)}</span>
+          {x.pb && <b style={{ color: 'var(--best)', marginLeft: 4, fontSize: 9, letterSpacing: 0.4 }}>PB</b>}
+        </span>
+      ))}
+    </span>
+  )
+}
+
 export function RaceView() {
   const { fileId = '' } = useParams()
   const { days, model } = useData()
@@ -158,6 +174,19 @@ export function RaceView() {
   const laps = session.results[0]?.laps ?? 0
   const best = Math.min(...session.results.map((r) => r.validBestLapMs ?? Infinity))
   const idx = day.sessions.indexOf(session)
+  const stats = model.stats('all').drivers
+  // Gesamtzeit der ersten 10/20 Runden und ob das die persönliche Bestmarke auf der Strecke ist
+  // (Bestmarken nur ohne Tankfunktion, Boxenzeiten verzerren die Summe)
+  const splits = (r: Result) => {
+    if (isQuali(session) || isGuest(r.driver)) return []
+    const mine = (stats.get(r.driver)?.raceResults ?? []).filter((x) => x.session.track === session.track && !x.session.tank)
+    return SPLIT_LAPS.flatMap((n) => {
+      const ms = splitTime(r, n)
+      if (ms == null) return []
+      const pb = Math.min(...mine.map((x) => splitTime(x.result, n) ?? Infinity))
+      return [{ n, ms, pb: !session.tank && ms <= pb }]
+    })
+  }
   return (
     <div className="page" style={{ ['--accent' as string]: ACCENT, maxWidth: 820 }}>
       <header style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -199,6 +228,7 @@ export function RaceView() {
                   {r.car}
                   {session.tank && r.pitStops > 0 ? ` · ${plural(r.pitStops, 'Box', 'Boxenstopps')}` : ''}
                 </Link>
+                <SplitLine splits={splits(r)} />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
                 <span className="num" style={{ fontSize: 13 }}>

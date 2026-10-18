@@ -8,6 +8,13 @@ export interface LinePoint {
   mark?: boolean
 }
 
+/** Graue Hintergrundlinie mit eigener, unbeschrifteter Skala (z. B. Rang hinter der Elo) */
+export interface BackLine {
+  values: (number | null)[]
+  invert?: boolean
+  format: (v: number) => string
+}
+
 /**
  * Einfaches Liniendiagramm mit einer Achse, Fläche darunter und antippbaren Wendepunkten.
  * `invert` dreht die Achse (Rang 1 oben).
@@ -22,6 +29,7 @@ export function LineChart({
   label,
   area = true,
   initialTip = null,
+  back,
 }: {
   points: LinePoint[]
   color: string
@@ -32,6 +40,7 @@ export function LineChart({
   label: string
   area?: boolean
   initialTip?: number | null
+  back?: BackLine
 }) {
   const [ref, width] = useWidth<HTMLDivElement>()
   const [open, setOpen] = useTipState<number>(ref, initialTip)
@@ -49,6 +58,16 @@ export function LineChart({
   const pts = points.map((p, i) => [sx(i), sy(p.y)] as [number, number])
   const ticks = niceTicks(min, max, 3)
   const last = pts[pts.length - 1]
+  // Hintergrundlinie: eigene Skala im mittleren Bereich, damit sie die Hauptlinie nicht dominiert
+  const backVals = back?.values.filter((v): v is number => v != null) ?? []
+  const backPts = (() => {
+    if (!back || backVals.length < 2) return null
+    const lo = Math.min(...backVals) - 0.5
+    const hi = Math.max(...backVals) + 0.5
+    const by = back.invert ? scale(lo, hi, top + 6, bottom - 6) : scale(lo, hi, bottom - 6, top + 6)
+    return back.values.map((v, i) => (v == null ? null : ([sx(i), by(v)] as [number, number])))
+  })()
+  const backLast = backPts ? [...backPts.keys()].filter((i) => backPts[i]).pop() : undefined
   return (
     <div ref={ref} className="chart" style={{ height }}>
       <svg width={width} height={height} role="img" aria-label={label} className="icon-shadow">
@@ -60,6 +79,23 @@ export function LineChart({
             </text>
           </g>
         ))}
+        {backPts && (
+          <g>
+            <path d={linePath(backPts.filter((p): p is [number, number] => p != null))} fill="none" stroke="#5B636E" strokeWidth="1.6" strokeDasharray="4 3" strokeLinejoin="round" />
+            {backLast != null && (
+              <text
+                x={backPts[backLast]![0] - 40}
+                y={Math.max(top, Math.min(bottom - 4, backPts[backLast]![1] - 5))}
+                fill="#8A929C"
+                fontSize="10"
+                fontWeight="700"
+                textAnchor="end"
+              >
+                {back!.format(back!.values[backLast]!)}
+              </text>
+            )}
+          </g>
+        )}
         {area && !invert && <path d={`${linePath(pts)} L${last[0]} ${bottom} L${pts[0][0]} ${bottom} Z`} fill={color} opacity="0.12" />}
         <path d={linePath(pts)} fill="none" stroke={color} strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" />
         {points.map((p, i) =>

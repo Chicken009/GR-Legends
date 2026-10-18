@@ -6,7 +6,7 @@ import type { Result, Session } from '../types'
 import { estimateCars, fitCars, type CarObs } from './carModel'
 import { CHALLENGE_POOL, CHALLENGES_PER_SEASON, NEW_PER_SEASON, seasonChallengeIds, seasonChallenges } from './challenges'
 import { constructorStandings, seasonStandings } from './season'
-import { classifyIncidents, hasTankFunction } from './laps'
+import { classifyIncidents, hasTankFunction, splitTime } from './laps'
 import { buildModel, PLACEMENT_RUNS, positionTrace } from './model'
 import { computeRatings, RATING, winChances } from './rating'
 import { buildSession } from './sessions'
@@ -414,5 +414,21 @@ describe('Fahrstil (Netzdiagramm)', () => {
       expect(a.score).toBeGreaterThan(0)
       expect(a.score).toBeLessThanOrEqual(1)
     }
+  })
+})
+
+describe('Gesamtzeit der ersten Runden', () => {
+  const res = (laps: number[], invalidAt = -1) => ({
+    position: 1, gap: { kind: 'leader' as const }, driver: 'Mika', car: 'Auto', laps: laps.length, bestLapMs: null, validBestLapMs: null, pitStops: 0,
+    lapTimes: laps.map((ms, i) => ({ number: i + 1, ms, status: i === invalidAt ? ('invalid' as const) : ('normal' as const) })),
+  })
+  it('summiert die ersten n Runden, nur wenn sie gefahren wurden', () => {
+    expect(splitTime(res(Array(12).fill(10_000)), 10)).toBe(100_000)
+    expect(splitTime(res(Array(12).fill(10_000)), 20)).toBeNull()
+    expect(splitTime(res(Array(25).fill(10_000)), 20)).toBe(200_000)
+  })
+  it('lässt Zeiten mit ungültiger Runde weg', () => {
+    expect(splitTime(res(Array(12).fill(10_000), 3), 10)).toBeNull()
+    expect(splitTime(res(Array(12).fill(10_000), 11), 10)).toBe(100_000)
   })
 })

@@ -20,6 +20,7 @@ export function TimeTrendChart({
   xLabels,
   label,
   height = 160,
+  tickFormat = (sec) => sec.toLocaleString('de-DE', { maximumFractionDigits: 1 }),
 }: {
   series: TrendSeries[]
   /** Spanne im Hintergrund (z. B. eigene Rundenzeiten von schnell bis langsam) */
@@ -28,6 +29,8 @@ export function TimeTrendChart({
   xLabels: { index: number; text: string }[]
   label: string
   height?: number
+  /** Achsenbeschriftung in Sekunden */
+  tickFormat?: (sec: number) => string
 }) {
   const [ref, width] = useWidth<HTMLDivElement>()
   const [open, setOpen] = useTipState<number>(ref)
@@ -89,7 +92,7 @@ export function TimeTrendChart({
           <g key={t}>
             <path d={`M30 ${sy(t * 1000)}H${width}`} stroke={GRID} />
             <text x="0" y={sy(t * 1000) + 3} fill={AXIS} fontSize="10">
-              {t.toLocaleString('de-DE', { maximumFractionDigits: 1 })}
+              {tickFormat(t)}
             </text>
           </g>
         ))}

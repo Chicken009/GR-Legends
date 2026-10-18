@@ -16,7 +16,7 @@ import { TipCarousel } from '../TipCarousel'
 import { MedalBadge, TIERS } from '../Medal'
 import { useMedalPopup } from '../MedalPopup'
 import { fmtDelta, fmtElo, fmtGapSec, fmtNum, fmtPct, formatDate, formatMonth, formatTime } from '../format'
-import { quantile } from '../../domain/laps'
+import { quantile, SPLIT_LAPS, splitTime } from '../../domain/laps'
 import { Amount, XP_COLOR, XP_GRADIENT } from '../currency'
 
 const ACCENT = AREA.drivers
@@ -170,7 +170,7 @@ export function DriverProfile({ onClose }: { onClose: () => void }) {
       <section className="inner" style={{ padding: '14px 14px 10px', gap: 8 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: 14, fontWeight: 600 }}>Entwicklung</span>
-          <Segment small label="Diagramm wählen" value={chart} onChange={setChart} options={[['elo', 'Elo'], ['rank', 'Rang'], ['lap', 'Runden'], ['season', 'Saison']]} />
+          <Segment small label="Diagramm wählen" value={chart} onChange={setChart} options={[['elo', 'Elo'], ['lap', 'Runden'], ['splits', '10/20'], ['season', 'Saison']]} />
         </div>
         {driverYears.length > 1 && (
           <div style={{ ['--accent' as string]: ACCENT }}>
@@ -433,7 +433,7 @@ function MedalChip({ medal, driver }: { medal: Medal; driver: string }) {
   )
 }
 
-type ChartKind = 'elo' | 'rank' | 'lap' | 'season'
+type ChartKind = 'elo' | 'lap' | 'splits' | 'season'
 
 /**
  * Punkteverlauf in der gewählten Saison (bei „Gesamt“ die letzte Saison des Fahrers), mit dem
@@ -447,7 +447,9 @@ function SeasonChart({ driver, period }: { driver: string; period: string }) {
   if (!year || !mine) return <p className="muted" style={{ margin: 0, fontSize: 13 }}>In dieser Saison keine Rennen.</p>
   const dates = [...new Set(model.sessions.filter((s) => s.date.startsWith(year)).map((s) => s.date))].sort()
   if (dates.length < 2) return <p className="muted" style={{ margin: 0, fontSize: 13 }}>Noch zu wenige Renntage in der Saison {year}.</p>
-  const other = mine.rank === 1 ? rows[1] : rows[0]
+  // Vergleich mit dem Nächstbesseren (bzw. dem Verfolger, wenn man vorne liegt) – nicht mit der Spitze
+  const idx = rows.indexOf(mine)
+  const other = idx === 0 ? rows[1] : rows[idx - 1]
   const series = [
     ...(other ? [{ name: other.name, color: '#7D8691', values: other.progress }] : []),
     { name: driver, color: ACCENT, values: mine.progress },
@@ -457,8 +459,83 @@ function SeasonChart({ driver, period }: { driver: string; period: string }) {
       <PointsChart dates={dates} series={series} label={`Punkteverlauf von ${driver} in der Saison ${year}`} />
       <span style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.45 }}>
         Saison {year}: Platz {mine.rank} von {rows.length} · {mine.points.toLocaleString('de-DE')} Punkte. Punktestand nach jedem Renntag, mit Streichresultaten
-        {other ? `; grau: ${other.name} (${mine.rank === 1 ? 'Verfolger' : 'Spitze'})` : ''}.
+        {other ? `; grau: ${other.name} (${idx === 0 ? 'Verfolger' : `Platz ${other.rank}, direkt vor dir`})` : ''}.
       </span>
+    </>
+  )
+}
+
+/**
+ * Gesamtzeit der ersten 10 bzw. 20 Runden je Rennen (nur wenn so viele Runden gefahren wurden)
+ * und die persönliche Bestmarke – je Strecke, weil Zeiten nur dort vergleichbar sind. Rennen
+ * mit Tankfunktion zählen nicht: Boxenzeiten und nicht gezählte Runden verzerren die Summe.
+ */
+function SplitChart({ driver, period }: { driver: string; period: string }) {
+  const { model } = useData()
+  const [n, setN] = useState<number>(SPLIT_LAPS[0])
+  const races = (model.stats('all').drivers.get(driver)?.raceResults ?? []).filter((x) => !x.session.tank)
+  const tracks = [...new Set(races.filter((x) => splitTime(x.result, SPLIT_LAPS[0]) != null).map((x) => x.session.track))]
+  const [pickTrack, setTrack] = useState<string | null>(null)
+  const track = pickTrack && tracks.includes(pickTrack) ? pickTrack : (races.findLast((x) => tracks.includes(x.session.track))?.session.track ?? null)
+  if (!track) return <p className="muted" style={{ margin: 0, fontSize: 13 }}>Noch kein Rennen mit {SPLIT_LAPS[0]} Runden.</p>
+  let pb = Infinity
+  const rows = races
+    .filter((x) => x.session.track === track)
+    .flatMap((x) => {
+      const ms = splitTime(x.result, n)
+      if (ms == null) return []
+      pb = Math.min(pb, ms)
+      return [{ ...x, ms, pb }]
+    })
+    .filter((x) => period === 'all' || x.session.date.startsWith(period))
+  const s2 = (ms: number) => formatTime(ms)
+  return (
+    <>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+        <Segment small label="Rundenzahl" value={String(n)} onChange={(v) => setN(Number(v))} options={SPLIT_LAPS.map((k) => [String(k), `${k} Runden`] as [string, string])} />
+        {tracks.length > 1 && (
+          <Segment small label="Strecke" value={track} onChange={setTrack} options={tracks.map((t) => [t, t] as [string, string])} />
+        )}
+      </div>
+      {rows.length < 2 ? (
+        <p className="muted" style={{ margin: 0, fontSize: 13 }}>{rows.length ? `Erst ein Rennen mit ${n} Runden.` : `In diesem Zeitraum kein Rennen mit ${n} Runden.`}</p>
+      ) : (
+        <>
+          <TimeTrendChart
+            label={`Gesamtzeit der ersten ${n} Runden je Rennen und persönliche Bestmarke`}
+            tickFormat={(sec) => `${Math.floor(sec / 60)}:${(sec % 60).toLocaleString('de-DE', { minimumIntegerDigits: 2, maximumFractionDigits: 1 })}`}
+            series={[
+              { name: 'Zeit', color: ACCENT, values: rows.map((r) => r.ms) },
+              { name: 'Bestmarke', color: '#B98CFF', values: rows.map((r) => r.pb), dashed: true, step: true },
+            ]}
+            tips={rows.map((r) => ({
+              title: `${formatDate(r.session.date)} · ${r.session.type} ${r.session.heat}`,
+              text: (
+                <>
+                  <span style={{ color: ACCENT }}>{n} Runden in {s2(r.ms)}</span>
+                  <br />
+                  <span style={{ color: '#B98CFF' }}>Bestmarke bis dahin {s2(r.pb)}</span>
+                  {r.ms === r.pb && <> · neue Bestmarke!</>}
+                </>
+              ),
+              sub: `${r.result.car} · P${r.result.position}`,
+            }))}
+            xLabels={[{ index: 0, text: formatDate(rows[0].session.date) }, { index: rows.length - 1, text: formatDate(rows[rows.length - 1].session.date) }]}
+          />
+          <div className="legend">
+            <span>
+              <span style={{ width: 14, height: 3, borderRadius: 2, background: ACCENT }} />
+              Zeit für {n} Runden
+            </span>
+            <span>
+              <span style={{ width: 14, height: 0, borderTop: '2px dashed #B98CFF' }} />
+              Bestmarke
+            </span>
+            <span>↑ schneller</span>
+          </div>
+          <span style={{ fontSize: 11, color: 'var(--muted)' }}>Ohne Rennen mit Tankfunktion.</span>
+        </>
+      )}
     </>
   )
 }
@@ -466,6 +543,7 @@ function SeasonChart({ driver, period }: { driver: string; period: string }) {
 function DriverChart({ driver, kind, period }: { driver: string; kind: ChartKind; period: string }) {
   const { model } = useData()
   if (kind === 'season') return <SeasonChart driver={driver} period={period} />
+  if (kind === 'splits') return <SplitChart driver={driver} period={period} />
   const inP = (date: string) => period === 'all' || date.startsWith(period)
   const history = (model.rating.history.get(driver) ?? []).filter((e) => inP(e.date))
   if (history.length === 0) return <p className="muted" style={{ margin: 0, fontSize: 13 }}>Keine Läufe in diesem Zeitraum.</p>
@@ -488,32 +566,32 @@ function DriverChart({ driver, kind, period }: { driver: string; kind: ChartKind
         : turning.has(i) ? { title: `${fmtDelta(e.delta)} Elo`, text: e.reason, sub: `${formatDate(e.date)} · ${e.type} · ${e.position}. von ${e.field}`, color: e.delta >= 0 ? ACCENT : '#C5CCD3' } : undefined,
     }))
     const mid = Math.floor(history.length / 2)
+    // Gesamtrang nach dem jeweiligen Renntag als graue Linie im Hintergrund
+    const { dates, ranks } = model.rankTimeline()
+    const myRanks = ranks.get(driver) ?? []
+    const rankAt = history.map((e) => myRanks[dates.indexOf(e.date)] ?? null)
+    for (const [i, p] of points.entries()) if (p.tip && rankAt[i] != null) p.tip = { ...p.tip, sub: `${p.tip.sub} · Rang ${rankAt[i]}.` }
     return (
       <>
         <LineChart
           points={points}
+          back={{ values: rankAt, invert: true, format: (v) => `Rang ${v}.` }}
           color={ACCENT}
           label={`Elo-Verlauf von ${fmtElo(history[0]?.before)} auf ${fmtElo(history[history.length - 1]?.after)} über ${history.length} Läufe`}
           xLabels={history.length > 1 ? [{ index: 0, text: formatDate(history[0].date) }, ...(history.length > 6 ? [{ index: mid, text: formatDate(history[mid].date) }] : []), { index: history.length - 1, text: formatDate(history[history.length - 1].date) }] : []}
         />
+        <div className="legend">
+          <span>
+            <span style={{ width: 14, height: 3, borderRadius: 2, background: ACCENT }} />
+            Elo
+          </span>
+          <span>
+            <span style={{ width: 14, height: 0, borderTop: '2px dashed #5B636E' }} />
+            Gesamtrang (oben = besser)
+          </span>
+        </div>
         <span style={{ fontSize: 11, color: 'var(--muted)' }}>Weiße Punkte antippen: Warum ging es hoch oder runter?</span>
       </>
-    )
-  }
-  if (kind === 'rank') {
-    const { dates, ranks } = model.rankTimeline()
-    const r = ranks.get(driver) ?? []
-    const pts = dates.map((dt, i) => ({ dt, y: r[i] })).filter((p): p is { dt: string; y: number } => p.y != null && inP(p.dt))
-    if (pts.length < 2) return <p className="muted" style={{ margin: 0, fontSize: 13 }}>Noch zu wenige Renntage.</p>
-    return (
-      <LineChart
-        invert
-        points={pts.map((p) => ({ y: p.y }))}
-        color={ACCENT}
-        format={(v) => `${Math.round(v)}.`}
-        label={`Rang von ${pts[0].y} auf ${pts[pts.length - 1].y}`}
-        xLabels={[{ index: 0, text: formatDate(pts[0].dt) }, { index: pts.length - 1, text: formatDate(pts[pts.length - 1].dt) }]}
-      />
     )
   }
   // Rundenzeiten: gleitender Median der letzten Rennen und persönliche Bestzeit

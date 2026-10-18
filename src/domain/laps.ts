@@ -159,3 +159,17 @@ export function classifyAllLaps(
     }
   })
 }
+
+/** Gesamtzeiten über die ersten Runden eines Rennens (vergleichbar über verschiedene Renndauern) */
+export const SPLIT_LAPS = [10, 20] as const
+
+/**
+ * Gesamtzeit der ersten `n` Runden. null, wenn der Fahrer weniger Runden gefahren ist oder eine
+ * ungültige (zu kurze) Runde darin liegt – dann wäre die Zeit nicht vergleichbar.
+ */
+export function splitTime(r: Result, n: number): number | null {
+  if (r.lapTimes.length < n) return null
+  const first = r.lapTimes.slice(0, n)
+  if (first.some((l) => l.status === 'invalid')) return null
+  return first.reduce((sum, l) => sum + l.ms, 0)
+}
