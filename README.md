@@ -213,6 +213,15 @@ docs/          Einstellungen-Vorlage, Logo (Monogramm, App-Icon, Schriftzug)
   Historie nicht als Box angezeigt); langsame Runden sind wie üblich *Abflüge*.
 - Abflugquoten zählen nur Rennen **ohne** Tankfunktion, weil dort Stopp und Abflug eindeutig sind.
 
+**10/20 Runden** (`src/domain/splits.ts`): Gesamtzeit der ersten 10 bzw. 20 Runden eines Rennens,
+nur wenn so viele Runden gefahren wurden und keine ungültige Runde darin liegt. Bestmarken, Rekorde
+und Zeitmarken zählen je Strecke und ohne Tankfunktion. *Zeitmarken* sind runde Grenzen (Schritt
+≈ 3,5 % der typischen Zeit, z. B. 5 s bei 10 Runden à 13 s): „10 Runden unter 2:00“. Daraus kommen
+Ziele, Tipps, Neuigkeiten und die Rückblick-Karte. Ab 2027 (`SPLIT_REWARDS_FROM`) kommen Medaillen
+(Rekord, erreichte Marke – Stufe nach Abstand zum Rekord) und eine zusätzliche Saison-Challenge
+(neue Bestmarke oder 3-mal unter der schon erreichten Marke) dazu – so ändern sich bestehende
+Ergebnisse nicht nachträglich.
+
 **Wertung** (`src/domain/rating.ts`): Elo aus direkten Duellen jedes Laufs, Start 500, halbe
 Elo-Skala (200 Punkte = Siegchance 10 : 1), damit die Zahlen dreistellig und nah beieinander
 bleiben. Das Duell-Ergebnis hängt vom Abstand ab (Runden bzw. Zeit). Die Erwartung kommt aus

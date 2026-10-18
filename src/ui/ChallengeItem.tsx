@@ -28,6 +28,8 @@ const ICONS: Record<string, string> = {
   neuesauto: 'M15 3.5a5 5 0 1 1-4.6 6.9L4 16.8V20h3.2v-2h2v-2h2l1.1-1.1A5 5 0 0 1 15 3.5zM16 7.5h.01',
   konstant: 'M3 12h3l2-5 4 10 2-5h7',
   tagessieger: 'M3 19h18M4 8l4 4 4-7 4 7 4-4-2 11H6z',
+  zeit10: 'M12 9v4l3 2M9 2.5h6M12 21a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM4 5l2 2',
+  zeit20: 'M12 9v4l3 2M9 2.5h6M12 21a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM4 5l2 2M20 5l-2 2',
   pbautos: 'M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-2.4z',
 }
 

@@ -1,5 +1,6 @@
 import type { Result, Session } from '../types'
 import { isGuest } from './drivers'
+import { SPLIT_REWARDS_FROM } from './splits'
 
 /** Saison-Challenges: kleine Aufgaben pro Jahr, jede geschaffte bringt Karriere-XP. */
 export interface Challenge {
@@ -29,6 +30,11 @@ export interface ChallengeContext {
   upsetWins: number
   /** Autos, die der Fahrer vor diesem Jahr schon gefahren ist */
   carsBefore: Set<string>
+  /**
+   * 10/20 Runden auf der Hauptstrecke: Bestmarke vor der Saison, die damit schon erreichte
+   * Zeitmarke und die Zeiten der Saison (mit der jeweils bisherigen Bestmarke)
+   */
+  splits?: { n: number; pbBefore: number | null; mark: number | null; times: { ms: number; prevBest: number | null }[] }[]
 }
 
 interface Facts {
@@ -41,7 +47,7 @@ interface Facts {
 interface ChallengeDef {
   id: string
   label: string
-  detail: string
+  detail: string | ((c: ChallengeContext) => string)
   target: number
   value: (c: ChallengeContext, f: Facts) => number
 }
@@ -112,6 +118,44 @@ export const CHALLENGE_POOL: ChallengeDef[] = [
   { id: 'pbautos', label: 'Tuner', detail: 'In 2 verschiedenen Autos die eigene Bestzeit verbessern', target: 2, value: (c) => new Set(c.personalBests.map((p) => p.car)).size },
 ]
 
+const fmtMs = (ms: number) => {
+  const s = ms / 1000
+  return `${Math.floor(s / 60)}:${(s % 60).toFixed(3).padStart(6, '0')}`
+}
+const fmtMarkMs = (ms: number) => `${Math.floor(ms / 60000)}:${String(Math.round((ms % 60000) / 1000)).padStart(2, '0')}`
+
+/**
+ * Zeitjagd über 10 bzw. 20 Runden: geschafft mit einer neuen Bestmarke – oder dreimal unter der
+ * Zeitmarke, die man schon einmal geknackt hat (Konstanz statt Rekord).
+ */
+function timeChallenge(n: number, label: string): ChallengeDef {
+  const info = (c: ChallengeContext) => c.splits?.find((x) => x.n === n)
+  return {
+    id: `zeit${n}`,
+    label,
+    target: 3,
+    detail: (c) => {
+      const x = info(c)
+      if (!x || x.pbBefore == null || x.mark == null) return `Ein Rennen über mindestens ${n} Runden ohne Tankfunktion fahren – deine erste Bestmarke`
+      return `Bestmarke über ${n} Runden verbessern (${fmtMs(x.pbBefore)}) oder 3-mal unter ${fmtMarkMs(x.mark)} bleiben`
+    },
+    value: (c) => {
+      const x = info(c)
+      if (!x) return 0
+      // jede neue Bestmarke (auch die erste) erfüllt die Challenge sofort
+      if (x.times.some((t) => t.prevBest == null || t.ms < t.prevBest)) return 3
+      return x.mark == null ? 0 : x.times.filter((t) => t.ms < x.mark!).length
+    },
+  }
+}
+
+/**
+ * Zusätzlicher Platz – getrennt vom Pool, damit sich frühere Auswahlen nicht ändern. Erst ab der
+ * nächsten Saison, damit laufende Challenges und XP gleich bleiben.
+ */
+export const TIME_POOL: ChallengeDef[] = [timeChallenge(10, 'Zehner-Jagd'), timeChallenge(20, 'Zwanziger-Jagd')]
+export const TIME_FROM = SPLIT_REWARDS_FROM
+
 /** Kleiner, fester Zufallsgenerator: gleiche Saison → gleiche Auswahl auf jedem Gerät */
 function seeded(seed: number) {
   let t = seed >>> 0
@@ -157,9 +201,10 @@ export function seasonChallenges(year: number | string, ctx: ChallengeContext): 
   const pick = (list: Session[]) => list.map((s) => ({ s, r: s.results.find((r) => r.driver === ctx.driver)! }))
   const races = pick(mine.filter((s) => !isQualiSession(s)))
   const facts: Facts = { races, qualis: pick(mine.filter(isQualiSession)), days: new Set(mine.map((s) => s.date)).size, wins: races.filter(({ s, r }) => isWin(s, r)) }
-  return seasonChallengeIds(year).map((id) => {
-    const def = CHALLENGE_POOL.find((c) => c.id === id)!
+  const time = Number(year) >= TIME_FROM ? [TIME_POOL[Math.floor(seeded(Number(year) * 104729)() * TIME_POOL.length)]] : []
+  return [...seasonChallengeIds(year).map((id) => CHALLENGE_POOL.find((c) => c.id === id)!), ...time].map((def) => {
     const value = def.value(ctx, facts)
-    return { id, label: def.label, detail: def.detail, value: Math.min(value, def.target), target: def.target, done: value >= def.target }
+    const detail = typeof def.detail === 'function' ? def.detail(ctx) : def.detail
+    return { id: def.id, label: def.label, detail, value: Math.min(value, def.target), target: def.target, done: value >= def.target }
   })
 }

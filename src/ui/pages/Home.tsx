@@ -402,7 +402,7 @@ function NewsIcon({ item }: { item: NewsItem }) {
       {item.kind === 'climb' ? (
         <Chevrons value={Math.min(item.value ?? 1, 4)} size={24} />
       ) : (
-        <RecordFlame metal={item.kind === 'record-track' ? 'gold' : item.kind === 'record-car' ? 'silver' : 'bronze'} size={26} />
+        <RecordFlame metal={item.kind === 'record-track' ? 'gold' : item.kind === 'record-car' || item.kind === 'split-record' ? 'silver' : 'bronze'} size={26} />
       )}
     </div>
   )

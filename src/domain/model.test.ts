@@ -4,9 +4,10 @@ import { prepare } from '../data/useRaceDays'
 import { fixtureIds, readFixture } from '../test-utils'
 import type { Result, Session } from '../types'
 import { estimateCars, fitCars, type CarObs } from './carModel'
-import { CHALLENGE_POOL, CHALLENGES_PER_SEASON, NEW_PER_SEASON, seasonChallengeIds, seasonChallenges } from './challenges'
+import { CHALLENGE_POOL, CHALLENGES_PER_SEASON, NEW_PER_SEASON, seasonChallengeIds, seasonChallenges, TIME_POOL } from './challenges'
 import { constructorStandings, seasonStandings } from './season'
 import { classifyIncidents, hasTankFunction, splitTime } from './laps'
+import { buildSplits, fmtMark, markNext, markReached, markStep, splitKey } from './splits'
 import { buildModel, PLACEMENT_RUNS, positionTrace } from './model'
 import { computeRatings, RATING, winChances } from './rating'
 import { buildSession } from './sessions'
@@ -371,9 +372,11 @@ describe('Saisonwertung mit Punkten', () => {
   it('verfolgt Saison-Challenges', () => {
     const sessions = [r('a', '2026-01-10', ['Anna', 'Ben']), r('b', '2026-02-10', ['Ben', 'Anna']), r('c', '2026-03-10', ['Anna', 'Ben'])]
     const ch = seasonChallenges('2026', { sessions, driver: 'Anna', personalBests: [], dayBonus: 0, upsetWins: 0, carsBefore: new Set() })
+    // erst ab 2027 kommt eine Zeitjagd über 10 oder 20 Runden dazu
     expect(ch).toHaveLength(CHALLENGES_PER_SEASON)
+    expect(seasonChallenges('2027', { sessions, driver: 'Anna', personalBests: [], dayBonus: 0, upsetWins: 0, carsBefore: new Set() })).toHaveLength(CHALLENGES_PER_SEASON + 1)
     for (const c of ch) expect(c.value).toBeLessThanOrEqual(c.target)
-    const byId = new Map(CHALLENGE_POOL.map((d) => [d.id, d]))
+    const byId = new Map([...CHALLENGE_POOL, ...TIME_POOL].map((d) => [d.id, d]))
     expect(ch.every((c) => byId.has(c.id))).toBe(true)
   })
 
@@ -417,6 +420,20 @@ describe('Fahrstil (Netzdiagramm)', () => {
   })
 })
 
+describe('Zeitjagd-Challenge', () => {
+  const ctx = (splits: NonNullable<Parameters<(typeof TIME_POOL)[0]['value']>[0]['splits']>) => ({ sessions: [], driver: 'Mika', personalBests: [], dayBonus: 0, upsetWins: 0, carsBefore: new Set<string>(), splits })
+  const facts = { races: [], qualis: [], days: 0, wins: [] }
+  const zehn = TIME_POOL.find((c) => c.id === 'zeit10')!
+  it('ist mit neuer Bestmarke sofort geschafft', () => {
+    expect(zehn.value(ctx([{ n: 10, pbBefore: 123_000, mark: 125_000, times: [{ ms: 122_500, prevBest: 123_000 }] }]), facts)).toBe(3)
+  })
+  it('zählt sonst Rennen unter der schon geknackten Marke', () => {
+    const c = ctx([{ n: 10, pbBefore: 123_000, mark: 125_000, times: [{ ms: 124_000, prevBest: 123_000 }, { ms: 126_000, prevBest: 123_000 }, { ms: 124_900, prevBest: 123_000 }] }])
+    expect(zehn.value(c, facts)).toBe(2)
+    expect(typeof zehn.detail === 'function' && zehn.detail(c)).toContain('2:05')
+  })
+})
+
 describe('Gesamtzeit der ersten Runden', () => {
   const res = (laps: number[], invalidAt = -1) => ({
     position: 1, gap: { kind: 'leader' as const }, driver: 'Mika', car: 'Auto', laps: laps.length, bestLapMs: null, validBestLapMs: null, pitStops: 0,
@@ -430,5 +447,40 @@ describe('Gesamtzeit der ersten Runden', () => {
   it('lässt Zeiten mit ungültiger Runde weg', () => {
     expect(splitTime(res(Array(12).fill(10_000), 3), 10)).toBeNull()
     expect(splitTime(res(Array(12).fill(10_000), 11), 10)).toBe(100_000)
+  })
+})
+
+describe('Zeitmarken über 10/20 Runden', () => {
+  it('wählt eine runde Schrittweite und rechnet Marken', () => {
+    expect(markStep(130_000)).toBe(5_000)
+    expect(markStep(260_000)).toBe(10_000)
+    expect(markReached(123_400, 5_000)).toBe(125_000)
+    expect(markNext(123_400, 5_000)).toBe(120_000)
+    expect(fmtMark(120_000)).toBe('2:00')
+  })
+  it('sammelt Bestmarken ohne Tankrennen, mit vorheriger Bestmarke', () => {
+    const a = race('a', '2026-01-10', [['Mika', 'Auto', 12], ['Emil', 'Auto', 12]])
+    const b = race('b', '2026-02-10', [['Emil', 'Auto', 12], ['Mika', 'Auto', 12]])
+    const tank = { ...race('c', '2026-03-10', [['Mika', 'Auto', 12]]), tank: true }
+    const sp = buildSplits([a, b, tank])
+    expect(sp.entries.filter((e) => e.n === 10)).toHaveLength(4)
+    const emilB = sp.entries.find((e) => e.fileId === 'b' && e.driver === 'Emil')!
+    expect(emilB.prevBest).toBe(102_000)
+    expect(emilB.ms).toBe(100_000)
+    expect(sp.records.get(splitKey('X', 10))?.driver).toBe('Mika')
+    expect(sp.best('Emil', 'X', 10, '2026-02-01')).toBe(102_000)
+  })
+  it('meldet neue Bestmarken des letzten Renntags, gibt Ziel und Medaille', () => {
+    const a = race('a', '2027-01-10', [['Mika', 'Auto', 12], ['Emil', 'Auto', 12]])
+    const b = race('b', '2027-02-10', [['Emil', 'Auto', 12], ['Mika', 'Auto', 12]])
+    const model = buildModel([a, b])
+    expect(model.news().some((n) => n.kind === 'split' && n.driver === 'Emil')).toBe(true)
+    expect(model.goals('Emil').some((g) => g.label.includes('10 Runden unter'))).toBe(true)
+    expect(model.medals.get('Mika')?.some((m) => m.kind === 'rekord-10')).toBe(true)
+    expect(model.medals.get('Emil')?.some((m) => m.kind === 'zeitmarke')).toBe(true)
+    // vor dem Start der neuen Belohnungen: Ziel ja, Medaille nein
+    const old = buildModel([race('a', '2026-01-10', [['Mika', 'Auto', 12], ['Emil', 'Auto', 12]]), race('b', '2026-02-10', [['Emil', 'Auto', 12], ['Mika', 'Auto', 12]])])
+    expect(old.goals('Emil').some((g) => g.label.includes('10 Runden unter'))).toBe(true)
+    expect([...old.medals.values()].flat().some((m) => m.kind === 'zeitmarke' || m.kind.startsWith('rekord-'))).toBe(false)
   })
 })

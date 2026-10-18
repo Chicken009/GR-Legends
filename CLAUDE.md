@@ -31,5 +31,9 @@ Smartrace-CSVs und dem Einstellungen-Sheet sind **für jeden lesbar**. Deshalb g
 
 ## Arbeitsweise
 
+- Neue Challenges, Medaillen, Punkte- oder XP-Regeln, die bestehende Ergebnisse verändern würden,
+  gelten erst ab dem nächsten Zeitraum (meist das folgende Jahr). Reine Anzeigen, Ziele und Tipps
+  dürfen sofort kommen.
+
 - Jeder Push auf `main` veröffentlicht die Seite (GitHub Action).
 - Vor dem Push: `npx tsc -b --noEmit`, `npx oxlint src`, `npx vitest run`, `npm run build`.

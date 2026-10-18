@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'rea
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { CHALLENGE_XP } from '../../domain/challenges'
 import type { Medal, Wrapped as WrappedData } from '../../domain/model'
+import { fmtMark } from '../../domain/splits'
 import { CarPhoto, usePhotoId } from '../CarPhoto'
 import { ChallengeBadge } from '../ChallengeItem'
 import { DonutChart } from '../charts/DonutChart'
@@ -478,6 +479,54 @@ function buildCards(w: WrappedData, you: boolean, seasonDates: string[]): CardDe
               <Hint>Beste Runde je Renntag (oben = schneller)</Hint>
             </Reveal>
           )}
+        </>
+      ),
+    })
+  }
+
+  if (w.splits.length) {
+    const main = w.splits[0]
+    const block = (x: (typeof w.splits)[number]) => (
+      <>
+        {x.before != null && x.ms < x.before && <Line>{fmtNum((x.before - x.ms) / 1000, 2)} s schneller als {you ? 'deine' : 'die'} Bestmarke vor {year} ({formatTime(x.before)}).</Line>}
+        {x.before == null && <Line>{you ? 'Deine' : 'Die'} erste Bestmarke über {x.n} Runden.</Line>}
+        {x.before != null && x.ms >= x.before && <Line>Die Bestmarke von früher ({formatTime(x.before)}) steht noch – {fmtNum((x.ms - x.before) / 1000, 2)} s fehlen.</Line>}
+        {x.marks.length > 0 && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {x.marks.map((m) => (
+              <span key={m} className="num" style={{ padding: '4px 10px', borderRadius: 999, fontSize: 12, fontWeight: 700, background: 'rgba(255,255,255,0.07)', color: ME }}>
+                unter {fmtMark(m)} ✓
+              </span>
+            ))}
+          </div>
+        )}
+        <Hint>
+          P{x.rank} von {x.of} Fahrern {year}
+        </Hint>
+      </>
+    )
+    cards.push({
+      key: 'zehner', kicker: w.splits.length > 1 ? 'Bestmarken über 10 und 20 Runden' : `Bestmarke über ${main.n} Runden`, icon: STOPWATCH, confetti: main.rank === 1,
+      body: (
+        <>
+          <Group>
+            <Huge>{formatTime(main.ms)}</Huge>
+            <Line>
+              {you ? 'Deine' : 'Die'} beste Zeit {year} für die ersten {main.n} Runden eines Rennens – am {formatDate(main.date)} im {main.car}.
+            </Line>
+            {block(main)}
+          </Group>
+          {w.splits.slice(1).map((x) => (
+            <Reveal key={x.n}>
+              <Group>
+                <div className="num" style={{ fontSize: 30, fontWeight: 800 }}>{formatTime(x.ms)}</div>
+                <Line>
+                  beste Zeit {year} für die ersten {x.n} Runden, am {formatDate(x.date)}.
+                </Line>
+                {block(x)}
+              </Group>
+            </Reveal>
+          ))}
         </>
       ),
     })

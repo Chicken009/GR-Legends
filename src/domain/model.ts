@@ -4,7 +4,8 @@ import { isGuest } from './drivers'
 import { crashCost, crashObservations, estimateCars, paceObservations, type CarFit } from './carModel'
 import { carTraits, radarAxes, type RadarAxis } from './carProfile'
 export type { RadarAxis } from './carProfile'
-import { quantile } from './laps'
+import { quantile, SPLIT_LAPS } from './laps'
+import { buildSplits, fmtMark, markNext, markReached, SPLIT_REWARDS_FROM, splitKey, type Splits } from './splits'
 import { constructorStandings, seasonStandings, type ConstructorStanding, type SeasonStanding } from './season'
 import { CHALLENGE_XP, seasonChallenges, type Challenge } from './challenges'
 import { carKey, computeRatings, isQuali, RATING, sortSessions, type RatingEvent, type RatingResult } from './rating'
@@ -221,10 +222,12 @@ export interface Wrapped {
   lapRank: { rank: number; of: number; track: string } | null
   /** Fahrerprofil (Netzdiagramm über alle Jahre) */
   radar: RadarAxis[]
+  /** Bestmarken über 10/20 Runden im Jahr (Hauptstrecke), mit Vorjahresstand und geknackten Zeitmarken */
+  splits: { n: number; ms: number; date: string; car: string; before: number | null; marks: number[]; rank: number; of: number }[]
 }
 
 export interface NewsItem {
-  kind: 'medal' | 'record-track' | 'record-car' | 'record-personal' | 'climb'
+  kind: 'medal' | 'record-track' | 'record-car' | 'record-personal' | 'climb' | 'split-record' | 'split'
   driver: string
   title: string
   detail: string
@@ -270,6 +273,10 @@ export interface Model {
    * ohne `fileId` die Zahl der bisher gefahrenen Läufe, solange die Einstufung läuft – sonst null.
    */
   placement: (driver: string, fileId?: string) => number | null
+  /** Gesamtzeiten über 10/20 Runden: Bestmarken, Rekorde, Zeitmarken */
+  splits: Splits
+  /** Strecke, auf der ein Fahrer zuletzt 10/20-Runden-Zeiten gefahren ist (bis `upTo`) */
+  splitTrack: (driver: string, upTo?: string) => string | null
 }
 
 /** Läufe, bis die Wertung eines neuen Fahrers eingependelt ist */
@@ -524,6 +531,10 @@ export function buildModel(input: Session[]): Model {
     }
   }
 
+  // ---- 10/20 Runden ------------------------------------------------------------------------
+  const splits = buildSplits(sessions)
+  const splitTrack = (driver: string, upTo?: string) => splits.entries.findLast((e) => e.driver === driver && (!upTo || e.date <= upTo))?.track ?? null
+
   // ---- Status-Symbole --------------------------------------------------------------------
   const statusCache = new Map<Period, Map<string, Status[]>>()
   const statuses = (period: Period) => {
@@ -607,6 +618,19 @@ export function buildModel(input: Session[]): Model {
           dayBonus: st ? st.poles + st.fastestLaps : 0,
           upsetWins: rating.events.filter((e) => e.driver === driver && e.date.startsWith(year) && e.position === 1 && e.upsetExpectation != null && e.upsetExpectation < 0.35).length,
           carsBefore,
+          splits: (() => {
+            const track = splitTrack(driver, `${year}-12-31`)
+            if (!track) return []
+            return SPLIT_LAPS.map((n) => {
+              const pbBefore = splits.best(driver, track, n, `${year}-01-01`)
+              const step = splits.step.get(splitKey(track, n))
+              return {
+                n, pbBefore,
+                mark: pbBefore != null && step ? markReached(pbBefore, step) : null,
+                times: splits.entries.filter((e) => e.driver === driver && e.track === track && e.n === n && e.date.startsWith(year)).map((e) => ({ ms: e.ms, prevBest: e.prevBest })),
+              }
+            })
+          })(),
         }),
       )
     }
@@ -643,7 +667,7 @@ export function buildModel(input: Session[]): Model {
   }
 
   // ---- Medaillen -------------------------------------------------------------------------
-  const medals = computeMedals(sessions, rating, stats('all').drivers, recordTimeline, years, rankingAt, dates, season)
+  const medals = computeMedals(sessions, rating, stats('all').drivers, recordTimeline, years, rankingAt, dates, season, splits)
 
   // ---- Ziele, Rivale, Tipps --------------------------------------------------------------
   const rival = (driver: string) => {
@@ -669,6 +693,27 @@ export function buildModel(input: Session[]): Model {
     if (me && above) {
       const gap = Math.ceil(above.elo - me.elo)
       out.push({ label: `${gap} Punkte bis Platz ${above.rank}`, detail: `vor ${above.name}`, progress: Math.max(0, Math.min(1, 1 - gap / 30)) })
+    }
+    // Nächste Zeitmarke über 10/20 Runden – die, die relativ am nächsten liegt
+    const track = splitTrack(driver)
+    const markGoal = track
+      ? SPLIT_LAPS.map((n) => {
+          const pb = splits.best(driver, track, n)
+          const step = splits.step.get(splitKey(track, n))
+          if (pb == null || !step) return null
+          const mark = markNext(pb, step)
+          return { n, pb, mark, gap: pb - mark, share: (pb - mark) / step }
+        })
+          .filter((x) => x != null)
+          .sort((a, b) => a.share - b.share)[0]
+      : undefined
+    if (markGoal) {
+      const s2 = (ms: number) => (ms / 1000).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      out.push({
+        label: `${s2(markGoal.gap)} s bis ${markGoal.n} Runden unter ${fmtMark(markGoal.mark)}`,
+        detail: `Bestmarke ${formatTime(markGoal.pb)} · ${s2(markGoal.gap / markGoal.n)} s pro Runde`,
+        progress: Math.max(0, Math.min(1, 1 - markGoal.share)),
+      })
     }
     const nextStep = (value: number, steps: number[]) => steps.find((s) => s > value)
     const w = nextStep(d.wins, WIN_STEPS)
@@ -852,6 +897,32 @@ export function buildModel(input: Session[]): Model {
       }
     }
 
+    // 10/20 Runden: nächste Zeitmarke, frische Bestmarke, Platz unter allen Fahrern
+    const st = splitTrack(driver)
+    if (st) {
+      const s2 = (ms: number) => (ms / 1000).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      for (const n of SPLIT_LAPS) {
+        const pb = splits.best(driver, st, n)
+        const step = splits.step.get(splitKey(st, n))
+        if (pb == null || !step) continue
+        const mark = markNext(pb, step)
+        const mine = splits.entries.filter((e) => e.driver === driver && e.track === st && e.n === n)
+        const last = mine[mine.length - 1]
+        const others = new Map<string, number>()
+        for (const e of splits.entries) if (e.track === st && e.n === n) others.set(e.driver, Math.min(others.get(e.driver) ?? Infinity, e.ms))
+        const rank = 1 + [...others.values()].filter((v) => v < pb).length
+        if (last && last.prevBest != null && last.ms < last.prevBest && last.date === dates[dates.length - 1]) {
+          out.push({ title: `Neue Bestmarke über ${n} Runden`, good: true, text: `Zuletzt ${formatTime(last.ms)} – ${s2(last.prevBest - last.ms)} s schneller als deine alte Bestmarke.` })
+        } else if (rank <= 3 && others.size >= 4) {
+          out.push({ title: `${n} Runden`, good: true, text: `Mit ${formatTime(pb)} über ${n} Runden bist du auf Platz ${rank} von ${others.size} Fahrern.` })
+        }
+        out.push({
+          title: `Zeitmarke ${n} Runden`,
+          text: `Deine Bestmarke über ${n} Runden: ${formatTime(pb)}. Bis „unter ${fmtMark(mark)}“ fehlen ${s2(pb - mark)} s – nur ${s2((pb - mark) / n)} s pro Runde.`,
+        })
+      }
+    }
+
     // Verbesserungstipps zuerst, dann Lob
     return [...out.filter((t) => !t.good), ...out.filter((t) => t.good)]
   }
@@ -903,7 +974,29 @@ export function buildModel(input: Session[]): Model {
       seenPb.add(p.driver)
       out.push({ kind: 'record-personal', driver: p.driver, title: `${p.driver}: persönliche Bestzeit`, detail: `${formatTime(p.ms)} im ${p.car}`, value: p.ms })
     }
-    const order = { 'record-track': 0, medal: 1, 'record-car': 2, climb: 3, 'record-personal': 4 }
+    // 10/20 Runden: Rekorde, geknackte Zeitmarken und neue Bestmarken des letzten Renntags
+    for (const t of splits.recordTimeline) {
+      if (t.date !== lastDay || !t.prev) continue
+      out.push({ kind: 'split-record', driver: t.driver, title: `${t.driver}: Rekord über ${t.n} Runden`, detail: `${formatTime(t.ms)} im ${t.car} · vorher ${formatTime(t.prev.ms)} (${t.prev.driver})`, value: t.ms })
+    }
+    const splitDone = new Set(out.filter((o) => o.kind === 'split-record').map((o) => o.driver + o.title))
+    const bestOfDay = new Map<string, (typeof splits.entries)[number]>()
+    for (const e of splits.entries) {
+      if (e.date !== lastDay || e.prevBest == null || e.ms >= e.prevBest) continue
+      const k = `${e.driver}\u0000${e.n}`
+      if (!bestOfDay.has(k) || e.ms < bestOfDay.get(k)!.ms) bestOfDay.set(k, e)
+    }
+    for (const e of bestOfDay.values()) {
+      if (splitDone.has(e.driver + `${e.driver}: Rekord über ${e.n} Runden`)) continue
+      const step = splits.step.get(splitKey(e.track, e.n))!
+      const newMark = markReached(e.ms, step) < markReached(e.prevBest!, step)
+      out.push({
+        kind: 'split', driver: e.driver,
+        title: newMark ? `${e.driver}: ${e.n} Runden unter ${fmtMark(markReached(e.ms, step))}` : `${e.driver}: Bestmarke über ${e.n} Runden`,
+        detail: `${formatTime(e.ms)} · vorher ${formatTime(e.prevBest)}`, value: e.ms,
+      })
+    }
+    const order = { 'record-track': 0, medal: 1, 'record-car': 2, 'split-record': 3, climb: 4, 'record-personal': 5, split: 6 }
     return out.sort((a, b) => order[a.kind] - order[b.kind])
   }
 
@@ -1053,6 +1146,23 @@ export function buildModel(input: Session[]): Model {
         return { rank: 1 + [...best.values()].filter((v) => v < mine).length, of: best.size, track }
       })(),
       radar: d.races >= 5 ? driverRadar(driver) : [],
+      splits: (() => {
+        const track = splitTrack(driver, `${year}-12-31`)
+        if (!track) return []
+        return SPLIT_LAPS.flatMap((n) => {
+          const year_ = splits.entries.filter((e) => e.track === track && e.n === n && e.date.startsWith(year))
+          const mine = year_.filter((e) => e.driver === driver)
+          if (!mine.length) return []
+          const top = mine.reduce((a, b) => (b.ms < a.ms ? b : a))
+          const before = splits.best(driver, track, n, `${year}-01-01`)
+          const step = splits.step.get(splitKey(track, n))!
+          const marks: number[] = []
+          for (let m = markReached(top.ms, step); before == null ? marks.length === 0 : m < markReached(before, step); m += step) marks.push(m)
+          const others = new Map<string, number>()
+          for (const e of year_) others.set(e.driver, Math.min(others.get(e.driver) ?? Infinity, e.ms))
+          return [{ n, ms: top.ms, date: top.date, car: top.car, before, marks: marks.reverse(), rank: 1 + [...others.values()].filter((v) => v < top.ms).length, of: others.size }]
+        })
+      })(),
     }
   }
 
@@ -1066,7 +1176,7 @@ export function buildModel(input: Session[]): Model {
 
   return {
     sessions, years, tracks, rating, drivers, stats, ranking, statuses, medals,
-    trackRecords, carRecords, goals, rival, tips, eloAt, rankTimeline, news, season, constructors, challenges, wrapped, driverRadar, career, placement,
+    trackRecords, carRecords, goals, rival, tips, eloAt, rankTimeline, news, season, constructors, challenges, wrapped, driverRadar, career, placement, splits, splitTrack,
   }
 }
 
@@ -1136,6 +1246,7 @@ function computeMedals(
   rankingAt: (date: string) => Map<string, number>,
   dates: string[],
   season: (year: string) => SeasonStanding[],
+  splits: Splits,
 ): Map<string, Medal[]> {
   const out = new Map<string, Medal[]>()
   const add = (driver: string, m: Medal) => {
@@ -1265,6 +1376,36 @@ function computeMedals(
     for (const x of gains.filter((x) => x.g === max)) {
       add(x.n, { id: `aufsteiger-${y}`, kind: 'aufsteiger', name: `Aufsteiger ${y}`, description: `Die meisten Plätze in der Wertung gewonnen (+${max})`, tier: 'gold', icon: 'chevrons', date: inYear[inYear.length - 1] })
     }
+  }
+
+  // 10/20 Runden: Rekordhalter und erreichte Zeitmarke je Strecke – erst ab SPLIT_REWARDS_FROM
+  const rewarded = splits.entries.filter((e) => Number(e.date.slice(0, 4)) >= SPLIT_REWARDS_FROM)
+  const multiTrack = new Set(rewarded.map((e) => e.track)).size > 1
+  const recs = new Map<string, (typeof rewarded)[number]>()
+  for (const e of rewarded) {
+    const key = splitKey(e.track, e.n)
+    if (!recs.has(key) || e.ms < recs.get(key)!.ms) recs.set(key, e)
+  }
+  for (const [key, rec] of recs) {
+    const where = multiTrack ? ` (${rec.track})` : ''
+    add(rec.driver, { id: `split-${key}-now`, kind: `rekord-${rec.n}`, name: `Rekord ${rec.n} Runden${where}`, description: `Schnellste Gesamtzeit über die ersten ${rec.n} Runden eines Rennens: ${formatTime(rec.ms)}`, tier: 'platinum', icon: 'trophy', date: rec.date })
+  }
+  const reached = new Map<string, { mark: number; date: string; key: string; e: (typeof rewarded)[number] }>()
+  for (const e of rewarded) {
+    const key = splitKey(e.track, e.n)
+    const mark = markReached(e.ms, splits.step.get(key)!)
+    const k = `${e.driver}\u0000${key}`
+    if (!reached.has(k) || mark < reached.get(k)!.mark) reached.set(k, { mark, date: e.date, key, e })
+  }
+  for (const r of reached.values()) {
+    // Stufe nach Abstand zum Rekord: je näher die Marke am Rekord, desto wertvoller
+    const ratio = r.mark / recs.get(r.key)!.ms
+    const tier: Tier = ratio <= 1.02 ? 'diamond' : ratio <= 1.05 ? 'platinum' : ratio <= 1.09 ? 'gold' : ratio <= 1.14 ? 'silver' : 'bronze'
+    add(r.e.driver, {
+      id: `marke-${r.key}`, kind: 'zeitmarke', name: `${r.e.n} Runden unter ${fmtMark(r.mark)}`,
+      description: `Gesamtzeit der ersten ${r.e.n} Runden eines Rennens unter ${fmtMark(r.mark)}${multiTrack ? ` auf ${r.e.track}` : ''} (ohne Tankfunktion)`,
+      tier, icon: 'clock', date: r.date,
+    })
   }
 
   // Stufen: Siege, Rennen, Kilometer, geschlagene Gegner
