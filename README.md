@@ -209,9 +209,8 @@ docs/          Einstellungen-Vorlage, Logo (Monogramm, App-Icon, Schriftzug)
   Zwischenfälle, der Rest sind *Abflüge*. Mit Tankfunktion kostet ein Stopp etwa 4 s plus ggf.
   nicht gezählte Runden (leerer Tank).
 - *Tankfunktion* gilt für alle und das ganze Rennen: Ein Lauf zählt als Tankrennen, wenn mehr als
-  die Hälfte der Fahrer Boxenstopps hat. Sonst wurde bei einem „Stopp“ das Auto nach einem
-  Abflug über die Boxengasse eingesetzt: Er zählt als *Abflug* (ohne deutlichen Ausreißer die
-  langsamste Runde) und wird in der Historie nicht als Box angezeigt.
+  die Hälfte der Fahrer Boxenstopps hat. Sonst werden gezählte Stopps ignoriert (auch in der
+  Historie nicht als Box angezeigt); langsame Runden sind wie üblich *Abflüge*.
 - Abflugquoten zählen nur Rennen **ohne** Tankfunktion, weil dort Stopp und Abflug eindeutig sind.
 
 **Wertung** (`src/domain/rating.ts`): Elo aus direkten Duellen jedes Laufs, Start 500, halbe

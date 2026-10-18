@@ -106,13 +106,12 @@ describe('Wertung', () => {
 
 describe('Boxenstopp oder Abflug', () => {
   const lap = (ms: number, i: number) => ({ number: i + 2, ms, status: 'normal' as const })
-  it('wertet ohne Tankfunktion einen gezählten Boxenstopp als Abflug', () => {
+  it('ignoriert ohne Tankfunktion gezählte Boxenstopps', () => {
     const laps = [10_000, 10_100, 14_000, 10_050, 30_000, 10_000].map(lap)
     expect(classifyIncidents(laps, 1, false).map((l) => l.status)).toEqual(['normal', 'normal', 'crash', 'normal', 'crash', 'normal'])
-    // Ohne deutlichen Ausreißer zählt die langsamste Runde als Abflug
+    // Kein Ausreißer → auch kein Abflug, der Stopp wird einfach ignoriert
     const mild = [10_000, 10_100, 11_200, 10_050, 10_000].map(lap)
-    expect(classifyIncidents(mild, 1, false).map((l) => l.status)).toEqual(['normal', 'normal', 'crash', 'normal', 'normal'])
-    expect(classifyIncidents(mild, 0, false).every((l) => l.status === 'normal')).toBe(true)
+    expect(classifyIncidents(mild, 1, false).every((l) => l.status === 'normal')).toBe(true)
   })
 
   it('erkennt die Tankfunktion an der Mehrheit der Fahrer mit Boxenstopp', () => {
