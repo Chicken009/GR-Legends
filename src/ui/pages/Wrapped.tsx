@@ -575,12 +575,22 @@ function buildCards(w: WrappedData, you: boolean, seasonDates: string[]): CardDe
               <Huge color={AREA.drivers}>
                 <CountUp value={end} format={(v) => fmtElo(v)} />
               </Huge>
-              {start != null && <Amount kind="elo" value={end - start} signed size={20} unit={false} />}
+              {/* aus gerundeten Werten, damit es zu den angezeigten Zahlen passt */}
+              {start != null && <Amount kind="elo" value={Math.round(end) - Math.round(start)} signed size={20} unit={false} />}
             </div>
             <Line>{start != null ? `von ${fmtElo(start)} zu Jahresbeginn` : `nach ${w.elo.length} Läufen im ersten Jahr`}</Line>
           </Group>
           <Reveal>
-            <MiniLine items={w.elo.map((e) => ({ label: `${short(e.date)} · ${e.label}`, value: e.value, text: `Elo ${fmtElo(e.value)}` }))} color={AREA.drivers} height={140} label="Elo-Verlauf im Jahr" />
+            <MiniLine
+              items={[
+                // Startpunkt: Stand zu Jahresbeginn, danach jeder Lauf
+                ...(start != null ? [{ label: 'Jahresbeginn', value: start, text: `Elo ${fmtElo(start)}` }] : []),
+                ...w.elo.map((e) => ({ label: `${short(e.date)} · ${e.label}`, value: e.value, text: `Elo ${fmtElo(e.value)}` })),
+              ]}
+              color={AREA.drivers}
+              height={140}
+              label="Elo-Verlauf im Jahr"
+            />
           </Reveal>
           <div style={{ display: 'flex', gap: 10 }}>
             <span style={{ flex: 1, background: 'rgba(255,255,255,0.05)', borderRadius: 14, padding: '10px 12px', fontSize: 12, color: 'var(--muted)' }}>

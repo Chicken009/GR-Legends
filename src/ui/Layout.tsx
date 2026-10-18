@@ -66,7 +66,7 @@ export function Layout() {
       <div className="content">
         {missing > 0 && (
           <p role="status" className="inner" style={{ margin: '12px 16px 0', padding: '10px 12px', fontSize: 12, color: 'var(--muted)', lineHeight: 1.45 }}>
-            <b style={{ color: 'var(--text-2)' }}>{missing === 1 ? '1 Lauf wird' : `${missing} Läufe werden`} noch geladen.</b> Google hat beim ersten Laden gebremst – die Daten kommen in ein paar Sekunden von selbst nach.
+            <b style={{ color: 'var(--text-2)' }}>{missing === 1 ? '1 Lauf wird' : `${missing} Läufe werden`} noch geladen.</b> Google hat das Laden gebremst – die Daten kommen von selbst nach, das kann ein paar Minuten dauern.
           </p>
         )}
         <Outlet />

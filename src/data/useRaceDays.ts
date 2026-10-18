@@ -127,7 +127,9 @@ export function useAppData() {
       return { ...rest, events, unmatched: unmatchedSettings(sessions, rest.settings), ...prepare(sessions, rest.settings, events) }
     },
     staleTime: 5 * 60_000,
-    // Fehlende Läufe nachladen – was schon da ist, kommt aus dem Zwischenspeicher
-    refetchInterval: (q) => (q.state.data?.missing ? 15_000 : false),
+    // Fehlende Läufe nachladen – was schon da ist, kommt aus dem Zwischenspeicher. Google sperrt
+    // Downloads bei zu vielen Anfragen aus einem Netz eine Weile; häufiges Nachfragen verlängert
+    // das. Deshalb wachsende Abstände: 15 s, 30 s, 1 min … höchstens 5 min.
+    refetchInterval: (q) => (q.state.data?.missing ? Math.min(15_000 * 2 ** Math.max(0, q.state.dataUpdateCount - 1), 5 * 60_000) : false),
   })
 }
