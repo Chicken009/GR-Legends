@@ -19,6 +19,8 @@ export interface AppData {
   /** Warum die Einstellungen nicht gelesen werden konnten (null = alles gut oder kein Sheet) */
   settingsProblem: string | null
   source: 'drive' | 'local' | 'fixtures'
+  /** Läufe, die nicht geladen werden konnten (werden automatisch nachgeladen) */
+  missing: number
   /** Wettkämpfe (Unterordner der Streckenordner) */
   events: EventFolder[]
   /** Alle Läufe nach Einstellungen und Rundenklassifizierung – auch Wettkampfläufe, die nicht in die Wertung zählen */
@@ -48,8 +50,9 @@ async function loadRaw(): Promise<Raw> {
         try {
           return buildSession(file, await downloadDriveFile(file, apiKey))
         } catch (err) {
-          console.warn(`Datei übersprungen: ${file.name}`, err)
-          return null
+          // undefined = nicht geladen (anders als null = keine gültige Smartrace-Datei)
+          console.warn(`Datei nicht geladen: ${file.name}`, err)
+          return undefined
         }
       }),
     )
@@ -68,6 +71,7 @@ async function loadRaw(): Promise<Raw> {
     )
     const settings = await settingsPromise
     return {
+      missing: sessions.filter((s) => s === undefined).length,
       sessions: sessions.filter((s): s is Session => s != null),
       settings,
       settingsProblem,
@@ -84,6 +88,7 @@ async function loadRaw(): Promise<Raw> {
       sessions: files.map(({ file, text }) => buildSession(file, text)).filter((s): s is Session => s != null),
       settings: EMPTY_SETTINGS,
       settingsProblem: null,
+      missing: 0,
       photos: {},
       source: files.some(({ file }) => file.id.startsWith('local-') && !file.event) ? 'local' : 'fixtures',
       rawEvents: events,
@@ -122,5 +127,7 @@ export function useAppData() {
       return { ...rest, events, unmatched: unmatchedSettings(sessions, rest.settings), ...prepare(sessions, rest.settings, events) }
     },
     staleTime: 5 * 60_000,
+    // Fehlende Läufe nachladen – was schon da ist, kommt aus dem Zwischenspeicher
+    refetchInterval: (q) => (q.state.data?.missing ? 15_000 : false),
   })
 }

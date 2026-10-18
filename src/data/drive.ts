@@ -5,6 +5,45 @@ import { decodeCsv } from './parseSmartrace'
 const API = 'https://www.googleapis.com/drive/v3/files'
 const FOLDER_MIME = 'application/vnd.google-apps.folder'
 
+/**
+ * Google drosselt viele gleichzeitige Anfragen (403 „rate limit“, 429). Beim ersten Besuch ist
+ * noch nichts zwischengespeichert und alle CSVs werden geladen – deshalb höchstens wenige
+ * Anfragen gleichzeitig und bei Drosselung, Serverfehler oder Netzproblem kurz warten und
+ * nochmal versuchen.
+ */
+const MAX_PARALLEL = 6
+const RETRIES = 4
+let running = 0
+const waiting: (() => void)[] = []
+
+async function slot<T>(fn: () => Promise<T>): Promise<T> {
+  if (running >= MAX_PARALLEL) await new Promise<void>((resolve) => waiting.push(resolve))
+  running++
+  try {
+    return await fn()
+  } finally {
+    running--
+    waiting.shift()?.()
+  }
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+const retryable = (status: number) => status === 403 || status === 429 || status >= 500
+
+export async function driveFetch(url: string): Promise<Response> {
+  for (let attempt = 0; ; attempt++) {
+    let res: Response | null = null
+    try {
+      res = await slot(() => fetch(url))
+    } catch (err) {
+      if (attempt >= RETRIES) throw err
+    }
+    if (res && (res.ok || !retryable(res.status) || attempt >= RETRIES)) return res
+    // 0,5 s, 1 s, 2 s, 4 s – mit etwas Zufall, damit nicht alle gleichzeitig wiederkommen
+    await sleep(500 * 2 ** attempt * (0.75 + Math.random() * 0.5))
+  }
+}
+
 interface DriveFile {
   id: string
   name: string
@@ -24,7 +63,7 @@ async function listChildren(folderId: string, apiKey: string): Promise<DriveFile
       key: apiKey,
     })
     if (pageToken) params.set('pageToken', pageToken)
-    const res = await fetch(`${API}?${params}`)
+    const res = await driveFetch(`${API}?${params}`)
     if (!res.ok) throw new Error(`Drive-Ordner konnte nicht gelesen werden (${res.status})`)
     const body = (await res.json()) as { files: DriveFile[]; nextPageToken?: string }
     files.push(...body.files)
@@ -135,7 +174,7 @@ export async function readSettingsSheet(sheetId: string, apiKey: string) {
   const tabs = ['Fahrer', 'Fahrzeuge', 'Korrekturen'] as const
   const params = new URLSearchParams({ key: apiKey })
   for (const t of tabs) params.append('ranges', `${t}!A2:F`)
-  const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values:batchGet?${params}`)
+  const res = await driveFetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values:batchGet?${params}`)
   if (!res.ok) throw new Error(`Einstellungen konnten nicht gelesen werden (${res.status})`)
   const body = (await res.json()) as { valueRanges: { values?: string[][] }[] }
   const [fahrer, fahrzeuge, korrekturen] = body.valueRanges.map((r) => r.values ?? [])
@@ -154,7 +193,7 @@ export async function downloadDriveFile(file: SourceFile, apiKey: string): Promi
     // localStorage nicht verfügbar – ohne Cache weiter
   }
 
-  const res = await fetch(`${API}/${file.id}?alt=media&key=${encodeURIComponent(apiKey)}`)
+  const res = await driveFetch(`${API}/${file.id}?alt=media&key=${encodeURIComponent(apiKey)}`)
   if (!res.ok) throw new Error(`${file.name} konnte nicht geladen werden (${res.status})`)
   const text = decodeCsv(await res.arrayBuffer())
 
