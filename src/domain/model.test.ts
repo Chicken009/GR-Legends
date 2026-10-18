@@ -106,12 +106,13 @@ describe('Wertung', () => {
 
 describe('Boxenstopp oder Abflug', () => {
   const lap = (ms: number, i: number) => ({ number: i + 2, ms, status: 'normal' as const })
-  it('wertet ohne Tankfunktion nur eine kurze Box-Durchfahrt als Stopp', () => {
+  it('wertet ohne Tankfunktion einen gezählten Boxenstopp als Abflug', () => {
     const laps = [10_000, 10_100, 14_000, 10_050, 30_000, 10_000].map(lap)
-    expect(classifyIncidents(laps, 1, false).map((l) => l.status)).toEqual(['normal', 'normal', 'pit', 'normal', 'crash', 'normal'])
-    // Großer Zeitverlust ist ein Abflug, auch wenn Smartrace eine Durchfahrt gezählt hat
-    const crashOnly = [10_000, 10_100, 25_000, 10_050, 10_000].map(lap)
-    expect(classifyIncidents(crashOnly, 1, false)[2].status).toBe('crash')
+    expect(classifyIncidents(laps, 1, false).map((l) => l.status)).toEqual(['normal', 'normal', 'crash', 'normal', 'crash', 'normal'])
+    // Ohne deutlichen Ausreißer zählt die langsamste Runde als Abflug
+    const mild = [10_000, 10_100, 11_200, 10_050, 10_000].map(lap)
+    expect(classifyIncidents(mild, 1, false).map((l) => l.status)).toEqual(['normal', 'normal', 'crash', 'normal', 'normal'])
+    expect(classifyIncidents(mild, 0, false).every((l) => l.status === 'normal')).toBe(true)
   })
 
   it('erkennt die Tankfunktion an der Mehrheit der Fahrer mit Boxenstopp', () => {

@@ -16,8 +16,6 @@ export const LAP_THRESHOLDS = {
   incidentFactor: 1.3,
   /** Erste Runde (mit stehendem Start): erst ab diesem Faktor ein Zwischenfall */
   firstLapFactor: 1.6,
-  /** Ohne Tankfunktion: eine Box-Durchfahrt kostet höchstens diesen Anteil einer Runde */
-  driveThroughFactor: 0.5,
   /** Typischer Zeitverlust eines Boxenstopps (Tanken) in ms */
   pitLossMs: 4000,
 }
@@ -68,7 +66,7 @@ function buildReferences(sessions: Session[], aliases: DriverAliases, t: LapThre
 
 /**
  * Die Tankfunktion gilt für alle und das ganze Rennen. Mit Tank muss (fast) jeder an die Box;
- * ohne Tank ist ein einzelner Stopp nur eine Durchfahrt durch die Boxengasse. Deshalb zählt
+ * ohne Tank ist ein einzelner Stopp ein über die Boxengasse eingesetztes Auto. Deshalb zählt
  * ein Lauf als Tankrennen, wenn mehr als die Hälfte der Fahrer Boxenstopps hat.
  */
 export function hasTankFunction(s: Session): boolean {
@@ -79,9 +77,10 @@ export function hasTankFunction(s: Session): boolean {
 /**
  * Teilt die Ausreißer-Runden eines Fahrers in Boxenstopps und Abflüge auf.
  *
- * - Ohne Tankfunktion ist ein „Boxenstopp“ nur eine Durchfahrt durch die Boxengasse. Sie
- *   bekommt höchstens einen Ausreißer mit kleinem Zeitverlust (bis `driveThroughFactor` ×
- *   Referenz); größere Verluste bleiben Abflüge.
+ * - Ohne Tankfunktion muss niemand an die Box. Zählt Smartrace trotzdem einen Stopp, wurde das
+ *   Auto nach einem Abflug über die Boxengasse wieder eingesetzt – alle Ausreißer sind Abflüge.
+ *   Je gezähltem Stopp gibt es mindestens einen Abflug; fehlt ein Ausreißer, zählt die
+ *   langsamste Runde (die Startrunde nur, wenn es keine andere gibt).
  * - Mit Tankfunktion: Ein Boxenstopp kostet etwa `pitLossMs`; bei leerem Tank wird zusätzlich
  *   mindestens eine Runde nicht gezählt (Verlust ≈ k × Referenz + Boxenzeit). Die Boxenstopps
  *   bekommen die Ausreißer, die am besten zu diesem Muster passen, der Rest sind Abflüge.
@@ -101,20 +100,30 @@ export function classifyIncidents(
     .map((l, i) => ({ i, loss: l.ms - ref, lap: l }))
     .filter((o) => o.lap.status !== 'invalid' && o.lap.ms > ref * (o.lap.number === 1 ? t.firstLapFactor : t.incidentFactor))
 
+  const out: Lap[] = laps.map((l) => ({ ...l, status: l.status === 'invalid' ? 'invalid' : 'normal', lossMs: undefined }))
+  if (!tank) {
+    const crashes = new Set(outliers.map((o) => o.i))
+    const rest = laps
+      .map((l, i) => ({ i, loss: l.ms - ref, lap: l }))
+      .filter((o) => o.lap.status !== 'invalid' && o.loss > 0 && !crashes.has(o.i))
+      .sort((a, b) => Number(a.lap.number === 1) - Number(b.lap.number === 1) || b.loss - a.loss)
+    for (const o of [...outliers, ...rest.slice(0, Math.max(0, pitStops - outliers.length))]) {
+      out[o.i] = { ...out[o.i], status: 'crash', lossMs: Math.round(o.loss) }
+    }
+    return out
+  }
+
   const fit = (loss: number) => {
-    if (!tank) return loss
     let best = Infinity
     for (let k = 0; k <= 3; k++) best = Math.min(best, Math.abs(loss - (k * ref + t.pitLossMs)))
     return best
   }
   const pitIdx = new Set(
     [...outliers]
-      .filter((o) => tank || o.loss <= ref * t.driveThroughFactor)
       .sort((a, b) => fit(a.loss) - fit(b.loss))
       .slice(0, Math.max(0, pitStops))
       .map((o) => o.i),
   )
-  const out: Lap[] = laps.map((l) => ({ ...l, status: l.status === 'invalid' ? 'invalid' : 'normal', lossMs: undefined }))
   for (const o of outliers) {
     out[o.i] = { ...out[o.i], status: pitIdx.has(o.i) ? 'pit' : 'crash', lossMs: Math.round(o.loss) }
   }

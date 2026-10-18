@@ -197,7 +197,7 @@ export function RaceView() {
                 {guest ? <span className="name">{r.driver}</span> : <Link to={driverPath(r.driver)} className="name">{r.driver}</Link>}
                 <Link to={carPath(r.car)} className="sub">
                   {r.car}
-                  {r.pitStops > 0 ? ` · ${plural(r.pitStops, 'Box', 'Boxenstopps')}` : ''}
+                  {session.tank && r.pitStops > 0 ? ` · ${plural(r.pitStops, 'Box', 'Boxenstopps')}` : ''}
                 </Link>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
