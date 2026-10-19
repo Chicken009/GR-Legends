@@ -11,7 +11,7 @@ import { useStored } from '../useStored'
 import { Amount } from '../currency'
 
 export function Drivers() {
-  const { model, unmatched } = useData()
+  const { model, unmatched, newcomers } = useData()
   const me = useMyName()
   const location = useLocation()
   const navigate = useNavigate()
@@ -158,6 +158,19 @@ export function Drivers() {
             )
           })}
         </div>
+      )}
+      {newcomers.length > 0 && (
+        <section style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--muted)' }}>Neu dabei – noch ohne Rennen</span>
+          <div className="chips">
+            {newcomers.map((n) => (
+              <Link key={n} to={driverPath(n)} state={{ bg: location }} className="pill" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, ...(n === me ? { boxShadow: 'inset 0 0 0 1.5px var(--me)' } : null) }}>
+                <Avatar name={n} size={20} />
+                {n}
+              </Link>
+            ))}
+          </div>
+        </section>
       )}
       <SettingsProblem />
       <DriverSettingsHint rows={unmatched.drivers} />

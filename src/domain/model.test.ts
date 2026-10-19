@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applySettings, carScale, driveFileId, EMPTY_SETTINGS, parseScale, parseSettings, unmatchedSettings } from '../data/settings'
+import { applySettings, carScale, driveFileId, EMPTY_SETTINGS, newcomers, parseScale, parseSettings, unmatchedSettings } from '../data/settings'
 import { prepare } from '../data/useRaceDays'
 import { fixtureIds, readFixture } from '../test-utils'
 import type { Result, Session } from '../types'
@@ -482,5 +482,25 @@ describe('Zeitmarken über 10/20 Runden', () => {
     const old = buildModel([race('a', '2026-01-10', [['Mika', 'Auto', 12], ['Emil', 'Auto', 12]]), race('b', '2026-02-10', [['Emil', 'Auto', 12], ['Mika', 'Auto', 12]])])
     expect(old.goals('Emil').some((g) => g.label.includes('10 Runden unter'))).toBe(true)
     expect([...old.medals.values()].flat().some((m) => m.kind === 'zeitmarke' || m.kind.startsWith('rekord-'))).toBe(false)
+  })
+})
+
+describe('Neue Fahrer ohne Rennen', () => {
+  const sessions = [race('a', '2026-01-10', [['Fahrer 01', 'Auto', 10], ['Fahrer 02', 'Auto', 10]])]
+  it('bekommen ein Profil mit Anzeigename, alte Namen bleiben unsichtbar', () => {
+    const settings = parseSettings({
+      fahrer: [
+        ['Fahrer 01', 'Mika'],
+        ['Anton Berger', 'Fahrer 01'], // alter Name → Pseudonym: kein neuer Fahrer
+        ['Fahrer 12', 'Emil'], // noch kein Rennen, mit Anzeigename
+        ['Fahrer 13'], // noch kein Rennen, Pseudonym
+        ['F. Lorenz'], // kein Pseudonym: nicht zeigen
+        ['Fahrer 14', '', 'x'], // Gast
+        ['Fahrer 0l', 'Pia S.'], // kein Pseudonym (Tippfehler): nicht zeigen, sondern melden
+      ],
+    })
+    expect(newcomers(sessions, settings)).toEqual(['Emil', 'Fahrer 13'])
+    // gewollte neue Fahrer sind kein Tippfehler-Hinweis
+    expect(unmatchedSettings(sessions, settings).drivers).toEqual([7, 8])
   })
 })

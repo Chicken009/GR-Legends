@@ -6,10 +6,14 @@ import { useMe } from './me'
 /** „Wer bist du?“ – eigener Name wird überall hervorgehoben, nur auf diesem Gerät gespeichert. */
 export function MePicker() {
   const { me, setMe, closePicker } = useMe()
-  const { model } = useData()
+  const { model, newcomers } = useData()
   const [query, setQuery] = useState('')
   const [picked, setPicked] = useState<string | null>(me)
-  const rows = model.ranking('all')
+  // Fahrer aus der Wertung, danach neue Fahrer ohne Rennen (aus dem Einstellungen-Sheet)
+  const rows: { name: string; sub: string }[] = [
+    ...model.ranking('all').map((r) => ({ name: r.name, sub: `Rang ${r.rank} · ${r.races} Rennen` })),
+    ...newcomers.map((name) => ({ name, sub: 'Noch kein Rennen' })),
+  ]
   const shown = rows.filter((r) => r.name.toLowerCase().includes(query.trim().toLowerCase()))
   return (
     <Sheet onClose={closePicker} label="Wer bist du?">
@@ -57,7 +61,7 @@ export function MePicker() {
               <span style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 1 }}>
                 <span style={{ fontSize: 15, fontWeight: 600 }}>{r.name}</span>
                 <span style={{ fontSize: 12, color: 'var(--muted)' }}>
-                  Rang {r.rank} · {r.races} Rennen
+                  {r.sub}
                 </span>
               </span>
               {sel && (

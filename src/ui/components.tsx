@@ -19,9 +19,9 @@ export function useData(): AppData {
 /** Eigener Fahrername, falls er im Datenstand vorkommt */
 export function useMyName(): string | null {
   const { me } = useMe()
-  const { model, settings } = useData()
+  const { model, settings, newcomers } = useData()
   if (!me) return null
-  if (model.drivers.includes(me)) return me
+  if (model.drivers.includes(me) || newcomers.includes(me)) return me
   // Früher gewählter Name (z. B. Initialen), der inzwischen einen Anzeigenamen hat
   const alias = settings.aliases[nameKey(me)]
   return alias && model.drivers.includes(alias) ? alias : null

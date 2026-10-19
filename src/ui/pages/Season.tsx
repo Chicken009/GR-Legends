@@ -280,13 +280,14 @@ function Awards({ year, running }: { year: string; running: boolean }) {
 }
 
 function Challenges({ year, driver }: { year: string; driver?: string }) {
-  const { model } = useData()
+  const { model, newcomers } = useData()
   const myName = useMyName()
   const me = driver ?? myName
   const own = me === myName
   const [picked, setPicked] = useState<string | null>(null)
   const drivers = model.season(year).map((r) => r.name)
-  const mine = me && drivers.includes(me) ? model.challenges(me, year) : null
+  // auch neue Fahrer ohne Rennen sehen schon ihre Challenges
+  const mine = me && (drivers.includes(me) || newcomers.includes(me)) ? model.challenges(me, year) : null
   const fresh = useMarkChallengesSeen(own && mine ? me : null, year, mine)
   const all = drivers.map((n) => ({ n, list: model.challenges(n, year) }))
   const doneBy = (id: string) => all.filter((x) => x.list.find((c) => c.id === id)?.done).map((x) => x.n)

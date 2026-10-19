@@ -7,7 +7,7 @@ import type { RaceDay, Session } from '../types'
 import { downloadDriveFile, listDriveFiles, readSettingsSheet } from './drive'
 import { renameEventDrivers, resolveEvents, type EventFolder, type RawEvent } from './events'
 import { eventSlug } from '../domain/event/normalize'
-import { applySettings, EMPTY_SETTINGS, nameKey, parseSettings, unmatchedSettings, type Settings } from './settings'
+import { applySettings, EMPTY_SETTINGS, nameKey, newcomers, parseSettings, unmatchedSettings, type Settings } from './settings'
 
 export interface AppData {
   model: Model
@@ -16,6 +16,8 @@ export interface AppData {
   photos: Record<string, string>
   /** Einträge im Einstellungen-Sheet ohne passenden Namen in den Rennen */
   unmatched: { drivers: number[]; cars: string[] }
+  /** Im Sheet eingetragene Fahrer ohne Rennen (Anzeigename) – sie haben schon ein Profil */
+  newcomers: string[]
   /** Warum die Einstellungen nicht gelesen werden konnten (null = alles gut oder kein Sheet) */
   settingsProblem: string | null
   source: 'drive' | 'local' | 'fixtures'
@@ -27,7 +29,7 @@ export interface AppData {
   allSessions: Session[]
 }
 
-type Raw = Omit<AppData, 'model' | 'days' | 'unmatched' | 'events' | 'allSessions'> & { sessions: Session[]; rawEvents: RawEvent[] }
+type Raw = Omit<AppData, 'model' | 'days' | 'unmatched' | 'newcomers' | 'events' | 'allSessions'> & { sessions: Session[]; rawEvents: RawEvent[] }
 
 async function loadRaw(): Promise<Raw> {
   if (driveEnabled) {
@@ -124,7 +126,7 @@ export function useAppData() {
       // Namen im Wettkampf wie in den Läufen: Anzeigename aus dem Sheet, sonst wie geschrieben
       const rename = (n: string) => rest.settings.aliases[nameKey(n)] ?? n
       const events = resolveEvents(rawEvents, firstDate).map((e) => ({ ...e, def: renameEventDrivers(e.def, rename) }))
-      return { ...rest, events, unmatched: unmatchedSettings(sessions, rest.settings), ...prepare(sessions, rest.settings, events) }
+      return { ...rest, events, unmatched: unmatchedSettings(sessions, rest.settings), newcomers: newcomers(sessions, rest.settings), ...prepare(sessions, rest.settings, events) }
     },
     staleTime: 5 * 60_000,
     // Fehlende Läufe nachladen – was schon da ist, kommt aus dem Zwischenspeicher. Google sperrt

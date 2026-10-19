@@ -119,6 +119,31 @@ export function carScale(settings: Settings, car: string): number {
   return 32
 }
 
+/** Pseudonym wie in Smartrace, z. B. „Fahrer 12“ */
+const PSEUDONYM = /^fahrer\s*\d+$/i
+
+/**
+ * Fahrer, die im Sheet eingetragen sind, aber noch kein Rennen gefahren haben – sie bekommen schon
+ * ein Profil (z. B. für die Challenges). Angezeigt wird immer der Anzeigename (Ende der Kette).
+ * Nur Zeilen mit Pseudonym („Fahrer 12“) als Smartrace-Namen: Andere Namen ohne Rennen sind meist
+ * Tippfehler oder alte echte Namen und dürfen nicht auf der Seite erscheinen.
+ */
+export function newcomers(sessions: Session[], settings: Settings): string[] {
+  // Smartrace-Namen aus den Rennen und die Anzeigenamen, auf die sie zeigen
+  const raced = new Set(sessions.flatMap((s) => s.results.flatMap((r) => [nameKey(r.driver), nameKey(settings.aliases[nameKey(r.driver)] ?? r.driver)])))
+  for (const c of settings.corrections) raced.add(nameKey(settings.aliases[nameKey(c.correctDriver)] ?? c.correctDriver))
+  const guests = new Set(settings.guests)
+  const out = new Map<string, string>()
+  for (const [key, label] of Object.entries(settings.labels ?? {})) {
+    if (guests.has(key)) continue
+    const target = settings.aliases[key] ?? label
+    if (!PSEUDONYM.test(label)) continue
+    if (raced.has(key) || raced.has(nameKey(target)) || guests.has(nameKey(target)) || isGuest(target)) continue
+    out.set(nameKey(target), target)
+  }
+  return [...out.values()].sort((a, b) => a.localeCompare(b, 'de', { numeric: true }))
+}
+
 /** Einträge im Sheet, die zu keinem Namen in den Rennen passen (meist Tippfehler) */
 export function unmatchedSettings(sessions: Session[], settings: Settings): { drivers: number[]; cars: string[] } {
   const drivers = new Set<string>()
@@ -133,7 +158,9 @@ export function unmatchedSettings(sessions: Session[], settings: Settings): { dr
   // Anzeigenamen, die in den Rennen vorkommen: Einträge, die auf so einen Namen zeigen, sind gewollte
   // Zusammenführungen (z. B. alter Smartrace-Name → Fahrer 01) und kein Tippfehler
   const shown = new Set([...drivers].map((k) => nameKey(settings.aliases[k] ?? settings.labels?.[k] ?? k)))
-  const unused = (k: string) => !drivers.has(k) && !(settings.aliases[k] && shown.has(nameKey(settings.aliases[k])))
+  // Neue Fahrer ohne Rennen sind gewollt (eigenes Profil) und kein Tippfehler
+  const fresh = new Set(newcomers(sessions, settings).map(nameKey))
+  const unused = (k: string) => !drivers.has(k) && !(settings.aliases[k] && shown.has(nameKey(settings.aliases[k]))) && !fresh.has(nameKey(settings.aliases[k] ?? settings.labels?.[k] ?? k))
   return {
     // Nur Zeilennummern – Namen aus dem Sheet sollen nicht öffentlich auf der Seite erscheinen
     drivers: [...new Set([...Object.keys(settings.aliases), ...settings.guests])].filter(unused).map((k) => settings.rows?.[k] ?? 0).filter((r) => r > 0).sort((a, b) => a - b),

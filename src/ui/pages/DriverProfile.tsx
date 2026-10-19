@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useMe } from '../me'
+import { ChallengeItem } from '../ChallengeItem'
 import { CAREER_XP, PLACEMENT_RUNS, type Medal } from '../../domain/model'
 import { AREA, SERIES } from '../colors'
 import { Avatar, carPath, driverPath, PeriodTabs, Placement, Segment, Sheet, Tile, useData, useMyName } from '../components'
@@ -23,7 +24,7 @@ const ACCENT = AREA.drivers
 
 export function DriverProfile({ onClose }: { onClose: () => void }) {
   const { name = '' } = useParams()
-  const { model } = useData()
+  const { model, newcomers } = useData()
   const me = useMyName()
   const navigate = useNavigate()
   const [chart, setChart] = useState<ChartKind>('elo')
@@ -41,6 +42,7 @@ export function DriverProfile({ onClose }: { onClose: () => void }) {
   }, [me, driver, navigate, location.state])
   const d = model.stats('all').drivers.get(driver)
   const history = model.rating.history.get(driver) ?? []
+  if ((!d || history.length === 0) && newcomers.includes(driver)) return <NewcomerProfile driver={driver} onClose={onClose} />
   if (!d || history.length === 0) {
     return (
       <Sheet onClose={onClose} label="Fahrer nicht gefunden">
@@ -430,6 +432,49 @@ function MedalChip({ medal, driver }: { medal: Medal; driver: string }) {
         </span>
       </div>
     </button>
+  )
+}
+
+/** Profil für Fahrer, die schon im Einstellungen-Sheet stehen, aber noch kein Rennen gefahren sind */
+function NewcomerProfile({ driver, onClose }: { driver: string; onClose: () => void }) {
+  const { model } = useData()
+  const me = useMyName()
+  const { openPicker } = useMe()
+  const isMe = driver === me
+  const year = model.years[0] as string | undefined
+  const list = year ? model.challenges(driver, year) : []
+  return (
+    <Sheet onClose={onClose} label={`Profil ${driver}`}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+        <Avatar name={driver} size={64} ring={isMe ? ACCENT : '#3A404A'} style={{ background: 'var(--inner)', fontSize: 22, fontWeight: 800, boxShadow: 'var(--sh2)' }} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1, minWidth: 0 }}>
+          <h1 style={{ fontSize: 26, fontWeight: 800, textShadow: '0 3px 12px rgba(0,0,0,.6)' }}>{driver}</h1>
+          <span style={{ fontSize: 14, color: 'var(--muted)' }}>
+            Noch kein Rennen gefahren
+            {isMe && ' · Das bist du'}
+          </span>
+          {isMe && (
+            <button className="btn ghost" onClick={openPicker} style={{ alignSelf: 'flex-start', minHeight: 30, padding: '0 10px', fontSize: 12, marginTop: 2 }}>
+              Anderen Fahrer wählen
+            </button>
+          )}
+        </div>
+      </div>
+      <p className="inner" style={{ margin: 0, padding: '12px 14px', fontSize: 13, color: 'var(--text-2)', lineHeight: 1.5 }}>
+        Willkommen bei GR Legends! Nach dem ersten Rennen erscheinen hier Elo, Statistiken, Medaillen und Rückblicke. Die ersten {PLACEMENT_RUNS} Läufe sind die Einstufung.
+      </p>
+      {year && list.length > 0 && (
+        <section style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <Link to={`/saison/${year}`} state={{ tab: 'challenges', driver }} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 14, fontWeight: 600 }}>Saisonchallenges {year}</span>
+            <span style={{ fontSize: 13, color: 'var(--muted)' }}>alle ›</span>
+          </Link>
+          {list.map((c) => (
+            <ChallengeItem key={c.id} c={c} accent={AREA.season} />
+          ))}
+        </section>
+      )}
+    </Sheet>
   )
 }
 

@@ -47,6 +47,10 @@ Sheets API nicht lesen). Tabs:
   mit Zeilennummer, damit keine Namen aus dem Sheet öffentlich erscheinen.
 - Anzeigenamen dürfen eine Kette bilden: „alter Name → Fahrer 01“ und „Fahrer 01 → Anzeigename“
   ergeben für beide den Anzeigenamen.
+- Neue Fahrer schon vor dem ersten Rennen: Zeile mit dem künftigen Pseudonym (z. B. „Fahrer 12“)
+  und optional Anzeigename. Dann gibt es schon ein Profil mit den Saison-Challenges, und man kann
+  sich bei „Wer bist du?“ auswählen. Zeilen ohne Pseudonym bekommen kein Profil (Tippfehler oder
+  alte Namen sollen nicht auf der Seite erscheinen).
 
 ## Wettkämpfe
 
