@@ -422,7 +422,7 @@ function EventTeaser() {
 }
 
 /** Nächster eigener Lauf in einem laufenden oder bald anstehenden Wettkampf (wenn der Ablauf schon sichtbar ist) */
-function NextHeatCard({ driver }: { driver: string }) {
+export function NextHeatCard({ driver }: { driver: string }) {
   const data = useData()
   const today = todayIso()
   const found = useMemo(() => {

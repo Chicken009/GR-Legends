@@ -169,7 +169,8 @@ export interface Career {
 
 /** XP-Regeln für das Karriere-Level: Jedes Mitfahren zählt, nichts geht verloren */
 export const CAREER_XP = { race: 10, quali: 4, raceDay: 15, win: 10, podium: 5, km: 5, personalBest: 10 }
-const levelXp = (level: number) => 25 * level * (level - 1)
+/** XP, ab denen ein Level erreicht ist */
+export const levelXp = (level: number) => 25 * level * (level - 1)
 const CAREER_TITLES: [number, string][] = [[15, 'Legende'], [10, 'Profi'], [7, 'Routinier'], [5, 'Stammfahrer'], [3, 'Hobbyfahrer'], [1, 'Rookie']]
 export const careerTitle = (level: number) => CAREER_TITLES.find(([min]) => level >= min)![1]
 /** Nächster Titel über dem aktuellen Level: [ab Level, Titel] oder null bei „Legende“ */
