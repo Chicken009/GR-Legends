@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useMe } from '../me'
+import { useStored } from '../useStored'
 import { NewcomerProfile } from './NewcomerProfile'
 import { CAREER_XP, PLACEMENT_RUNS, type Medal } from '../../domain/model'
 import { AREA, SERIES } from '../colors'
@@ -755,35 +756,67 @@ function OpponentList({ driver }: { driver: string }) {
 }
 
 /** Autos, mit denen man gefahren ist – nach Bestzeit */
+/** Siegquote erst ab so vielen Rennen mit dem Auto (sonst wären 1 von 1 gleich 100 %) */
+const MIN_RACES_WINRATE = 3
+
+/** Autos des Fahrers: schnellste, höchste Siegquote, meiste km */
 function CarBests({ driver }: { driver: string }) {
   const { model } = useData()
+  const [kind, setKind] = useStored<'fast' | 'wins' | 'km'>('driver:cars', 'fast')
   const d = model.stats('all').drivers.get(driver)
   if (!d || d.cars.size === 0) return null
-  const cars = [...d.cars].filter(([, u]) => u.bestLapMs != null).sort((a, b) => a[1].bestLapMs! - b[1].bestLapMs!)
+  const all = [...d.cars]
+  const cars =
+    kind === 'fast'
+      ? all.filter(([, u]) => u.bestLapMs != null).sort((a, b) => a[1].bestLapMs! - b[1].bestLapMs!)
+      : kind === 'wins'
+        ? all.filter(([, u]) => u.races >= MIN_RACES_WINRATE).sort((a, b) => b[1].wins / b[1].races - a[1].wins / a[1].races || b[1].wins - a[1].wins)
+        : all.filter(([, u]) => u.km > 0).sort((a, b) => b[1].km - a[1].km)
+  const hint = kind === 'fast' ? 'Best · Ø saubere Runde' : kind === 'wins' ? `Siege · ab ${MIN_RACES_WINRATE} Rennen` : 'Rennen und Qualifyings'
+  const maxKm = Math.max(0, ...cars.map(([, u]) => u.km))
   return (
     <section className="inner" style={{ gap: 2 }}>
-      <div className="card-head" style={{ marginBottom: 4 }}>
-        <span className="card-title">Autos & Bestzeiten</span>
-        <span className="hint">Best · Ø saubere Runde</span>
+      <div className="card-head" style={{ marginBottom: 4, flexWrap: 'wrap', gap: 8 }}>
+        <span className="card-title">Autos</span>
+        <Segment small label="Autoliste" value={kind} onChange={setKind} options={[['fast', 'Schnellste'], ['wins', 'Siegquote'], ['km', 'Meiste km']]} />
       </div>
+      <span style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 4 }}>{hint}</span>
       {cars.map(([car, u], i) => {
-        const avg = u.normal.length ? quantile([...u.normal].sort((a, b) => a - b), 0.5) : null
+        const avg = kind === 'fast' && u.normal.length ? quantile([...u.normal].sort((a, b) => a - b), 0.5) : null
+        const bar = kind === 'wins' ? u.wins / u.races : kind === 'km' && maxKm > 0 ? u.km / maxKm : null
         return (
           <Link key={car} to={carPath(car)} className="row" style={{ padding: '5px 0' }}>
             <CarThumb car={car} size={36} />
             <span className="grow">
               <span className="name">{car}</span>
-              <span className="sub">
-                {u.races} Rennen{u.wins ? ` · ${u.wins} ${u.wins === 1 ? 'Sieg' : 'Siege'}` : ''}
-              </span>
+              {bar != null ? (
+                <span style={{ display: 'block', height: 6, borderRadius: 3, background: '#262B33', marginTop: 5, position: 'relative', maxWidth: 160 }}>
+                  <span style={{ position: 'absolute', inset: 0, width: `${Math.max(0.04, bar) * 100}%`, borderRadius: 3, background: i === 0 ? ACCENT : '#4A515C' }} />
+                </span>
+              ) : (
+                <span className="sub">
+                  {u.races} Rennen{u.wins ? ` · ${u.wins} ${u.wins === 1 ? 'Sieg' : 'Siege'}` : ''}
+                </span>
+              )}
             </span>
             <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-              <span className="num" style={{ fontSize: 13, fontWeight: 700, color: i === 0 ? 'var(--best)' : undefined }}>{formatTime(u.bestLapMs)}</span>
-              <span className="num" style={{ fontSize: 11, color: 'var(--muted)' }}>{avg ? (avg / 1000).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '–'}</span>
+              <span className="num" style={{ fontSize: 13, fontWeight: 700, color: i === 0 ? (kind === 'fast' ? 'var(--best)' : 'var(--text)') : undefined }}>
+                {kind === 'fast' ? formatTime(u.bestLapMs) : kind === 'wins' ? fmtPct(u.wins / u.races) : `${fmtNum(u.km)} km`}
+              </span>
+              <span className="num" style={{ fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap' }}>
+                {kind === 'fast'
+                  ? avg
+                    ? (avg / 1000).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                    : '–'
+                  : kind === 'wins'
+                    ? `${u.wins}/${u.races}`
+                    : `${u.races} Rennen`}
+              </span>
             </span>
           </Link>
         )
       })}
+      {!cars.length && <p className="muted" style={{ margin: 0, fontSize: 13 }}>{kind === 'wins' ? `Noch kein Auto mit mindestens ${MIN_RACES_WINRATE} Rennen.` : 'Noch keine Daten.'}</p>}
     </section>
   )
 }

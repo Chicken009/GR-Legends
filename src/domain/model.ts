@@ -28,6 +28,8 @@ export interface CarUse {
   races: number
   wins: number
   laps: number
+  /** Kilometer in Rennen und Qualifyings */
+  km: number
   bestLapMs: number | null
   normal: number[]
 }
@@ -379,8 +381,9 @@ export function buildModel(input: Session[]): Model {
         d.laps += r.laps
         if (km != null) d.km = (d.km ?? 0) + km
         if (best != null && (d.bestLapMs == null || best < d.bestLapMs)) d.bestLapMs = best
-        const use = d.cars.get(r.car) ?? { races: 0, wins: 0, laps: 0, bestLapMs: null, normal: [] }
+        const use = d.cars.get(r.car) ?? { races: 0, wins: 0, laps: 0, km: 0, bestLapMs: null, normal: [] }
         use.laps += r.laps
+        if (km != null) use.km += km
         use.normal.push(...nl)
         if (best != null && (use.bestLapMs == null || best < use.bestLapMs)) use.bestLapMs = best
         if (c != null) (precSamples.get(r.driver) ?? precSamples.set(r.driver, []).get(r.driver)!).push(c)
