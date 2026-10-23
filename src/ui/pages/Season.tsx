@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import type { SeasonStanding } from '../../domain/model'
 import { SEASON_POINTS } from '../../domain/season'
@@ -11,9 +10,9 @@ import { AREA, ME, seriesColors } from '../colors'
 import { Avatar, carPath, driverPath, PageHead, Segment, useData, useMyName } from '../components'
 import { formatDate } from '../format'
 import { MedalBadge } from '../Medal'
-import { useMedalPopup } from '../MedalPopup'
+import { useChallengePopup, useMedalPopup } from '../MedalPopup'
 import { useStored } from '../useStored'
-import { ChallengeBadge, ChallengeItem, RarityLine, XpChip } from '../ChallengeItem'
+import { ChallengeBadge, ChallengeItem, RarityLine } from '../ChallengeItem'
 import { byProgress, rarity, useMarkChallengesSeen } from '../challengeUtils'
 import { Amount } from '../currency'
 
@@ -284,7 +283,7 @@ function Challenges({ year, driver }: { year: string; driver?: string }) {
   const myName = useMyName()
   const me = driver ?? myName
   const own = me === myName
-  const [picked, setPicked] = useState<string | null>(null)
+  const openChallenge = useChallengePopup()
   const drivers = model.season(year).map((r) => r.name)
   // auch neue Fahrer ohne Rennen sehen schon ihre Challenges
   const mine = me && (drivers.includes(me) || newcomers.includes(me)) ? model.challenges(me, year) : null
@@ -312,7 +311,6 @@ function Challenges({ year, driver }: { year: string; driver?: string }) {
   const open = mine.filter((c) => !c.done).sort(byProgress)
   const counts = all.map((x) => x.list.filter((c) => c.done).length)
   const rank = 1 + counts.filter((d) => d > done.length).length
-  const sel = done.find((c) => c.id === picked)
   return (
     <>
       <section className="card" style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
@@ -341,7 +339,7 @@ function Challenges({ year, driver }: { year: string; driver?: string }) {
         <section className="card" style={{ gap: 10 }}>
           <div className="card-head">
             <span className="card-title">Geschafft</span>
-            <span className="hint">Abzeichen antippen</span>
+            <span className="hint">antippen für Details</span>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(92px, 1fr))', gap: 8 }}>
             {done.map((c) => {
@@ -350,9 +348,9 @@ function Challenges({ year, driver }: { year: string; driver?: string }) {
                 <button
                   key={c.id}
                   className="inner"
-                  aria-pressed={picked === c.id}
-                  onClick={() => setPicked(picked === c.id ? null : c.id)}
-                  style={{ alignItems: 'center', gap: 6, padding: '12px 6px', border: picked === c.id ? `1.5px solid ${ACCENT}` : '1.5px solid transparent', textAlign: 'center' }}
+                  onClick={() => openChallenge(c, { driver: me ?? undefined, year })}
+                  aria-label={`Challenge ${c.label} anzeigen`}
+                  style={{ alignItems: 'center', gap: 6, padding: '12px 6px', border: '1.5px solid transparent', textAlign: 'center' }}
                 >
                   <ChallengeBadge c={c} accent={ACCENT} size={56} fresh={fresh.has(c.id)} />
                   <span style={{ fontSize: 12, fontWeight: 700, lineHeight: 1.2 }}>{c.label}</span>
@@ -361,16 +359,6 @@ function Challenges({ year, driver }: { year: string; driver?: string }) {
               )
             })}
           </div>
-          {sel && (
-            <div className="inner" style={{ gap: 6, padding: '10px 12px' }}>
-              <span style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
-                <b style={{ fontSize: 14 }}>{sel.label}</b>
-                <XpChip done />
-              </span>
-              <span style={{ fontSize: 12, color: 'var(--muted)' }}>{sel.detail}</span>
-              <RarityLine doneBy={doneBy(sel.id)} total={total} me={me} title={sel.label} />
-            </div>
-          )}
         </section>
       )}
     </>

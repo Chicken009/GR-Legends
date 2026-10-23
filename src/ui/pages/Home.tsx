@@ -332,7 +332,7 @@ function ChallengesCard() {
         </Link>
       )}
       {open.map((c) => (
-        <ChallengeItem key={c.id} c={c} accent={AREA.season} />
+        <ChallengeItem key={c.id} c={c} accent={AREA.season} year={year} driver={me} />
       ))}
     </section>
   )

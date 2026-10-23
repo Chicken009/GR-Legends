@@ -3,7 +3,9 @@ import { createPortal } from 'react-dom'
 import type { Challenge, Medal } from '../domain/model'
 import { ChallengeBadge, XpChip } from './ChallengeItem'
 import { AREA } from './colors'
-import { sheetStack } from './components'
+import { Link, useLocation } from 'react-router-dom'
+import { Avatar, driverPath, sheetStack, useData, useMyName } from './components'
+import { rarity } from './challengeUtils'
 import { formatDate, formatMonth } from './format'
 import { MedalArt, TIERS } from './Medal'
 
@@ -45,6 +47,35 @@ function useEscape(onClose: () => void) {
   }, [id, onClose])
 }
 
+/** Wer die Challenge in der Saison geschafft hat – mit Seltenheit; Namen führen zum Profil */
+function DoneByList({ id, year, onNavigate }: { id: string; year: string; onNavigate: () => void }) {
+  const { model } = useData()
+  const me = useMyName()
+  const location = useLocation()
+  const drivers = model.season(year).map((r) => r.name)
+  const names = drivers.filter((n) => model.challenges(n, year).find((x) => x.id === id)?.done)
+  const r = rarity(names.length, drivers.length)
+  return (
+    <div style={{ width: '100%', borderTop: '1px solid #262B33', marginTop: 4, paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center' }}>
+      <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.4, textTransform: 'uppercase', color: r.color, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+        <span style={{ width: 6, height: 6, borderRadius: 3, background: r.color }} />
+        {r.label}
+        {names.length > 0 && <span style={{ color: 'var(--faint)', fontWeight: 600, textTransform: 'none', letterSpacing: 0 }}>· {names.length} von {drivers.length}</span>}
+      </span>
+      {names.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center', maxHeight: 132, overflowY: 'auto' }}>
+          {names.map((n) => (
+            <Link key={n} to={driverPath(n)} state={{ bg: location }} onClick={onNavigate} className="pill" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 9px 3px 3px', fontSize: 12, ...(n === me ? { borderColor: 'var(--me)' } : null) }}>
+              <Avatar name={n} size={20} ring={n === me ? 'var(--me)' : undefined} />
+              {n}
+            </Link>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function ChallengePopup({ c, driver, year, onClose }: { c: Challenge; driver?: string; year?: string; onClose: () => void }) {
   useEscape(onClose)
   return createPortal(
@@ -71,6 +102,7 @@ function ChallengePopup({ c, driver, year, onClose }: { c: Challenge; driver?: s
         )}
         <XpChip done={c.done} />
         {driver && <span style={{ fontSize: 12, color: 'var(--muted)' }}>{driver}</span>}
+        {year && <DoneByList id={c.id} year={year} onNavigate={onClose} />}
         <button className="btn round" onClick={onClose} autoFocus style={{ marginTop: 8, minWidth: 140 }}>
           Schließen
         </button>

@@ -98,7 +98,7 @@ export function NewcomerProfile({ driver, onClose }: { driver: string; onClose: 
             <span style={{ fontSize: 13, color: 'var(--muted)' }}>alle ›</span>
           </Link>
           {list.map((c) => (
-            <ChallengeItem key={c.id} c={c} accent={AREA.season} />
+            <ChallengeItem key={c.id} c={c} accent={AREA.season} year={year} driver={driver} />
           ))}
         </section>
       )}
