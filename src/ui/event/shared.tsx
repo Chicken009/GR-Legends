@@ -218,7 +218,7 @@ export function TeamStandings({ state }: { state: EventState }) {
     <section className="card" style={{ gap: 4 }}>
       <div className="card-head">
         <span className="card-title">Teamwertung</span>
-        <span className="hint">Schnitt der Mitglieder</span>
+        <span className="hint">{state.separate ? 'nur Teamrennen' : 'Schnitt der Mitglieder'}</span>
       </div>
       {state.teamStandings.map((t) => (
         <div key={t.id} className="row" style={{ padding: 8, borderLeft: `4px solid ${teamColor(t.id, t.name)}` }}>
@@ -395,7 +395,8 @@ export function rulesText(def: EventDef, state: EventState): string[] {
     sc.clean && `je Rennen ohne Abflug +${fmtPts(sc.clean)}`,
   ].filter(Boolean)
   if (bonus.length) out.push(`Bonus: ${bonus.join(', ')}.`)
-  if (def.teams) out.push('Teamwertung: Schnitt der Gesamtpunkte der Mitglieder – unterschiedlich große Teams bleiben fair.')
+  if (state.separate) out.push('Einzel- und Teamwertung sind getrennt: Einzelrennen zählen für die eigenen Punkte, Teamrennen nur für die Teamwertung (Teampunkte je Lauf: Schnitt der Mitglieder, hochgerechnet).')
+  else if (def.teams) out.push('Teamwertung: Schnitt der Gesamtpunkte der Mitglieder – unterschiedlich große Teams bleiben fair.')
   out.push(def.countInStats ? 'Die Läufe zählen auch für Elo und Saison.' : 'Die Läufe zählen nicht für Elo und Saison.')
   return out
 }

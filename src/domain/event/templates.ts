@@ -27,15 +27,11 @@ export function newSection(format: SectionFormat, extra: Partial<SectionDef> = {
 export const TEMPLATES: Template[] = [
   {
     id: 'legends',
-    name: 'Quali → Leiter → Teams',
-    text: 'Jeder fährt allein 4 Runden Quali. Dann die Aufstiegsleiter: die Langsamsten zuerst, die Besten steigen auf bis ins Finale. Zum Schluss Teamrennen.',
+    name: 'Quali → Leiter',
+    text: 'Jeder fährt allein 4 Runden Quali. Dann die Aufstiegsleiter: die Langsamsten zuerst, die Besten steigen auf bis ins Finale.',
     build: () => ({
-      sections: [
-        newSection('quali', { name: 'Einzel-Quali', maxPerHeat: 1, laps: 4 }),
-        newSection('ladder', { name: 'Aufstiegsleiter' }),
-        newSection('team', { name: 'Teamrennen', seeding: 'elo' }),
-      ],
-      teams: { mode: 'elo', size: 2, teams: [] },
+      sections: [newSection('quali', { name: 'Einzel-Quali', maxPerHeat: 1, laps: 4 }), newSection('ladder', { name: 'Aufstiegsleiter' })],
+      teams: null,
     }),
   },
   {

@@ -132,7 +132,7 @@ export interface TeamStanding {
   name: string
   drivers: string[]
   rank: number
-  /** Schnitt der Gesamtpunkte der Mitglieder */
+  /** Punkte aus den Teamrennen (getrennte Wertung) bzw. Schnitt der Gesamtpunkte der Mitglieder */
   points: number
   /** Summe der Elo der Mitglieder zu Beginn des Wettkampfs */
   elo: number
@@ -147,6 +147,8 @@ export interface EventState {
   heats: Heat[]
   standings: Standing[]
   teamStandings: TeamStanding[]
+  /** Einzel- und Teamwertung getrennt: Einzelpunkte nur aus Einzelrennen, Teampunkte nur aus Teamrennen */
+  separate: boolean
   next: Heat | null
   /** Läufe im Ordner, die keinem Lauf zugeordnet werden konnten */
   unmatched: Session[]
@@ -602,11 +604,81 @@ export function ladderAuto(n: number, per: number): { direct: number[]; advance:
   return { direct, advance: direct.map((_, i) => (i === direct.length - 1 ? 0 : up(per))) }
 }
 
+/**
+ * Aufteilung der Aufstiegsleiter (von unten nach oben): direkt gesetzte Fahrer und Aufsteiger je
+ * Rennen. Möglichst wenige, volle Rennen; fehlen Fahrer, werden die oberen Rennen kleiner, nicht das
+ * erste – so fährt niemand im ersten Rennen in einem kleineren Feld. `finalDirect` = so viele
+ * Fahrer stehen direkt im Finale.
+ */
+export function ladderPlan(n: number, per: number, opts: { advance: number | 'auto'; finalDirect?: number }): { direct: number[]; advance: number[] } {
+  if (n <= per) return { direct: [n], advance: [0] }
+  const fd = opts.finalDirect != null ? Math.max(1, Math.min(opts.finalDirect, per - 1, n - 1)) : null
+  const upOf = (size: number) => Math.max(1, Math.min(opts.advance === 'auto' ? Math.floor(size / 2) : opts.advance, size - 1))
+  for (let levels = 2; levels <= n; levels++) {
+    const last = levels - 1
+    // Größe je Rennen; das Finale ergibt sich bei festem `finalDirect` aus den Aufsteigern
+    const sizes = Array.from({ length: levels }, () => per)
+    const plan = () => {
+      const adv = sizes.map((sz, i) => (i === last ? 0 : upOf(sz)))
+      // Feste Zahl direkt im Finale: die übrigen Finalplätze füllen die Aufsteiger
+      if (fd != null) adv[last - 1] = Math.max(1, Math.min(per - fd, sizes[last - 1] - 1))
+      const direct = sizes.map((sz, i) => (i === 0 ? sz : i === last && fd != null ? fd : sz - adv[i - 1]))
+      return { direct, advance: adv }
+    }
+    const total = (p: ReturnType<typeof plan>) => p.direct.reduce((a, b) => a + b, 0)
+    const valid = (p: ReturnType<typeof plan>) => p.direct.every((d) => d >= 1) && sizes.every((sz) => sz >= 2)
+    let p = plan()
+    if (total(p) < n) continue
+    // Überzählige Plätze abbauen: im größten Rennen, bei Gleichstand weiter oben – das erste Rennen
+    // nur, wenn es nicht anders geht
+    let guard = levels * per
+    while (total(p) > n && guard-- > 0) {
+      const others = [...sizes.keys()].filter((i) => i > 0 && !(i === last && fd != null)).sort((x, y) => sizes[y] - sizes[x] || y - x)
+      const order = [...others, 0]
+      let done = false
+      for (const i of order) {
+        for (const step of [1, 2]) {
+          sizes[i] -= step
+          const q = plan()
+          if (valid(q) && total(q) < total(p) && total(q) >= n) {
+            p = q
+            done = true
+            break
+          }
+          sizes[i] += step
+        }
+        if (done) break
+      }
+      if (!done) break
+    }
+    if (total(p) === n) return p
+  }
+  return ladderAuto(n, per)
+}
+
+/**
+ * Neue Regeln (volle erste Leiter-Rennen, getrennte Einzel- und Teamwertung) gelten für Wettkämpfe
+ * ab diesem Tag – bereits gefahrene Wettkämpfe behalten ihre Läufe und Wertungen.
+ */
+export const EVENT_RULES_FROM = '2026-10-24'
+
+/** Läufe derselben Aufteilung auf einer Kopie der Umgebung durchspielen (ohne Nebenwirkungen) */
+const cloneEnv = (env: Env): Env => ({ ...env, used: new Set(env.used), heatCount: new Map(env.heatCount), carBase: new Map(env.carBase), heats: [...env.heats] })
+
 function sectionLadder(env: Env, sec: SectionDef, seeds: Entrant[], per: number): Omit<SectionState, 'def'> {
   if (!seeds.length) return { heats: [], ranking: [], teamRanking: null, started: false, complete: false }
   const fixed = Math.min(sec.advance ?? 2, per - 1)
-  const auto = sec.advanceAuto ? ladderAuto(seeds.length, per) : null
-  const sizes = auto ? auto.direct : ladderSizes(seeds.length, per, fixed)
+  // Bisherige Aufteilung (erstes Rennen notfalls kleiner) – bleibt, wenn damit schon gefahren wurde
+  const legacy = sec.advanceAuto ? ladderAuto(seeds.length, per) : { direct: ladderSizes(seeds.length, per, fixed), advance: [] as number[] }
+  if (!sec.advanceAuto) legacy.advance = legacy.direct.map((_, i) => (i === legacy.direct.length - 1 ? 0 : fixed))
+  const fresh = ladderPlan(seeds.length, per, { advance: sec.advanceAuto ? 'auto' : fixed, finalDirect: sec.finalDirect })
+  const same = JSON.stringify(legacy) === JSON.stringify(fresh)
+  const plan = same || env.def.start >= EVENT_RULES_FROM || !runLadder(cloneEnv(env), sec, seeds, legacy).started ? fresh : legacy
+  return runLadder(env, sec, seeds, plan)
+}
+
+function runLadder(env: Env, sec: SectionDef, seeds: Entrant[], plan: { direct: number[]; advance: number[] }): Omit<SectionState, 'def'> {
+  const sizes = plan.direct
   const heats: Heat[] = []
   // Setzliste: beste zuerst – unten fahren die letzten
   let rest = [...seeds]
@@ -620,7 +692,7 @@ function sectionLadder(env: Env, sec: SectionDef, seeds: Entrant[], per: number)
   let carry: Entrant[] = []
   for (let level = 0; level < sizes.length; level++) {
     const top = level === sizes.length - 1
-    const advance = auto ? auto.advance[level] : fixed
+    const advance = plan.advance[level]
     const label = top && sizes.length > 1 ? 'Finale' : `Rennen ${level + 1}`
     const entrants = [...carry, ...direct[level]]
     const heat = addHeat(env, sec, {
@@ -992,12 +1064,19 @@ export function computeEvent(def: EventDef, ctx: EventContext): EventState {
 
   // ---- Gesamtwertung ----
   const sc = def.scoring
-  const lastScoring = sections.map((s, i) => (s.def.weight > 0 && s.def.format !== 'free' ? i : -1)).reduce((a, b) => Math.max(a, b), -1)
+  // Gemischte Wettkämpfe (Einzel- und Teamrennen): Einzelwertung nur aus den Einzelabschnitten,
+  // Teamwertung nur aus den Teamrennen. Reine Teamwettkämpfe: alle bekommen die Teampunkte.
+  const teamSections = sections.filter((s) => s.def.format === 'team' && s.teamRanking)
+  const separate = def.start >= EVENT_RULES_FROM && teamSections.length > 0 && sections.some((s) => s.def.format !== 'team' && s.def.weight > 0)
+  const scoringIdx = sections.map((s, i) => (s.def.weight > 0 && s.def.format !== 'free' ? i : -1))
+  const lastOverall = scoringIdx.reduce((a, b) => Math.max(a, b), -1)
+  const lastScoring = separate ? scoringIdx.filter((i) => i >= 0 && sections[i].def.format !== 'team').reduce((a, b) => Math.max(a, b), -1) : lastOverall
   const everyone = [...new Set([...drivers, ...heats.flatMap((h) => h.order)])]
   const rows = new Map<string, Standing>()
   const teamOf = new Map(teams.flatMap((t) => t.drivers.map((d) => [d, t] as const)))
   for (const n of everyone) rows.set(n, { name: n, rank: 0, total: 0, sections: sections.map(() => 0), bonuses: [], races: 0, wins: 0, bestLapMs: null, team: teamOf.get(n)?.name ?? null, teamId: teamOf.get(n)?.id ?? null })
   sections.forEach((s, i) => {
+    if (separate && s.def.format === 'team') return
     const factor = s.def.weight * (i === lastScoring ? sc.finaleFactor : 1)
     for (const r of s.ranking) {
       const row = rows.get(r.name)
@@ -1053,10 +1132,18 @@ export function computeEvent(def: EventDef, ctx: EventContext): EventState {
   const standings = [...rows.values()].sort((a, b) => b.total - a.total || lastRank(a.name) - lastRank(b.name) || b.wins - a.wins || a.name.localeCompare(b.name))
   standings.forEach((s, i) => (s.rank = i > 0 && standings[i - 1].total === s.total && lastRank(standings[i - 1].name) === lastRank(s.name) ? standings[i - 1].rank : i + 1))
 
+  // Teamwertung: bei getrennter Wertung die Punkte aus den Teamrennen, sonst Schnitt der Mitglieder
+  const teamRacePoints = (id: string) =>
+    sections.reduce((sum, s, i) => {
+      if (s.def.format !== 'team' || !s.teamRanking || !s.started) return sum
+      const row = s.teamRanking.find((r) => r.name === id)
+      return sum + (row?.points ?? 0) * s.def.weight * (i === lastOverall ? sc.finaleFactor : 1)
+    }, 0)
   const teamStandings: TeamStanding[] = teams
     .map((t) => {
       const pts = t.drivers.map((d) => rows.get(d)?.total ?? 0)
-      return { id: t.id, name: t.name, drivers: t.drivers, elo: t.elo, rank: 0, points: pts.length ? Math.round((pts.reduce((a, b) => a + b, 0) / pts.length) * 10) / 10 : 0 }
+      const points = separate ? teamRacePoints(t.id) : pts.length ? pts.reduce((a, b) => a + b, 0) / pts.length : 0
+      return { id: t.id, name: t.name, drivers: t.drivers, elo: t.elo, rank: 0, points: Math.round(points * 10) / 10 }
     })
     .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name))
   teamStandings.forEach((t, i) => (t.rank = i > 0 && teamStandings[i - 1].points === t.points ? teamStandings[i - 1].rank : i + 1))
@@ -1071,6 +1158,7 @@ export function computeEvent(def: EventDef, ctx: EventContext): EventState {
     heats,
     standings,
     teamStandings,
+    separate,
     next,
     unmatched,
     started,

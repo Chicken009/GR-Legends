@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Result, Session } from '../../types'
-import { buildTeams, chunkEven, computeEvent, ladderAuto, ladderSizes, snake, type EventContext } from './engine'
+import { buildTeams, chunkEven, computeEvent, ladderAuto, ladderPlan, ladderSizes, snake, type EventContext } from './engine'
 import { driverInsight, eventPhase, planVisible, storylines } from './insights'
 import { normalizeEvent, serializeEvent } from './normalize'
 import { playThrough, simulate } from './simulate'
@@ -185,6 +185,22 @@ describe('Rennen, K.-o. und Teams', () => {
     expect(s.teamStandings[0].name).toBe('Rot')
   })
 
+  it('trennt bei gemischten Wettkämpfen Einzel- und Teamwertung (ab Stichtag)', () => {
+    const teams = { mode: 'manual' as const, size: 2, teams: [{ name: 'Rot', drivers: ['A', 'D'] }, { name: 'Blau', drivers: ['B', 'C'] }] }
+    const sections = [newSection('races', { id: 'r', rounds: 1 }), newSection('team', { id: 't' })]
+    const sessions = [run('race', ['D', 'C', 'B', 'A']), run('race', ['A', 'B', 'C', 'D'])]
+    const mixed = computeEvent(def({ start: '2026-11-01', drivers: ['A', 'B', 'C', 'D'], teams, sections }), ctx(sessions))
+    expect(mixed.separate).toBe(true)
+    // Einzelwertung ohne Teamrennen: D gewinnt das Einzelrennen
+    expect(mixed.standings.find((r) => r.name === 'D')!.sections[1]).toBe(0)
+    expect(mixed.standings[0].name).toBe('D')
+    // Teamwertung nur aus dem Teamrennen: Rot 2, Blau 1,5
+    expect(mixed.teamStandings.map((t) => [t.name, t.points])).toEqual([['Rot', 2], ['Blau', 1.5]])
+    // vor dem Stichtag bleibt es bei der bisherigen Wertung
+    const old = computeEvent(def({ start: '2026-06-01', drivers: ['A', 'B', 'C', 'D'], teams, sections }), ctx(sessions))
+    expect(old.separate).toBe(false)
+  })
+
   it('punktgleiche Teammitglieder teilen sich den Platz, der Probelauf teilt den Sieg', () => {
     const d = def({ drivers: ['A', 'B', 'C', 'D'], scoring: { fastestLap: 0, pole: 0, driverOfDay: 0, personalBest: 0 }, teams: { mode: 'manual', size: 2, teams: [{ name: 'Rot', drivers: ['A', 'D'] }, { name: 'Blau', drivers: ['B', 'C'] }] }, sections: [newSection('team', { id: 't' })] } as never)
     const s = computeEvent(d, ctx([run('race', ['A', 'B', 'C', 'D'])]))
@@ -222,9 +238,45 @@ describe('Automatische Aufstiegsleiter und Autoliste', () => {
     expect(sizes(ladderAuto(6, 5))).toEqual([2, 5])
     for (const per of [3, 4, 5, 6]) for (let n = 2; n <= 20; n++) expect(ladderAuto(n, per).direct.reduce((a, b) => a + b, 0)).toBe(n)
     const d = def({ drivers: ['A', 'B', 'C', 'D', 'E', 'F', 'G'], sections: [newSection('ladder', { id: 'l', seeding: 'elo' })] })
+    // neue Leitern: das erste Rennen ist voll, oben wird es kleiner
     const s = computeEvent(d, ctx())
+    expect(s.heats.map((h) => h.entrants.length)).toEqual([4, 4, 3])
+    expect(s.heats.map((h) => h.note)).toEqual(['Top 2 steigen auf', 'Top 2 steigen auf', 'Entscheidet den Sieg'])
+  })
+
+  it('macht das erste Rennen nicht kleiner als die anderen', () => {
+    const heat = (p: { direct: number[]; advance: number[] }) => p.direct.map((d, i) => d + (i ? p.advance[i - 1] : 0))
+    expect(heat(ladderPlan(7, 4, { advance: 'auto' }))).toEqual([4, 4, 3])
+    expect(heat(ladderPlan(7, 6, { advance: 'auto' }))).toEqual([6, 4])
+    expect(heat(ladderPlan(7, 4, { advance: 2 }))).toEqual([4, 4, 3])
+    for (const per of [3, 4, 5, 6]) {
+      for (let n = 2; n <= 20; n++) {
+        for (const advance of ['auto', 1, 2] as const) {
+          const p = ladderPlan(n, per, { advance })
+          const h = heat(p)
+          expect(p.direct.reduce((a, b) => a + b, 0)).toBe(n)
+          expect(Math.max(...h)).toBeLessThanOrEqual(per)
+          expect(h.slice(1).every((x) => x <= h[0])).toBe(true)
+        }
+      }
+    }
+  })
+
+  it('setzt auf Wunsch eine feste Zahl direkt ins Finale', () => {
+    const p = ladderPlan(10, 4, { advance: 'auto', finalDirect: 2 })
+    expect(p.direct[p.direct.length - 1]).toBe(2)
+    expect(p.direct.reduce((a, b) => a + b, 0)).toBe(10)
+    const d = def({ drivers: ['A', 'B', 'C', 'D', 'E', 'F', 'G'], sections: [newSection('ladder', { id: 'l', seeding: 'elo', finalDirect: 1 })] })
+    const fin = computeEvent(d, ctx()).heats.at(-1)!
+    expect(fin.entrants.filter((e) => e.name).map((e) => e.name)).toEqual(['A'])
+  })
+
+  it('behält die alte Aufteilung, wenn die Leiter schon begonnen hat', () => {
+    const d = def({ drivers: ['A', 'B', 'C', 'D', 'E', 'F', 'G'], sections: [newSection('ladder', { id: 'l', seeding: 'elo' })] })
+    // nach der alten Aufteilung fuhren die zwei Schwächsten zuerst
+    const s = computeEvent(d, ctx([run('race', ['G', 'F'])]))
     expect(s.heats.map((h) => h.entrants.length)).toEqual([2, 4, 4])
-    expect(s.heats.map((h) => h.note)).toEqual(['Der Sieger steigt auf', 'Top 2 steigen auf', 'Entscheidet den Sieg'])
+    expect(s.heats[0].status).toBe('done')
   })
 
   it('fährt höchstens so viele gleichzeitig, wie Autos ausgewählt sind', () => {

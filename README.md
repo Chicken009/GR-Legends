@@ -86,6 +86,12 @@ GR Legends
 - **Teams, die nicht aufgehen**, werden größer; gewertet wird mit dem Schnitt der Mitglieder. Bei
   Positionsduellen (Teams passen nicht zusammen auf die Bahn) fährt der Schwächste eines kleineren
   Teams doppelt. Alle Mitglieder bekommen die Teampunkte – zusammenarbeiten lohnt sich.
+- **Einzel- und Teamwertung getrennt** (Wettkämpfe ab 24.10.2026): Gibt es Einzel- und
+  Teamrennen, zählen Einzelrennen nur für die eigenen Punkte, Teamrennen nur für die Teamwertung.
+  Reine Teamwettkämpfe: alle bekommen die Teampunkte, ältere Wettkämpfe behalten ihre Wertung.
+- **Aufstiegsleiter:** Das erste Rennen ist voll, fehlen Fahrer, werden die oberen Rennen kleiner
+  (Wettkämpfe ab 24.10.2026 oder noch nicht begonnene Leitern). Optional steht eine feste Zahl der
+  Besten direkt im Finale, die übrigen Finalplätze füllen die Aufsteiger.
 - **Teamrennen-Durchgänge:** Passen zwei Teams auf die Bahn, ist ein Durchgang „jedes Team einmal
   gegen jedes“ (4 Teams = 6 Rennen); optional nur ein halber Durchgang mit nach Elo ausgeglichenen
   Gegnern. Der Editor zeigt die Rennzahl je Durchgang. Läufe mit weniger Fahrern werden auf die

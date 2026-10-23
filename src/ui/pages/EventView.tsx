@@ -137,8 +137,8 @@ export function EventView() {
           <>
             <section className="card" style={{ gap: 2 }}>
               <div className="card-head">
-                <span className="card-title">Gesamtwertung</span>
-                <span className="hint">Punkte</span>
+                <span className="card-title">{state.separate ? 'Einzelwertung' : 'Gesamtwertung'}</span>
+                <span className="hint">{state.separate ? 'Punkte aus den Einzelrennen' : 'Punkte'}</span>
               </div>
               <StandingsList state={state} me={me} />
             </section>
@@ -237,14 +237,18 @@ function CarsCard({ def }: { def: EventState['def'] }) {
 /** Vor dem ersten Lauf: Teilnehmer (und Teams) statt einer leeren Wertung */
 function Entrants({ state, me }: { state: EventState; me: string | null }) {
   const team = new Map(state.teams.flatMap((t) => t.drivers.map((d) => [d, t] as const)))
+  // Nach Teams sortiert (Reihenfolge wie in der Teamliste), Fahrer ohne Team zum Schluss
+  const teamOrder = [...state.teams].sort((a, b) => b.elo - a.elo).map((t) => t.id)
+  const rank = (n: string) => (team.has(n) ? teamOrder.indexOf(team.get(n)!.id) : teamOrder.length)
+  const drivers = [...state.drivers].sort((a, b) => rank(a) - rank(b))
   return (
     <section className="card" style={{ gap: 2 }}>
       <div className="card-head">
         <span className="card-title">Teilnehmer</span>
         <span className="hint">{state.drivers.length} Fahrer · noch keine Läufe</span>
       </div>
-      {state.drivers.map((n) => (
-        <div key={n} className={`row${n === me ? ' me-row' : ''}`} style={{ padding: 8 }}>
+      {drivers.map((n) => (
+        <div key={n} className={`row${n === me ? ' me-row' : ''}`} style={{ padding: 8, ...(team.get(n) ? { borderLeft: `4px solid ${teamColor(team.get(n)!.id, team.get(n)!.name)}` } : null) }}>
           <Avatar name={n} ring={n === me ? 'var(--me)' : undefined} />
           <span className="grow">
             <span className="name">{n === me ? `Du · ${n}` : n}</span>

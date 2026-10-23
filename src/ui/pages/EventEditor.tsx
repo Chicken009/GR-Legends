@@ -778,10 +778,18 @@ function SectionEditor({ sec, index, count, def, plan, onChange, onMove, onRemov
           </Group>
         )}
         {sec.format === 'ladder' && (
-          <Group label="Steigen auf" help={sec.advanceAuto ? 'je Rennen die Hälfte, Rennen möglichst gleich groß' : 'je Rennen'}>
+          <Group label="Steigen auf" help={sec.advanceAuto ? 'je Rennen die Hälfte, das erste Rennen ist voll' : 'je Rennen'}>
             <span style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
               <Segment small label="Aufsteiger" value={sec.advanceAuto ? 'auto' : 'fixed'} onChange={(v) => onChange({ advanceAuto: v === 'auto' || undefined })} options={[['auto', 'Automatisch'], ['fixed', 'Fest']]} />
               {!sec.advanceAuto && <Stepper label="Weiter je Lauf" value={Math.min(sec.advance ?? 2, per - 1)} min={1} max={Math.max(1, per - 1)} onChange={(advance) => onChange({ advance })} />}
+            </span>
+          </Group>
+        )}
+        {sec.format === 'ladder' && (
+          <Group label="Direkt im Finale" help={sec.finalDirect != null ? 'die Besten der Startreihenfolge, die übrigen Plätze füllen die Aufsteiger' : 'ergibt sich aus der Leiter'}>
+            <span style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+              <Segment small label="Direkt im Finale" value={sec.finalDirect != null ? 'fixed' : 'auto'} onChange={(v) => onChange({ finalDirect: v === 'fixed' ? Math.min(2, Math.max(1, per - 1)) : undefined })} options={[['auto', 'Automatisch'], ['fixed', 'Fest']]} />
+              {sec.finalDirect != null && <Stepper label="Fahrer direkt im Finale" value={Math.min(sec.finalDirect, per - 1)} min={1} max={Math.max(1, per - 1)} onChange={(finalDirect) => onChange({ finalDirect })} />}
             </span>
           </Group>
         )}

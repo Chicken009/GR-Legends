@@ -97,6 +97,8 @@ export interface SectionDef {
   advance?: number
   /** ladder: Aufsteiger je Rennen automatisch (die Hälfte, Rennen möglichst gleich groß) */
   advanceAuto?: boolean
+  /** ladder: so viele Fahrer stehen direkt im Finale (leer = automatisch) */
+  finalDirect?: number
   /** custom: Läufe mit festen Fahrern */
   heats?: { kind: 'race' | 'quali'; drivers: string[] }[]
 }
