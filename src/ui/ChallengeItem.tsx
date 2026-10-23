@@ -5,6 +5,7 @@ import { Avatar, driverPath, Sheet } from './components'
 import { CurrencyIcon, XP_COLOR } from './currency'
 import { NAV_ICONS, StrokeIcon } from './icons'
 import { rarity } from './challengeUtils'
+import { useChallengePopup } from './MedalPopup'
 
 
 /** Symbol je Challenge (24er-Raster, Linien) */
@@ -144,10 +145,14 @@ export function RarityLine({ doneBy, total, me, title }: { doneBy: string[]; tot
 }
 
 /** Eine Saison-Challenge als Zeile: Abzeichen mit Ring, Text, Fortschritt, XP */
-export function ChallengeItem({ c, accent, showProgress = true, footer, fresh }: { c: Challenge; accent: string; showProgress?: boolean; footer?: ReactNode; fresh?: boolean }) {
+export function ChallengeItem({ c, accent, showProgress = true, footer, fresh, driver, year }: { c: Challenge; accent: string; showProgress?: boolean; footer?: ReactNode; fresh?: boolean; driver?: string; year?: string }) {
+  const openChallenge = useChallengePopup()
+  const shown = showProgress ? c : { ...c, value: 0, done: false }
   return (
     <div className="inner" style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: '12px 14px' }}>
-      <ChallengeBadge c={showProgress ? c : { ...c, value: 0, done: false }} accent={accent} fresh={fresh} />
+      <button type="button" onClick={() => openChallenge(shown, { driver, year })} aria-label={`Challenge ${c.label} groß anzeigen`} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'inline-flex', borderRadius: '50%' }}>
+        <ChallengeBadge c={shown} accent={accent} fresh={fresh} />
+      </button>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'center' }}>
           <span style={{ fontSize: 14, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6 }}>

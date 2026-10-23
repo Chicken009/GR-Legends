@@ -303,7 +303,7 @@ function Challenges({ year, driver }: { year: string; driver?: string }) {
         </div>
         {!myName && <p style={{ margin: 0, fontSize: 12, color: 'var(--muted)' }}>Oben rechts auswählen, wer du bist – dann siehst du deinen Fortschritt.</p>}
         {list.map((c) => (
-          <ChallengeItem key={c.id} c={c} accent={ACCENT} showProgress={false} footer={<RarityLine doneBy={doneBy(c.id)} total={total} me={myName} title={c.label} />} />
+          <ChallengeItem key={c.id} c={c} accent={ACCENT} showProgress={false} year={year} footer={<RarityLine doneBy={doneBy(c.id)} total={total} me={myName} title={c.label} />} />
         ))}
       </section>
     )
@@ -333,7 +333,7 @@ function Challenges({ year, driver }: { year: string; driver?: string }) {
             <span className="hint">{open.length} übrig · nächste zuerst</span>
           </div>
           {open.map((c) => (
-            <ChallengeItem key={c.id} c={c} accent={ACCENT} footer={<RarityLine doneBy={doneBy(c.id)} total={total} me={me} title={c.label} />} />
+            <ChallengeItem key={c.id} c={c} accent={ACCENT} year={year} driver={me ?? undefined} footer={<RarityLine doneBy={doneBy(c.id)} total={total} me={me} title={c.label} />} />
           ))}
         </section>
       )}

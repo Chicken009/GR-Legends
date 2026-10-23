@@ -14,7 +14,7 @@ import { Amount, CurrencyIcon } from '../currency'
 import { fmtElo, fmtNum, formatDate, formatTime } from '../format'
 import { ChevronLeft, NAV_ICONS, PATHS, ShareIcon, StrokeIcon } from '../icons'
 import { MedalBadge } from '../Medal'
-import { useMedalPopup } from '../MedalPopup'
+import { useChallengePopup, useMedalPopup } from '../MedalPopup'
 import { useSwipePager } from '../useSwipePager'
 
 /** Hintergründe der Karten – je Karte ein eigener Farbton, Text bleibt hell */
@@ -199,6 +199,21 @@ function CarHero({ car }: { car: string }) {
     <Link to={carPath(car)} style={{ display: 'block', width: '100%', height: 170, borderRadius: 18, overflow: 'hidden', background: 'rgba(255,255,255,0.05)' }}>
       {photo ? <CarPhoto key={photo} fileId={photo} alt={car} width={900} fallback={icon} /> : icon}
     </Link>
+  )
+}
+
+/** Challenges des Jahres; antippen vergrößert sie wie die Medaillen */
+function ChallengeGrid({ challenges, driver, year }: { challenges: WrappedData['challenges']; driver: string; year: string }) {
+  const openChallenge = useChallengePopup()
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+      {[...challenges].sort((a, b) => Number(b.done) - Number(a.done)).map((c) => (
+        <button key={c.id} onClick={() => openChallenge(c, { driver, year })} aria-label={`Challenge ${c.label} anzeigen`} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, textAlign: 'center', background: 'none', border: 'none', color: 'inherit', font: 'inherit', padding: 0, cursor: 'pointer' }}>
+          <ChallengeBadge c={c} accent={AREA.season} size={54} />
+          <span style={{ fontSize: 10, fontWeight: 600, lineHeight: 1.2, color: c.done ? 'var(--text)' : 'var(--faint)' }}>{c.label}</span>
+        </button>
+      ))}
+    </div>
   )
 }
 
@@ -720,14 +735,7 @@ function buildCards(w: WrappedData, you: boolean, seasonDates: string[]): CardDe
           <Amount kind="xp" value={done.length * CHALLENGE_XP} size={20} />
         </Group>
         <Reveal>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
-            {[...w.challenges].sort((a, b) => Number(b.done) - Number(a.done)).map((c) => (
-              <span key={c.id} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, textAlign: 'center' }} title={c.detail}>
-                <ChallengeBadge c={c} accent={AREA.season} size={54} />
-                <span style={{ fontSize: 10, fontWeight: 600, lineHeight: 1.2, color: c.done ? 'var(--text)' : 'var(--faint)' }}>{c.label}</span>
-              </span>
-            ))}
-          </div>
+          <ChallengeGrid challenges={w.challenges} driver={w.driver} year={w.year} />
         </Reveal>
       </>
     ),
