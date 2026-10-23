@@ -5,10 +5,10 @@ import { SPLIT_LAPS, splitTime } from '../../domain/laps'
 import { isQuali } from '../../domain/rating'
 import type { RaceDay, Result, Session } from '../../types'
 import { AREA, seriesColors } from '../colors'
-import { carPath, driverPath, PageHead, Placement, Rank, Segment, useData, useMyName } from '../components'
+import { carPath, driverPath, PageHead, Placement, Rank, Segment, Sheet, useData, useMyName } from '../components'
 import { LAP_HEAT_RAMP, LapHeatmap } from '../charts/LapHeatmap'
 import { LapChart, PositionChart } from '../charts/RaceCharts'
-import { ChevronLeft, ChevronRight, Trophy } from '../icons'
+import { ChevronLeft, ChevronRight, SearchIcon, StrokeIcon, Trophy } from '../icons'
 import { fmtDelta, formatDate, formatGap, formatTime, formatTrack, plural, sessionTitle, shortName } from '../format'
 import { useStored } from '../useStored'
 
@@ -36,13 +36,23 @@ export function History() {
   const [year, setYear] = useStored('history:year', 'all')
   const [track, setTrack] = useStored('history:track', 'all')
   const [mine, setMine] = useStored('history:mine', false)
+  const [pickDrivers, setPickDrivers] = useStored<string[]>('history:drivers', [])
+  const [pickCars, setPickCars] = useStored<string[]>('history:cars', [])
+  const [filterOpen, setFilterOpen] = useState(false)
   const tracks = [...new Set(days.map((d) => d.track))]
-  const shown = days.filter(
-    (d) =>
-      (year === 'all' || d.date.startsWith(year)) &&
-      (track === 'all' || d.track === track) &&
-      (!mine || !me || d.sessions.some((s) => s.results.some((r) => r.driver === me))),
-  )
+  // Gewählte Fahrer müssen alle im Lauf sein, von den gewählten Autos mindestens eines
+  const allDrivers = [...new Set(days.flatMap((d) => d.sessions.flatMap((s) => s.results.map((r) => r.driver))))]
+  const allCars = [...new Set(days.flatMap((d) => d.sessions.flatMap((s) => s.results.map((r) => r.car))))]
+  const drivers = pickDrivers.filter((n) => allDrivers.includes(n))
+  const cars = pickCars.filter((c) => allCars.includes(c))
+  const need = [...new Set([...drivers, ...(mine && me ? [me] : [])])]
+  const matches = (s: Session) => need.every((n) => s.results.some((r) => r.driver === n)) && (!cars.length || s.results.some((r) => cars.includes(r.car)))
+  const filtering = need.length > 0 || cars.length > 0
+  const shown = days
+    .filter((d) => (year === 'all' || d.date.startsWith(year)) && (track === 'all' || d.track === track))
+    .map((d) => (filtering ? { day: d, sessions: d.sessions.filter(matches) } : { day: d, sessions: d.sessions }))
+    .filter((x) => x.sessions.length > 0)
+  const active = drivers.length + cars.length
   return (
     <div className="page" style={{ ['--accent' as string]: ACCENT }}>
       <PageHead title="Historie" kicker="Alle Renntage" color={ACCENT} />
@@ -69,18 +79,109 @@ export function History() {
             nur mit mir
           </label>
         )}
+        <button className={`pill${active ? ' active' : ''}`} onClick={() => setFilterOpen(true)} aria-haspopup="dialog" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, ...(active ? { borderColor: ACCENT, color: 'var(--text)' } : null) }}>
+          <FilterIcon />
+          Filter{active ? ` · ${active}` : ''}
+        </button>
       </div>
+      {active > 0 && (
+        <div className="chips" style={{ marginTop: -6 }}>
+          {[...drivers.map((n) => ({ key: `d:${n}`, label: n, remove: () => setPickDrivers(drivers.filter((x) => x !== n)) })), ...cars.map((c) => ({ key: `c:${c}`, label: c, remove: () => setPickCars(cars.filter((x) => x !== c)) }))].map((x) => (
+            <button key={x.key} className="pill" onClick={x.remove} aria-label={`Filter ${x.label} entfernen`} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              {x.label} <span aria-hidden="true" style={{ color: 'var(--muted)' }}>✕</span>
+            </button>
+          ))}
+          <button className="pill" onClick={() => { setPickDrivers([]); setPickCars([]) }} style={{ color: 'var(--muted)' }}>
+            Alle Filter löschen
+          </button>
+        </div>
+      )}
       <div className="cols" style={{ gap: 10 }}>
-        {shown.map((d) => (
-          <DayCard key={d.key} day={d} me={me} />
+        {shown.map(({ day, sessions }) => (
+          <DayCard key={day.key} day={day} sessions={sessions} me={me} />
         ))}
       </div>
+      {filterOpen && (
+        <FilterSheet
+          drivers={allDrivers.filter((n) => !isGuest(n)).sort((a, b) => a.localeCompare(b, 'de', { numeric: true }))}
+          cars={allCars.sort((a, b) => a.localeCompare(b, 'de', { numeric: true }))}
+          pickedDrivers={drivers}
+          pickedCars={cars}
+          me={me}
+          onApply={(d, c) => { setPickDrivers(d); setPickCars(c); setFilterOpen(false) }}
+          onClose={() => setFilterOpen(false)}
+        />
+      )}
       {shown.length === 0 && <p className="muted">Keine Renntage für diese Auswahl.</p>}
     </div>
   )
 }
 
-function DayCard({ day, me }: { day: RaceDay; me: string | null }) {
+const FilterIcon = () => <StrokeIcon d="M4 5h16l-6 7.5V19l-4 1.5v-8z" size={15} />
+
+/** Auswahl der Fahrer und Autos für die Historie (wird erst mit „Anwenden“ übernommen) */
+function FilterSheet({ drivers, cars, pickedDrivers, pickedCars, me, onApply, onClose }: { drivers: string[]; cars: string[]; pickedDrivers: string[]; pickedCars: string[]; me: string | null; onApply: (drivers: string[], cars: string[]) => void; onClose: () => void }) {
+  const [d, setD] = useState(pickedDrivers)
+  const [c, setC] = useState(pickedCars)
+  const [query, setQuery] = useState('')
+  const q = query.trim().toLowerCase()
+  const toggle = (list: string[], set: (v: string[]) => void, v: string) => set(list.includes(v) ? list.filter((x) => x !== v) : [...list, v])
+  const group = (title: string, hint: string, items: string[], picked: string[], set: (v: string[]) => void) => {
+    const visible = items.filter((x) => x.toLowerCase().includes(q))
+    return (
+      <section style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
+          <span style={{ fontSize: 15, fontWeight: 700 }}>{title}</span>
+          <span style={{ fontSize: 12, color: 'var(--muted)' }}>{hint}</span>
+        </div>
+        <div className="chips">
+          {visible.map((x) => {
+            const on = picked.includes(x)
+            return (
+              <button key={x} className="pill" role="checkbox" aria-checked={on} onClick={() => toggle(picked, set, x)} style={on ? { background: ACCENT, borderColor: ACCENT, color: '#0E1013', fontWeight: 700 } : x === me ? { borderColor: 'var(--me)' } : undefined}>
+                {x}
+              </button>
+            )
+          })}
+          {!visible.length && <span style={{ fontSize: 13, color: 'var(--muted)' }}>Kein Treffer</span>}
+        </div>
+      </section>
+    )
+  }
+  return (
+    <Sheet
+      onClose={onClose}
+      label="Filter"
+      actions={
+        <button className="btn round" onClick={() => { setD([]); setC([]) }}>
+          Zurücksetzen
+        </button>
+      }
+    >
+      <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0 }}>Filter</h1>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--inner-2)', borderRadius: 14, padding: '0 14px', minHeight: 48, border: '1px solid var(--line-2)' }}>
+        <SearchIcon />
+        <input
+          type="search"
+          placeholder="Fahrer oder Auto suchen"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          aria-label="Fahrer oder Auto suchen"
+          style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: 'var(--text)', fontSize: 15, font: 'inherit' }}
+        />
+      </label>
+      {group('Fahrer', 'alle gewählten im selben Lauf', drivers, d, setD)}
+      {group('Autos', 'mindestens eines im Lauf', cars, c, setC)}
+      <div style={{ position: 'sticky', bottom: -20, background: 'var(--sheet)', paddingTop: 8 }}>
+        <button className="btn primary" style={{ width: '100%', minHeight: 50, ['--accent' as string]: ACCENT }} onClick={() => onApply(d, c)}>
+          {d.length + c.length ? `Anwenden (${d.length + c.length})` : 'Ohne Filter anzeigen'}
+        </button>
+      </div>
+    </Sheet>
+  )
+}
+
+function DayCard({ day, sessions = day.sessions, me }: { day: RaceDay; sessions?: Session[]; me: string | null }) {
   const races = day.sessions.filter((s) => !isQuali(s))
   const wins = new Map<string, number>()
   for (const s of races) if (s.results[0]) wins.set(s.results[0].driver, (wins.get(s.results[0].driver) ?? 0) + 1)
@@ -105,7 +206,8 @@ function DayCard({ day, me }: { day: RaceDay; me: string | null }) {
         </div>
       )}
       <div className="row-list">
-        {day.sessions.map((s) => {
+        {sessions.length < day.sessions.length && <span style={{ fontSize: 12, color: 'var(--muted)', padding: '0 4px' }}>{sessions.length} von {day.sessions.length} Läufen passen zum Filter</span>}
+        {sessions.map((s) => {
           const count = day.sessions.filter((o) => o.type === s.type).length
           const mine = me ? s.results.find((r) => r.driver === me) : null
           return (
