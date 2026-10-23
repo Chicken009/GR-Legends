@@ -5,7 +5,7 @@ import { quantile } from '../../domain/laps'
 import { AREA } from '../colors'
 import { CarPhoto, CarThumb, usePhotoId } from '../CarPhoto'
 import { FieldSwitch } from '../FieldSwitch'
-import { carPath, PageHead, PeriodTabs, SettingsHint, SettingsProblem, Sheet, Tile, useData, useMyName, ViewToggle } from '../components'
+import { carPath, PageHead, PeriodTabs, Segment, SettingsHint, SettingsProblem, Sheet, Tile, useData, useMyName, ViewToggle } from '../components'
 import { DataTable, type Column } from '../DataTable'
 import { BoxPlot, type BoxRow } from '../charts/BoxPlot'
 import { LapHistogram } from '../charts/LapHistogram'
@@ -177,6 +177,65 @@ function Mini({ v, l }: { v: string | number; l: string }) {
   )
 }
 
+/** Siegquote erst ab so vielen Rennen mit dem Auto (sonst wären 1 von 1 gleich 100 %) */
+const MIN_RACES_WINRATE = 3
+
+type DriverList = 'fast' | 'wins' | 'km'
+
+/** Fahrer mit diesem Auto: schnellste, höchste Siegquote, meiste km */
+function CarDrivers({ c, me }: { c: CarStats; me: string | null }) {
+  const [kind, setKind] = useStored<DriverList>('car:drivers', 'fast')
+  const all = [...c.drivers].filter(([n]) => !isGuest(n))
+  const rows =
+    kind === 'fast'
+      ? all.filter(([, v]) => v.bestLapMs != null).sort((a, b) => a[1].bestLapMs! - b[1].bestLapMs!)
+      : kind === 'wins'
+        ? all.filter(([, v]) => v.races >= MIN_RACES_WINRATE).sort((a, b) => b[1].wins / b[1].races - a[1].wins / a[1].races || b[1].wins - a[1].wins)
+        : all.filter(([, v]) => v.km > 0).sort((a, b) => b[1].km - a[1].km)
+  const top = rows.slice(0, 8)
+  // Balkenlänge: schnellste Zeit, höchste Quote bzw. meiste km = voll
+  const value = (v: CarStats['drivers'] extends Map<string, infer V> ? V : never) => (kind === 'fast' ? v.bestLapMs! : kind === 'wins' ? v.wins / v.races : v.km)
+  const vals = top.map(([, v]) => value(v))
+  const lo = Math.min(...vals)
+  const hi = Math.max(...vals)
+  const share = (x: number) => (kind === 'fast' ? (hi > lo ? 1 - ((x - lo) / (hi - lo)) * 0.8 : 1) : hi > 0 ? Math.max(0.04, x / hi) : 0)
+  const hint = kind === 'fast' ? 'Bestzeit · Ø saubere Runde' : kind === 'wins' ? `Siege · ab ${MIN_RACES_WINRATE} Rennen` : 'Rennen und Qualifyings'
+  return (
+    <section className="inner" style={{ padding: 14, gap: 10 }}>
+      <div className="card-head" style={{ flexWrap: 'wrap', gap: 8 }}>
+        <span className="card-title">Fahrer</span>
+        <Segment small label="Fahrerliste" value={kind} onChange={setKind} options={[['fast', 'Schnellste'], ['wins', 'Siegquote'], ['km', 'Meiste km']]} />
+      </div>
+      <span style={{ marginTop: -4, fontSize: 12, color: 'var(--muted)' }}>{hint}</span>
+      {top.map(([n, v], i) => {
+        const isMe = n === me
+        const avg = kind === 'fast' && v.normal.length ? quantile([...v.normal].sort((a, b) => a - b), 0.5) : null
+        return (
+          <div key={n} className={isMe ? 'me-row' : undefined} style={{ display: 'flex', alignItems: 'center', gap: 10, borderRadius: 10, padding: '4px 6px' }}>
+            <span style={{ fontSize: 13, fontWeight: 600, width: 120, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{n}</span>
+            <div style={{ flex: 1, height: 8, borderRadius: 4, background: '#262B33', position: 'relative' }}>
+              <div style={{ position: 'absolute', inset: 0, width: `${share(value(v)) * 100}%`, borderRadius: 4, background: isMe ? 'var(--me)' : '#4A515C' }} />
+            </div>
+            <span className="num" style={{ fontSize: 13, fontWeight: 700, width: 54, textAlign: 'right', color: i === 0 ? '#C9D4DE' : undefined }}>
+              {kind === 'fast' ? formatTime(v.bestLapMs) : kind === 'wins' ? fmtPct(v.wins / v.races) : `${fmtNum(v.km)} km`}
+            </span>
+            <span className="num" style={{ fontSize: 11, color: 'var(--muted)', width: kind === 'km' ? 56 : 40, textAlign: 'right', whiteSpace: 'nowrap' }}>
+              {kind === 'fast'
+                ? avg
+                  ? (avg / 1000).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                  : '–'
+                : kind === 'wins'
+                  ? `${v.wins}/${v.races}`
+                  : `${v.races} Rennen`}
+            </span>
+          </div>
+        )
+      })}
+      {!top.length && <p className="muted" style={{ margin: 0, fontSize: 13 }}>{kind === 'wins' ? `Noch niemand mit mindestens ${MIN_RACES_WINRATE} Rennen in diesem Auto.` : 'Noch keine Daten.'}</p>}
+    </section>
+  )
+}
+
 export function CarProfile({ onClose }: { onClose: () => void }) {
   const { name = '' } = useParams()
   const { model, settings, photos } = useData()
@@ -202,8 +261,6 @@ export function CarProfile({ onClose }: { onClose: () => void }) {
     .filter(([n, v]) => v.bestLapMs != null && !isGuest(n))
     .sort((a, b) => a[1].bestLapMs! - b[1].bestLapMs!)
     .slice(0, 8)
-  const lo = drivers[0]?.[1].bestLapMs ?? 0
-  const hi = drivers[drivers.length - 1]?.[1].bestLapMs ?? lo + 1
   const records = model.tracks.map((t) => ({ t, rec: model.carRecords.get(`${t}\u0000${car}`) })).filter((x) => x.rec)
   const runnerUp = (track: string) => {
     const rec = model.carRecords.get(`${track}\u0000${car}`)
@@ -283,31 +340,7 @@ export function CarProfile({ onClose }: { onClose: () => void }) {
             </p>
           </section>
 
-          <section className="inner" style={{ padding: 14, gap: 10 }}>
-            <div className="card-head">
-              <span className="card-title">Schnellste Fahrer</span>
-              <span className="hint">Bestzeit · Ø saubere Runde</span>
-            </div>
-            {drivers.map(([n, v], i) => {
-              const avg = v.normal.length ? quantile([...v.normal].sort((a, b) => a - b), 0.5) : null
-              const w = hi > lo ? 1 - ((v.bestLapMs! - lo) / (hi - lo)) * 0.8 : 1
-              const isMe = n === me
-              return (
-                <div key={n} className={isMe ? 'me-row' : undefined} style={{ display: 'flex', alignItems: 'center', gap: 10, borderRadius: 10, padding: '4px 6px' }}>
-                  <span style={{ fontSize: 13, fontWeight: 600, width: 120, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{n}</span>
-                  <div style={{ flex: 1, height: 8, borderRadius: 4, background: '#262B33', position: 'relative' }}>
-                    <div style={{ position: 'absolute', inset: 0, width: `${w * 100}%`, borderRadius: 4, background: isMe ? 'var(--me)' : '#4A515C' }} />
-                  </div>
-                  <span className="num" style={{ fontSize: 13, fontWeight: 700, width: 50, textAlign: 'right', color: i === 0 ? '#C9D4DE' : undefined }}>
-                    {formatTime(v.bestLapMs)}
-                  </span>
-                  <span className="num" style={{ fontSize: 11, color: 'var(--muted)', width: 40, textAlign: 'right' }}>
-                    {avg ? (avg / 1000).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '–'}
-                  </span>
-                </div>
-              )
-            })}
-          </section>
+          <CarDrivers c={c} me={me} />
 
           <section className="inner" style={{ padding: 14, gap: 8 }}>
             <div className="card-head">

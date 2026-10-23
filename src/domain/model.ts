@@ -95,7 +95,8 @@ export interface CarStats {
   rating: number | null
   /** 0 = kein Bonus, 1–3 = Underdog-Bonus */
   bonus: number
-  drivers: Map<string, { races: number; bestLapMs: number | null; normal: number[] }>
+  /** Je Fahrer mit diesem Auto: Rennen, Siege, km (Rennen und Qualis), Bestzeit, saubere Runden */
+  drivers: Map<string, { races: number; wins: number; km: number; bestLapMs: number | null; normal: number[] }>
 }
 
 export interface RankRow {
@@ -356,8 +357,10 @@ export function buildModel(input: Session[]): Model {
         const med = median(nl)
         if (med != null && ref) (carPace.get(r.car) ?? carPace.set(r.car, []).get(r.car)!).push((med / ref) * 100)
         if (med != null && ref) push(carGap, r.car, med - ref)
-        const dEntry = car.drivers.get(r.driver) ?? { races: 0, bestLapMs: null, normal: [] }
+        const dEntry = car.drivers.get(r.driver) ?? { races: 0, wins: 0, km: 0, bestLapMs: null, normal: [] }
         if (!quali) dEntry.races++
+        if (!quali && r.position === 1 && s.results.length > 1) dEntry.wins++
+        if (km != null) dEntry.km += km
         if (best != null && (dEntry.bestLapMs == null || best < dEntry.bestLapMs)) dEntry.bestLapMs = best
         dEntry.normal.push(...nl)
         car.drivers.set(r.driver, dEntry)
