@@ -16,8 +16,11 @@ export const LAP_THRESHOLDS = {
   incidentFactor: 1.3,
   /** Erste Runde (mit stehendem Start): erst ab diesem Faktor ein Zwischenfall */
   firstLapFactor: 1.6,
-  /** Typischer Zeitverlust eines Boxenstopps (Tanken) in ms */
-  pitLossMs: 4000,
+  /**
+   * Typischer Zeitverlust einer Boxenrunde (Tanken) in ms. Abgeglichen mit den Boxenstopps aus
+   * einem Smartrace-Backup: Stopps kosten meist deutlich mehr als die reine Standzeit.
+   */
+  pitLossMs: 12000,
 }
 
 export type LapThresholds = typeof LAP_THRESHOLDS

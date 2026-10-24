@@ -216,7 +216,7 @@ docs/          Einstellungen-Vorlage, Logo (Monogramm, App-Icon, Schriftzug)
   = 10. Perzentil). Bei Gästen zählt nur das Auto. Ungültige Runden zählen nicht für Bestzeiten.
 - *Zwischenfall*: Die Runde dauert mehr als das 1,3-Fache der sauberen Referenzrunde des Fahrers
   im Lauf (Startrunde: 1,6-fach). Die in Smartrace gezählten Boxenstopps bekommen die passenden
-  Zwischenfälle, der Rest sind *Abflüge*. Mit Tankfunktion kostet ein Stopp etwa 4 s plus ggf.
+  Zwischenfälle, der Rest sind *Abflüge*. Mit Tankfunktion kostet eine Boxenrunde etwa 12 s (abgeglichen mit einem Smartrace-Backup) plus ggf.
   nicht gezählte Runden (leerer Tank).
 - *Tankfunktion* gilt für alle und das ganze Rennen: Ein Lauf zählt als Tankrennen, wenn mehr als
   die Hälfte der Fahrer Boxenstopps hat. Sonst werden gezählte Stopps ignoriert (auch in der
