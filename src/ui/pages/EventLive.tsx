@@ -98,8 +98,14 @@ export function EventLive() {
                 {heatLength(state.next) ? ` · ${heatLength(state.next)}` : ''}
               </span>
               {state.next.note && <span style={{ color: 'var(--muted)' }}>{state.next.note}</span>}
-              {state.next.entrants.map((e, i) => (
+              {state.next.grid && <span style={{ color: 'var(--muted)', fontSize: '0.8em' }}>Startaufstellung nach {state.next.gridFrom}</span>}
+              {(state.next.grid ?? state.next.entrants).map((e, i) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                  {state.next!.grid && (
+                    <span className="num" style={{ minWidth: '1.6em', fontWeight: 800, color: EVENT_ACCENT }}>
+                      {i + 1}.
+                    </span>
+                  )}
                   {e.name ? <Avatar name={e.name} size={48} /> : <span style={{ width: 48, height: 48, borderRadius: 24, border: '2px dashed var(--faint)' }} />}
                   <span className="big-name" style={e.name ? undefined : { color: 'var(--faint)' }}>
                     {e.label}

@@ -273,6 +273,7 @@ export function HeatCard({ heat, state, me, children }: { heat: Heat; state: Eve
         <span className={`status-chip ${heat.status}`}>{STATUS_TEXT[heat.status]}</span>
         {heat.manual && <span className="status-chip">per Hand zugeordnet</span>}
         {heat.note && <span style={{ fontSize: 11, color: 'var(--muted)' }}>{heat.note}</span>}
+        {heat.status !== 'done' && heat.grid && <span style={{ fontSize: 11, color: EVENT_ACCENT }}>Startaufstellung nach {heat.gridFrom}</span>}
         {inModel && (
           <Link to={`/lauf/${heat.session!.fileId}`} style={{ marginLeft: 'auto', fontSize: 12, color: EVENT_ACCENT }}>
             Details ›
@@ -300,8 +301,13 @@ export function HeatCard({ heat, state, me, children }: { heat: Heat; state: Eve
               </div>
             )
           })
-        : heat.entrants.map((e, i) => (
+        : (heat.grid ?? heat.entrants).map((e, i) => (
             <div key={i} className={`entrant${e.name ? '' : ' placeholder'}`} style={e.name && e.name === me ? { color: 'var(--me)', fontWeight: 600 } : undefined}>
+              {heat.grid && (
+                <span className="num" title={`Startplatz ${i + 1}`} style={{ minWidth: 18, color: EVENT_ACCENT, fontWeight: 700 }}>
+                  {i + 1}.
+                </span>
+              )}
               <span style={{ whiteSpace: 'nowrap' }}>{e.label}</span>
               {e.name && teamTag(e.name)}
               <span className="car">{e.name ? heat.cars[e.name] ?? '' : ''}</span>

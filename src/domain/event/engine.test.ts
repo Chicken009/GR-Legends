@@ -473,6 +473,19 @@ describe('Ansicht', () => {
     expect(eventPhase(d, s, '2026-06-02')).toBe('done')
   })
 
+  it('zeigt die Startaufstellung nach dem Qualifying', () => {
+    const quali = ['F', 'E', 'D', 'C', 'B', 'A'].map((n, i) => run('quali', [n], { best: [10000 + (5 - i) * 10] }))
+    const s = computeEvent(d, ctx(quali))
+    const first = s.sections[1].heats[0]
+    expect(first.gridFrom).toBe(s.sections[0].def.name)
+    // langsamere Fahrer im ersten Leiter-Rennen: Startplatz 1 = Bester der Quali in diesem Lauf
+    const names = first.grid!.filter((e) => e.name).map((e) => e.name!)
+    const qualiRank = s.sections[0].ranking.map((r) => r.name)
+    expect(names).toEqual([...names].sort((a, b) => qualiRank.indexOf(a) - qualiRank.indexOf(b)))
+    // vor dem Qualifying steht noch keine Aufstellung fest
+    expect(computeEvent(d, ctx()).sections[1].heats[0].grid).toBeNull()
+  })
+
   it('erklärt, was ein Fahrer braucht', () => {
     const quali = ['F', 'E', 'D', 'C', 'B', 'A'].map((n, i) => run('quali', [n], { best: [10000 + (5 - i) * 10] }))
     const s = computeEvent(d, ctx(quali))

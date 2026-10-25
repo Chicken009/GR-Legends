@@ -459,6 +459,11 @@ export function NextHeatCard({ driver }: { driver: string }) {
             {section && section !== heat.label ? ` · ${section}` : ''}
           </span>
           {others.length > 0 && <span style={{ fontSize: 13, color: 'var(--text-2)' }}>gegen {others.map((e) => e.label).join(', ')}</span>}
+          {heat.grid && heat.grid.some((e) => e.name === driver) && (
+            <span style={{ fontSize: 13, fontWeight: 700, color: EVENT_ACCENT }}>
+              Du startest von Platz {heat.grid.findIndex((e) => e.name === driver) + 1}
+            </span>
+          )}
           {heat.note && <span style={{ fontSize: 12, color: 'var(--muted)' }}>{heat.note}</span>}
         </span>
         {car && (

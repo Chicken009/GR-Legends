@@ -62,6 +62,13 @@ export interface Heat {
   laps: number | null
   /** Auf Zeit: Minuten pro Lauf (statt Runden) */
   minutes: number | null
+  /**
+   * Startaufstellung (Startplatz 1 zuerst), wenn sie durch den vorigen Abschnitt feststeht – z. B.
+   * nach dem Qualifying. Noch offene Plätze (Aufsteiger) stehen als Platzhalter am Ende.
+   */
+  grid: Entrant[] | null
+  /** Abschnitt, nach dessen Ergebnis aufgestellt wird */
+  gridFrom: string | null
 }
 
 export interface RankRow {
@@ -383,6 +390,8 @@ function addHeat(
     points: new Map(),
     teamPoints: null,
     advancing: null,
+    grid: null,
+    gridFrom: null,
     laps: sec.minutes ? null : (sec.laps ?? null),
     minutes: sec.minutes ?? null,
   }
@@ -1101,6 +1110,16 @@ export function computeEvent(def: EventDef, ctx: EventContext): EventState {
       else if (sec.format === 'ladder') part = sectionLadder(env, sec, seeds, per)
       else if (sec.format === 'ko') part = sectionKo(env, sec, seeds, per)
       else part = sectionRaces(env, sec, seeds, per)
+    }
+    // Startaufstellung nach dem Ergebnis des vorigen Abschnitts (z. B. Qualifying), sobald es feststeht
+    if (sec.seeding === 'previous' && prev?.complete && prev.ranking.length) {
+      const rank = new Map(prev.ranking.map((r, k) => [r.name, k]))
+      for (const h of part.heats) {
+        if (h.status === 'done' || h.kind !== 'race' || h.entrants.length < 2) continue
+        const named = h.entrants.filter((e) => e.name != null)
+        h.grid = [...named.sort((a, b) => (rank.get(a.name!) ?? 999) - (rank.get(b.name!) ?? 999)), ...h.entrants.filter((e) => e.name == null)]
+        h.gridFrom = prev.def.name
+      }
     }
     const state: SectionState = { def: sec, ...part }
     states[i] = state
