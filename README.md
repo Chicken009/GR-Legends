@@ -92,6 +92,9 @@ GR Legends
 - **Aufstiegsleiter:** Das erste Rennen ist voll, fehlen Fahrer, werden die oberen Rennen kleiner
   (Wettkämpfe ab 24.10.2026 oder noch nicht begonnene Leitern). Optional steht eine feste Zahl der
   Besten direkt im Finale, die übrigen Finalplätze füllen die Aufsteiger.
+- **Einer je Team mit unterschiedlich großen Teams** (ab 24.10.2026): Ein Durchgang ist so lang,
+  dass es für alle aufgeht – jedes Team gleich oft dran, die Fahrer wechseln reihum. Ein halber
+  Durchgang: jeder fährt genau einmal, die Teampunkte werden auf gleich viele Einsätze hochgerechnet.
 - **Teamrennen-Durchgänge:** Passen zwei Teams auf die Bahn, ist ein Durchgang „jedes Team einmal
   gegen jedes“ (4 Teams = 6 Rennen); optional nur ein halber Durchgang mit nach Elo ausgeglichenen
   Gegnern. Der Editor zeigt die Rennzahl je Durchgang. Läufe mit weniger Fahrern werden auf die

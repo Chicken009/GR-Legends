@@ -201,6 +201,28 @@ describe('Rennen, K.-o. und Teams', () => {
     expect(old.separate).toBe(false)
   })
 
+  it('Einer je Team bei unterschiedlich großen Teams: ganzer und halber Durchgang', () => {
+    const drivers = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K']
+    const teams = { mode: 'manual' as const, size: 2, teams: [{ name: 'T1', drivers: ['A', 'B', 'C'] }, { name: 'T2', drivers: ['D', 'E'] }, { name: 'T3', drivers: ['F', 'G'] }, { name: 'T4', drivers: ['H', 'I'] }, { name: 'T5', drivers: ['J', 'K'] }] }
+    const make = (half: boolean, start = '2026-10-25') => computeEvent(def({ start, drivers, maxPerHeat: 3, teams, sections: [newSection('team', { id: 't', teamMode: 'single', half: half || undefined })] }), ctx())
+    const count = (s: ReturnType<typeof computeEvent>) => {
+      const c = new Map<string, number>()
+      for (const h of s.heats) for (const e of h.entrants) c.set(e.name!, (c.get(e.name!) ?? 0) + 1)
+      return c
+    }
+    const half = make(true)
+    // jeder genau einmal, kein Team doppelt in einem Lauf
+    expect([...count(half).values()]).toEqual(drivers.map(() => 1))
+    for (const h of half.heats) expect(new Set(Object.values(h.teamOf ?? {})).size).toBe(h.entrants.length)
+    expect(half.sections[0].teamPlan?.halfCount).toBe(half.heats.length)
+    // ganzer Durchgang: jedes Team gleich oft, Dreierteam je 2×, Zweierteams je 3×
+    const full = count(make(false))
+    expect(['A', 'B', 'C'].map((n) => full.get(n))).toEqual([2, 2, 2])
+    expect(['D', 'E', 'J', 'K'].map((n) => full.get(n))).toEqual([3, 3, 3, 3])
+    // vor dem Stichtag bleibt es bei den Positionsduellen mit Joker
+    expect(make(false, '2026-06-01').heats).toHaveLength(6)
+  })
+
   it('punktgleiche Teammitglieder teilen sich den Platz, der Probelauf teilt den Sieg', () => {
     const d = def({ drivers: ['A', 'B', 'C', 'D'], scoring: { fastestLap: 0, pole: 0, driverOfDay: 0, personalBest: 0 }, teams: { mode: 'manual', size: 2, teams: [{ name: 'Rot', drivers: ['A', 'D'] }, { name: 'Blau', drivers: ['B', 'C'] }] }, sections: [newSection('team', { id: 't' })] } as never)
     const s = computeEvent(d, ctx([run('race', ['A', 'B', 'C', 'D'])]))

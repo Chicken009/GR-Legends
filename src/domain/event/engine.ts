@@ -866,6 +866,55 @@ function sectionTeam(env: Env, sec: SectionDef, teams: TeamState[], per: number)
   }
   // Positionsduelle: die Nr. 1 jedes Teams gegeneinander, dann die Nr. 2 usw.
   function slots(): TeamPlan {
+    // Unterschiedlich große Teams (ab EVENT_RULES_FROM): Durchgang so lang, dass es für alle
+    // aufgeht (Fahrer wechseln reihum, kein Joker); halber Durchgang = jeder fährt genau einmal
+    const sizes = teams.map((t) => t.drivers.length)
+    const gcd = (x: number, y: number): number => (y ? gcd(y, x % y) : x)
+    const lcm = sizes.reduce((a, b) => (a * b) / gcd(a, b), 1)
+    if (env.def.start >= EVENT_RULES_FROM && new Set(sizes).size > 1 && lcm <= 6) {
+      const useHalf = !!sec.half && rounds === 1
+      const fullCount = lcm * chunkEven(teams, per).filter((g) => g.length > 1).length
+      if (useHalf) {
+        // Einsätze nach Position im Team (Stärkste zuerst), in Läufe gepackt – kein Team zweimal im Lauf
+        const entries: { t: TeamState; driver: string; slot: number }[] = []
+        for (let slot = 0; slot < maxSize; slot++) {
+          const order = slot === 0 ? teams : shuffle(teams, `${env.def.seed}|${sec.id}|0|${slot}`)
+          for (const t of order) {
+            const m = members.get(t.id)!
+            if (slot < m.length) entries.push({ t, driver: m[slot], slot })
+          }
+        }
+        const groups = chunkEven(entries, per)
+        // Kommt ein Team in einem Lauf doppelt vor: mit einem Einsatz aus einem anderen Lauf tauschen
+        const has = (g: typeof entries, id: string, except = -1) => g.some((x, i) => i !== except && x.t.id === id)
+        for (const g of groups) {
+          for (let i = 0; i < g.length; i++) {
+            if (!has(g, g[i].t.id, i)) continue
+            for (const h of groups) {
+              const j = h === g ? -1 : h.findIndex((y, jj) => !has(g, y.t.id, i) && !has(h, g[i].t.id, jj))
+              if (j >= 0) {
+                ;[g[i], h[j]] = [h[j], g[i]]
+                break
+              }
+            }
+          }
+        }
+        for (const g of groups) if (g.length > 1) add(g.map((x) => x.t), g.map((x) => x.driver), `Nr. ${[...new Set(g.map((x) => x.slot + 1))].join('/')}: ${g.map((x) => x.t.name).join(' gegen ')}`)
+      } else {
+        for (let r = 0; r < rounds; r++) {
+          for (let slot = 0; slot < lcm; slot++) {
+            const order = teams.length <= per || (r === 0 && slot === 0) ? teams : shuffle(teams, `${env.def.seed}|${sec.id}|${r}|${slot}`)
+            const pick = order.map((t) => {
+              const m = members.get(t.id)!
+              return { t, driver: m[slot % m.length] }
+            })
+            for (const g of chunkEven(pick, per)) if (g.length > 1) add(g.map((x) => x.t), g.map((x) => x.driver), `Einsatz ${slot + 1} von ${lcm}: ${g.map((x) => x.t.name).join(' gegen ')}`)
+          }
+        }
+      }
+      const halfCount = chunkEven(Array.from({ length: total }), per).filter((g) => g.length > 1).length
+      return { mode: 'slots', perRound: fullCount, halfPossible: true, halfCount }
+    }
     for (let r = 0; r < rounds; r++) {
       for (let slot = 0; slot < maxSize; slot++) {
         // Passen nicht alle Teams in einen Lauf, wird für jede Position neu gemischt – so trifft jedes Team mal auf jedes

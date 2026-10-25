@@ -850,7 +850,7 @@ function TeamPlanHint({ plan, sec, onChange }: { plan: TeamPlan; sec: SectionDef
       />
       <span style={{ fontSize: 12, color: 'var(--text-2)', lineHeight: 1.45 }}>
         1 Durchgang = {plan.perRound} Rennen ({TEAM_PLAN_TEXT[plan.mode]}){total != null && rounds > 1 ? ` · insgesamt ${total} Rennen` : ''}
-        {half && ` · halber Durchgang: ${halfCount} Rennen, Gegner nach Elo ausgeglichen`}
+        {half && (plan.mode === 'slots' ? ` · halber Durchgang: ${halfCount} Rennen, jeder fährt einmal` : ` · halber Durchgang: ${halfCount} Rennen, Gegner nach Elo ausgeglichen`)}
       </span>
       {plan.mode === 'split' && (
         <span style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.45 }}>
@@ -858,7 +858,11 @@ function TeamPlanHint({ plan, sec, onChange }: { plan: TeamPlan; sec: SectionDef
         </span>
       )}
       {sec.teamMode === 'single' && plan.mode === 'slots' && (
-        <span style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.45 }}>Die Stärksten jedes Teams fahren gegeneinander, dann die Zweitstärksten usw. Ist ein Team kleiner, fährt sein Schwächster doppelt.</span>
+        <span style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.45 }}>
+          {plan.halfPossible
+            ? 'Die Teams sind unterschiedlich groß: Im ganzen Durchgang ist jedes Team gleich oft dran und die Fahrer wechseln reihum, sodass es für alle aufgeht. Im halben Durchgang fährt jeder genau einmal – die Teampunkte werden auf gleich viele Einsätze hochgerechnet.'
+            : 'Die Stärksten jedes Teams fahren gegeneinander, dann die Zweitstärksten usw. Ist ein Team kleiner, fährt sein Schwächster doppelt.'}
+        </span>
       )}
       {plan.halfPossible && rounds === 1 && (
         <label className="check" style={{ alignSelf: 'flex-start', background: 'var(--card)' }}>
