@@ -29,6 +29,21 @@ Smartrace-CSVs und dem Einstellungen-Sheet sind **für jeden lesbar**. Deshalb g
   (nicht als Klartext im Code) – so lassen.
 - Browserspeicher (`localStorage`) nur für Einstellungen auf dem eigenen Gerät, nie für Daten anderer.
 
+## Gestaltung (einheitlich in der ganzen App)
+
+- **Ich:** grün hinterlegte Zeile/Karte (`me-row`), grüner Ring am Avatar, „Du · Name“. In Texten und
+  Listen nur den eigenen Namen bzw. „Du“ grün färben, nie ganze Zeilen.
+- **Teams:** nur als farbiger Rand links (`teamColor`), bei Avataren als Ring in Teamfarbe. Den
+  Teamnamen nicht in jeder Zeile wiederholen – er steht einmal in der Teamwertung.
+- **Punkte:** große Zahl mit kleinem „Pkt.“ dahinter (`Pts`, in der Saison `Amount`).
+- **Karten:** Titel, rechts höchstens ein kurzer Hinweis, dann Inhalt. Lieber Zahl, Grafik oder Chip
+  als Satz; höchstens 2–3 Zeilen Fließtext. Erklärungen erst beim Antippen oder eingeklappt.
+- **Sprache:** kurz, Zahl zuerst („in ca. 10 Min.“, „Noch 2 Läufe, dann bist du dran“).
+- **Regeln/Wertung:** Punkte je Platz als Treppe (`PointsLadder`), Gewichtungen und Bonus als
+  `RuleChip`, der ausführliche Text eingeklappt.
+- **Rückblicke:** immer als Story-Karten (`src/ui/story.tsx`), erreichbar über ein Banner (`RecapLink`).
+- **Verläufe:** Punkteverlauf (`PointsChart`) und Rangverlauf (`BumpChart`) in Saison und Wettkampf gleich.
+
 ## Arbeitsweise
 
 - Neue Challenges, Medaillen, Punkte- oder XP-Regeln, die bestehende Ergebnisse verändern würden,

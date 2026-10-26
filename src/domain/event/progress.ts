@@ -1,6 +1,6 @@
 import { isGuest } from '../drivers'
 import { computeEvent, type EventContext, type EventState, type Heat } from './engine'
-import type { Story } from './insights'
+import { endSentence, type Story } from './insights'
 import { changeoverMinutes, heatDriveMs } from './simulate'
 import type { EventDef } from './types'
 
@@ -169,81 +169,101 @@ function soleLeader(step: ProgressStep): string | null {
   return top.length === 1 && (step.totals.get(top[0][0]) ?? 0) > 0 ? top[0][0] : null
 }
 
+export interface RecapFacts {
+  /** Führung: wer nach jedem Lauf vorn lag (null = Gleichstand) */
+  leaders: (string | null)[]
+  /** Anzahl Führungswechsel */
+  leadChanges: number
+  /** Der Führende lag nach jedem Lauf vorn */
+  wireToWire: string | null
+  /** Seit diesem Lauf führt der jetzige Führende */
+  turn: { name: string; label: string } | null
+  /** Größter Sprung in einem Lauf */
+  jump: { name: string; from: number; to: number; label: string } | null
+  /** Schlechtester Zwischenplatz gegen jetzigen Platz (anderer Fahrer als beim Sprung) */
+  comeback: { name: string; worst: number; label: string; final: number } | null
+  /** Knappster Abstand Platz 1 zu 2 in einem Rennen (unter 3 s) */
+  closest: { heat: Heat; ms: number } | null
+  /** Die meisten Laufsiege (allein) */
+  mostWins: { name: string; wins: number } | null
+  /** Fahrer des Tages: Plätze über der Erwartung */
+  driverOfDay: { name: string; over: number } | null
+  /** Neue persönliche Bestzeiten */
+  personalBests: string[]
+  /** Ohne Abflug durch alle Rennen (höchstens drei, sonst nichts Besonderes) */
+  clean: string[]
+}
+
 /** Besondere Momente des Wettkampfs – für den Rückblick und die Leinwand */
-export function recapMoments(state: EventState, steps: ProgressStep[]): Story[] {
-  const out: Story[] = []
-  const [a, b] = state.standings
-  const over = state.complete ? '' : ' bisher'
-  if (a && state.started) {
-    const gap = b ? a.total - b.total : 0
-    const won = state.complete ? `${a.name} gewinnt ${state.def.name} mit ${fmt1(a.total)} Punkten` : `${a.name} führt mit ${fmt1(a.total)} Punkten`
-    out.push({ icon: 'crown', text: b ? `${won}${gap > 0 ? ` – ${fmt1(gap)} vor ${b.name}` : ` – punktgleich mit ${b.name}`}.` : `${won}.` })
-  }
-  const team = state.teamStandings[0]
-  if (team && state.started && team.points > 0) {
-    const second = state.teamStandings[1]
-    out.push({ icon: 'crown', text: `${team.name} ${state.complete ? 'gewinnt' : 'führt'} die Teamwertung${second ? ` – ${fmt1(team.points - second.points)} vor ${second.name}` : ''}.` })
-  }
-  // Führung: Start-Ziel oder die entscheidende Wende
+export function recapFacts(state: EventState, steps: ProgressStep[]): RecapFacts {
   const played = steps.slice(1)
-  if (played.length >= 3) {
-    const leaders = played.map(soleLeader)
-    const final = leaders[leaders.length - 1]
-    const changes = leaders.reduce((n, l, i) => n + (i > 0 && l && leaders[i - 1] && l !== leaders[i - 1] ? 1 : 0), 0)
-    if (final && leaders.every((l) => l === final)) out.push({ icon: 'flag', text: `Start-Ziel: ${final} lag nach jedem Lauf vorn.` })
-    else if (final) {
-      let from = leaders.length - 1
-      while (from > 0 && leaders[from - 1] === final) from--
-      out.push({ icon: 'flag', text: `${changes > 1 ? `${changes} Führungswechsel. ` : ''}Die Wende: Nach ${played[from].label} übernahm ${final} die Spitze${state.complete ? ' und gab sie nicht mehr ab' : ''}.` })
-    }
+  const leaders = played.map(soleLeader)
+  const final = leaders[leaders.length - 1] ?? null
+  const leadChanges = leaders.reduce((n, l, i) => n + (i > 0 && l && leaders[i - 1] && l !== leaders[i - 1] ? 1 : 0), 0)
+  const wireToWire = played.length >= 3 && final && leaders.every((l) => l === final) ? final : null
+  let turn: RecapFacts['turn'] = null
+  if (played.length >= 3 && final && !wireToWire) {
+    let from = leaders.length - 1
+    while (from > 0 && leaders[from - 1] === final) from--
+    turn = { name: final, label: played[from].label }
   }
-  // Größter Sprung in einem Lauf
-  let jump: { name: string; from: number; to: number; label: string } | null = null
+  let jump: RecapFacts['jump'] = null
   for (let i = 2; i < steps.length; i++) {
     for (const [n, to] of steps[i].ranks) {
       const from = steps[i - 1].ranks.get(n)
       if (from != null && from - to >= 2 && (!jump || from - to > jump.from - jump.to)) jump = { name: n, from, to, label: steps[i].label }
     }
   }
-  if (jump) out.push({ icon: 'rocket', text: `Größter Sprung: ${jump.name} klettert in ${jump.label} von Platz ${jump.from} auf ${jump.to}.` })
-  // Aufholjagd: schlechtester Zwischenplatz gegen Endplatz
+  let comeback: RecapFacts['comeback'] = null
   if (played.length >= 3) {
-    const last = steps[steps.length - 1]
-    let best: { name: string; worst: number; label: string; final: number } | null = null
-    for (const [n, final] of last.ranks) {
-      let worst = final
+    for (const [n, now] of steps[steps.length - 1].ranks) {
+      let worst = now
       let label = ''
       for (const s of played.slice(0, -1)) {
-        const r = s.ranks.get(n) ?? final
+        const r = s.ranks.get(n) ?? now
         if (r > worst) [worst, label] = [r, s.label]
       }
-      if (worst - final >= 2 && (!best || worst - final > best.worst - best.final)) best = { name: n, worst, label, final }
+      if (n !== jump?.name && worst - now >= 2 && (!comeback || worst - now > comeback.worst - comeback.final)) comeback = { name: n, worst, label, final: now }
     }
-    if (best && best.name !== jump?.name) out.push({ icon: 'rocket', text: `Aufholjagd: ${best.name} lag nach ${best.label} auf Platz ${best.worst} und ${state.complete ? 'wurde noch' : 'ist jetzt'} ${best.final}.` })
   }
-  // Knappste Entscheidung (Abstand Platz 1 zu 2 im Rennen)
-  let close: { heat: Heat; ms: number } | null = null
+  let closest: RecapFacts['closest'] = null
   for (const h of state.heats) {
     if (h.status !== 'done' || h.kind !== 'race' || !h.session || h.order.length < 2) continue
     const second = h.session.results.find((r) => r.driver === h.order[1])
-    if (second?.gap.kind === 'time' && second.gap.ms > 0 && (!close || second.gap.ms < close.ms)) close = { heat: h, ms: second.gap.ms }
+    if (second?.gap.kind === 'time' && second.gap.ms > 0 && second.gap.ms < 3000 && (!closest || second.gap.ms < closest.ms)) closest = { heat: h, ms: second.gap.ms }
   }
-  if (close && close.ms < 3000) out.push({ icon: 'sword', text: `Knappste Entscheidung: ${close.heat.label} – ${close.heat.order[0]} vor ${close.heat.order[1]}, nur ${fmtSec(close.ms)}.` })
-  // Siege
-  const wins = [...state.standings].filter((s) => s.wins > 0).sort((x, y) => y.wins - x.wins)
-  if (wins[0] && wins[0].wins >= 2 && (wins[1]?.wins ?? 0) < wins[0].wins) out.push({ icon: 'star', text: `Die meisten Laufsiege: ${wins[0].name} mit ${wins[0].wins}.` })
+  const wins = state.standings.filter((s) => s.wins > 0).sort((x, y) => y.wins - x.wins)
+  const mostWins = wins[0] && wins[0].wins >= 2 && (wins[1]?.wins ?? 0) < wins[0].wins ? { name: wins[0].name, wins: wins[0].wins } : null
   const dotd = [...state.overperformance].filter(([n]) => (state.standings.find((s) => s.name === n)?.races ?? 0) >= 2).sort((x, y) => y[1] - x[1])[0]
-  if (dotd && dotd[1] > 0.5) out.push({ icon: 'star', text: `Fahrer des Tages${over}: ${dotd[0]} – ${fmt1(dotd[1])} Plätze über der Erwartung.` })
-  if (state.fastestLap) out.push({ icon: 'bolt', text: `Schnellste Runde: ${state.fastestLap.name} – ${fmtSec(state.fastestLap.ms)}${state.fastestLap.car ? ` im ${state.fastestLap.car}` : ''}.` })
-  const pbs = state.standings.filter((s) => s.bonuses.some((x) => x.kind === 'personalBest')).map((s) => s.name)
-  if (pbs.length) out.push({ icon: 'bolt', text: `Neue persönliche Bestzeit: ${pbs.join(', ')}.` })
-  // Ohne Abflug durch alle Rennen
-  const clean = state.standings.filter((s) => {
-    if (s.races < 2) return false
-    return !state.heats.some((h) => h.kind === 'race' && h.status === 'done' && h.session?.results.some((r) => r.driver === s.name && r.lapTimes.some((l) => l.status === 'crash')))
-  })
-  if (clean.length && clean.length <= 3) out.push({ icon: 'flag', text: `Ohne einen Abflug durch alle Rennen: ${clean.map((s) => s.name).join(', ')}.` })
-  return out
+  const clean = state.standings.filter((s) => s.races >= 2 && !state.heats.some((h) => h.kind === 'race' && h.status === 'done' && h.session?.results.some((r) => r.driver === s.name && r.lapTimes.some((l) => l.status === 'crash'))))
+  return {
+    leaders,
+    leadChanges,
+    wireToWire,
+    turn,
+    jump,
+    comeback,
+    closest,
+    mostWins,
+    driverOfDay: dotd && dotd[1] > 0.5 ? { name: dotd[0], over: dotd[1] } : null,
+    personalBests: state.standings.filter((s) => s.bonuses.some((x) => x.kind === 'personalBest')).map((s) => s.name),
+    clean: clean.length <= 3 ? clean.map((s) => s.name) : [],
+  }
+}
+
+/** Kurze Sätze zu den besonderen Momenten – für das Laufband der Leinwand */
+export function recapMoments(state: EventState, steps: ProgressStep[]): Story[] {
+  const f = recapFacts(state, steps)
+  const out: Story[] = []
+  const [a, b] = state.standings
+  if (a && state.started) out.push({ icon: 'crown', text: `${a.name} ${state.complete ? 'gewinnt' : 'führt'} mit ${fmt1(a.total)} Punkten${b ? (a.total > b.total ? ` – ${fmt1(a.total - b.total)} vor ${b.name}` : ` – punktgleich mit ${b.name}`) : ''}.` })
+  if (f.wireToWire) out.push({ icon: 'flag', text: `Start-Ziel: ${f.wireToWire} lag nach jedem Lauf vorn.` })
+  if (f.turn) out.push({ icon: 'flag', text: `Die Wende: Nach ${f.turn.label} übernahm ${f.turn.name} die Spitze.` })
+  if (f.jump) out.push({ icon: 'rocket', text: `Größter Sprung: ${f.jump.name} in ${f.jump.label} von Platz ${f.jump.from} auf ${f.jump.to}.` })
+  if (f.closest) out.push({ icon: 'sword', text: `Knappste Entscheidung: ${f.closest.heat.order[0]} vor ${f.closest.heat.order[1]}, nur ${fmtSec(f.closest.ms)}.` })
+  if (state.fastestLap) out.push({ icon: 'bolt', text: `Schnellste Runde: ${state.fastestLap.name} – ${fmtSec(state.fastestLap.ms)}.` })
+  if (f.driverOfDay) out.push({ icon: 'star', text: `Fahrer des Tages: ${f.driverOfDay.name}.` })
+  return out.map(endSentence)
 }
 
 /** Zahlen zum ganzen Wettkampf */

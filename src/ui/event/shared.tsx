@@ -10,9 +10,12 @@ import { eventPhase, lastDay, todayIso, type EventPhase, type Story } from '../.
 import { heatPointsExplained, pointsHistory, type ProgressStep } from '../../domain/event/progress'
 import { FORMAT_LABEL, type EventDef } from '../../domain/event/types'
 import { RATING } from '../../domain/rating'
-import { AREA, ME, SERIES } from '../colors'
+import { AREA, ME, SERIES, seriesColors } from '../colors'
 import { PointsChart } from '../charts/PointsChart'
+import { Sparkline } from '../charts/Sparkline'
+import { BumpChart } from '../charts/StatsCharts'
 import { Avatar, driverPath, Segment, useData } from '../components'
+import { RecapLink } from '../story'
 import { fmtElo, fmtNum, formatDate, formatTime } from '../format'
 import { Bolt, Crown, PoleFlag, Rocket, Sword, Trophy } from '../icons'
 import { CarThumb } from '../CarPhoto'
@@ -40,14 +43,6 @@ export function teamColor(teamId: string | null | undefined, name?: string | nul
   if (named) return named
   const i = teamId ? Number(teamId.replace(/\D/g, '')) - 1 : 0
   return SERIES[(Number.isFinite(i) && i >= 0 ? i : 0) % SERIES.length]
-}
-
-export function TeamTag({ id, name, size }: { id: string | null | undefined; name: string; size?: number | string }) {
-  return (
-    <span className="team-tag" style={{ color: teamColor(id, name), fontSize: size }}>
-      {name}
-    </span>
-  )
 }
 
 const contextFor = (data: AppData, def: EventDef, folderId: string | null) =>
@@ -136,36 +131,53 @@ export function Stories({ list }: { list: Story[] }) {
 
 export const BONUS_ICON = { fastestLap: '⚡', pole: 'P', driverOfDay: '★', personalBest: 'PB', clean: '✓' } as const
 
-export function StandingsList({ state, me, compact }: { state: EventState; me: string | null; compact?: boolean }) {
+/** Punkte wie überall in der App: große Zahl, dahinter klein „Pkt.“ */
+export function Pts({ value, color, size = 18 }: { value: number; color?: string; size?: number }) {
+  return (
+    <span className="num" style={{ fontSize: size, fontWeight: 800, color, whiteSpace: 'nowrap' }}>
+      {fmtPts(value)}
+      <span style={{ fontSize: Math.max(10, Math.round(size * 0.6)), fontWeight: 700, marginLeft: 3, opacity: 0.85 }}>Pkt.</span>
+    </span>
+  )
+}
+
+/** Farbe des Teams eines Fahrers (oder undefined ohne Team) */
+export function driverTeamColor(state: EventState, name: string): string | undefined {
+  const t = state.teams.find((x) => x.drivers.includes(name))
+  return t ? teamColor(t.id, t.name) : undefined
+}
+
+/**
+ * Gesamtwertung im Stil der Saison-Fahrerwertung: Platz, Avatar, Name, Siege und Rennen,
+ * Punkte je Abschnitt und Bonus als Chips, Punkte und Verlauf rechts. Team = farbiger Rand links.
+ */
+export function StandingsList({ state, me, steps }: { state: EventState; me: string | null; steps?: ProgressStep[] }) {
   const location = useLocation()
   const { model } = useData()
-  const scoring = state.sections.filter((s) => s.def.weight > 0 && s.def.format !== 'free')
-  const leader = state.standings[0]?.total ?? 0
+  // Abschnitte, die für die Einzelwertung zählen (bei getrennter Wertung ohne Teamrennen)
+  const counts = (s: EventState['sections'][number]) => s.def.weight > 0 && s.def.format !== 'free' && !(state.separate && s.def.format === 'team')
+  const scoring = state.sections.filter(counts)
   return (
     <>
       {state.standings.map((r) => {
         const known = model.drivers.includes(r.name)
+        const color = r.team ? teamColor(r.teamId, r.team) : undefined
         const body = (
           <>
-            <span className={`rank${r.rank <= 3 ? ` r${r.rank}` : ''}`} style={{ minWidth: 22, fontSize: 16, paddingTop: 4 }}>
+            <span className={`rank${r.rank <= 3 ? ` r${r.rank}` : ''}`} style={{ minWidth: 22, fontSize: 16, paddingTop: 6 }}>
               {r.rank}
             </span>
             <Avatar name={r.name} ring={r.name === me ? 'var(--me)' : undefined} />
-            <span className="grow" style={{ gap: 3 }}>
+            <span className="grow" style={{ gap: 4 }}>
               <span className="name">{r.name === me ? `Du · ${r.name}` : r.name}</span>
-              {!compact && (
-                <span className="sub" style={{ display: 'flex', flexWrap: 'wrap', gap: '0 6px', alignItems: 'center' }}>
-                  {r.team && <TeamTag id={r.teamId} name={r.team} />}
-                  {r.races} {r.races === 1 ? 'Rennen' : 'Rennen'}
-                  {r.wins ? ` · ${r.wins} ${r.wins === 1 ? 'Sieg' : 'Siege'}` : ''}
-                  {r.bestLapMs ? ` · ${formatTime(r.bestLapMs)}` : ''}
-                </span>
-              )}
-              {!compact && (scoring.length > 1 || r.bonuses.length > 0) && (
+              <span className="sub">
+                {r.wins} {r.wins === 1 ? 'Sieg' : 'Siege'} · {r.races} Rennen
+              </span>
+              {(scoring.length > 1 || r.bonuses.length > 0) && (
                 <span style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                   {scoring.length > 1 &&
                     state.sections.map((s, i) =>
-                      s.def.weight > 0 && s.def.format !== 'free' ? (
+                      counts(s) ? (
                         <span key={s.def.id} className="day-chip" title={`${s.def.name}: ${fmtPts(r.sections[i])} Punkte`}>
                           {fmtPts(r.sections[i])}
                         </span>
@@ -179,16 +191,17 @@ export function StandingsList({ state, me, compact }: { state: EventState; me: s
                 </span>
               )}
             </span>
-            <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', paddingTop: 2 }}>
-              <span className="num" style={{ fontSize: 20, fontWeight: 800, color: r.team ? teamColor(r.teamId, r.team) : undefined }}>
-                {fmtPts(r.total)}
-              </span>
-              <span style={{ fontSize: 10, color: 'var(--muted)' }}>{r.rank > 1 && leader - r.total > 0 ? `−${fmtPts(Math.round((leader - r.total) * 10) / 10)}` : 'Punkte'}</span>
+            <span style={{ paddingTop: 4 }}>
+              <Pts value={r.total} color={color} />
             </span>
+            {steps && steps.length > 2 && (
+              <span style={{ paddingTop: 8 }}>
+                <Sparkline values={steps.map((s) => s.totals.get(r.name) ?? 0)} color={r.name === me ? ME : '#8A94A0'} label={`Punkteverlauf ${r.name}`} />
+              </span>
+            )}
           </>
         )
-        // Teamfarbe als Streifen links, Punkte in Teamfarbe
-        const style = { padding: '8px', alignItems: 'flex-start', ...(r.team ? { borderLeft: `4px solid ${teamColor(r.teamId, r.team)}` } : null) } as const
+        const style = { padding: '8px', alignItems: 'flex-start', ...(color ? { borderLeft: `4px solid ${color}` } : null) } as const
         return known ? (
           <Link key={r.name} to={driverPath(r.name)} state={{ bg: location }} className={`row${r.name === me ? ' me-row' : ''}`} style={style}>
             {body}
@@ -238,19 +251,21 @@ export function TeamList({ state }: { state: EventState }) {
 export function TeamStandings({ state, me }: { state: EventState; me?: string | null }) {
   if (!state.teamStandings.length) return null
   const max = Math.max(1, ...state.teamStandings.map((t) => t.points))
+  // Bei getrennter Wertung gibt es Teampunkte erst mit dem ersten Teamrennen
+  const started = state.teamStandings.some((t) => t.points !== 0)
   return (
     <section className="card" style={{ gap: 4 }}>
       <div className="card-head">
         <span className="card-title">Teamwertung</span>
-        <span className="hint">{state.separate ? 'nur Teamrennen' : 'Schnitt der Mitglieder'}</span>
+        <span className="hint">{!started ? 'noch kein Teamrennen gefahren' : state.separate ? 'nur Teamrennen' : 'Schnitt der Mitglieder'}</span>
       </div>
       {state.teamStandings.map((t) => {
         const color = teamColor(t.id, t.name)
         const mine = !!me && t.drivers.includes(me)
         return (
           <div key={t.id} className={`row${mine ? ' me-row' : ''}`} style={{ padding: 8, borderLeft: `4px solid ${color}`, flexWrap: 'wrap', rowGap: 6 }}>
-            <span className={`rank${t.rank <= 3 ? ` r${t.rank}` : ''}`} style={{ minWidth: 22, fontSize: 16 }}>
-              {t.rank}
+            <span className={`rank${started && t.rank <= 3 ? ` r${t.rank}` : ''}`} style={{ minWidth: 22, fontSize: 16 }}>
+              {started ? t.rank : '–'}
             </span>
             <span className="grow">
               <span className="name" style={{ color }}>
@@ -261,12 +276,14 @@ export function TeamStandings({ state, me }: { state: EventState; me?: string | 
                 {t.drivers.join(', ')} · {teamEloText(t, state.teamStandings)}
               </span>
             </span>
-            <span className="num" style={{ fontSize: 18, fontWeight: 800, color }}>
-              {fmtPts(t.points)}
-            </span>
-            <span aria-hidden="true" style={{ flexBasis: '100%', height: 4, borderRadius: 2, background: 'var(--line-2)', overflow: 'hidden' }}>
-              <span style={{ display: 'block', height: '100%', width: `${(Math.max(0, t.points) / max) * 100}%`, background: color, borderRadius: 2 }} />
-            </span>
+            {started && (
+              <>
+                <Pts value={t.points} color={color} />
+                <span aria-hidden="true" style={{ flexBasis: '100%', height: 4, borderRadius: 2, background: 'var(--line-2)', overflow: 'hidden' }}>
+                  <span style={{ display: 'block', height: '100%', width: `${(Math.max(0, t.points) / max) * 100}%`, background: color, borderRadius: 2 }} />
+                </span>
+              </>
+            )}
           </div>
         )
       })}
@@ -315,6 +332,99 @@ export function ProgressChart({ state, steps, me }: { state: EventState; steps: 
   )
 }
 
+/** Rangverlauf: Platz nach jedem Lauf, alle Fahrer (wie in der Saison) */
+export function RankChart({ state, steps, me }: { state: EventState; steps: ProgressStep[]; me: string | null }) {
+  if (steps.length < 3) return null
+  const names = state.standings.map((s) => s.name)
+  const played = steps.slice(1)
+  return (
+    <section className="card" style={{ gap: 8 }}>
+      <div className="card-head">
+        <span className="card-title">Rangverlauf</span>
+        <span className="hint">Platz nach jedem Lauf</span>
+      </div>
+      <BumpChart
+        dates={played.map((s, k) => s.heatId ?? String(k))}
+        axis={played.map((_, k) => String(k + 1))}
+        series={names.map((n) => ({ name: n, ranks: played.map((s) => s.ranks.get(n) ?? null) }))}
+        colors={seriesColors(names, me)}
+        me={me}
+      />
+    </section>
+  )
+}
+
+/** „in ca. 8 Min.“ – unter 15 Minuten minutengenau, sonst auf 5 gerundet, ab einer Stunde mit Std. */
+export function fmtWait(m: number): string {
+  const r = m < 15 ? Math.max(1, Math.round(m)) : Math.round(m / 5) * 5
+  return `in ca. ${r < 60 ? `${r} Min.` : `${Math.floor(r / 60)} Std.${r % 60 ? ` ${r % 60} Min.` : ''}`}`
+}
+
+/** „Du bist als Nächstes dran“ bzw. „Noch 2 Läufe, dann bist du dran“ */
+export const waitHeadline = (ahead: number) => (ahead === 0 ? 'Du bist als Nächstes dran' : `Noch ${ahead} ${ahead === 1 ? 'Lauf' : 'Läufe'}, dann bist du dran`)
+
+/** Warteschlange: ein Punkt je Lauf bis zum eigenen; der nächste Lauf in Akzentfarbe, der eigene grün mit „Du“ */
+export function WaitQueue({ ahead }: { ahead: number }) {
+  const dots = ahead > 6 ? [0, 1, 2, -1, ahead - 2, ahead - 1] : Array.from({ length: ahead }, (_, i) => i)
+  return (
+    <span className="wait-queue" aria-hidden="true">
+      {dots.map((d, i) => (d < 0 ? <span key={i} className="gap">…</span> : <span key={i} className="dot" style={d === 0 ? { background: EVENT_ACCENT } : undefined} />))}
+      <span className="you">Du</span>
+    </span>
+  )
+}
+
+/**
+ * Der eigene nächste Lauf: Warteschlange, ein kurzer Satz, wann es losgeht, Gegner (Ring in
+ * Teamfarbe) und Auto. Gleich auf der Startseite und auf der Wettkampf-Seite.
+ */
+export function NextHeatPanel({ state, heat, me, ahead, minutes, day }: { state: EventState; heat: Heat; me: string; ahead: number; minutes: number | null; day?: string | null }) {
+  const car = heat.cars[me]
+  const others = heat.entrants.filter((e) => e.name !== me)
+  const section = state.sections.find((s) => s.def.id === heat.sectionId)?.def.name
+  const grid = heat.grid ? heat.grid.findIndex((e) => e.name === me) + 1 : 0
+  return (
+    <div className="next-heat">
+      {!day && <WaitQueue ahead={ahead} />}
+      <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <b style={{ fontSize: 18, lineHeight: 1.25, color: !day && ahead === 0 ? EVENT_ACCENT : undefined }}>{day ? `Am ${day} geht’s los` : waitHeadline(ahead)}</b>
+        <span style={{ fontSize: 13, color: 'var(--muted)' }}>{[!day && ahead > 0 && minutes != null ? fmtWait(minutes) : null, heat.label, section && !heat.label.startsWith(section) ? section : null].filter(Boolean).join(' · ')}</span>
+      </span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, flex: 1, minWidth: 0 }}>
+          {others.map((e, i) => (
+            <span key={i} className="opponent">
+              {e.name ? <Avatar name={e.name} size={28} ring={driverTeamColor(state, e.name)} /> : <span className="avatar-empty" />}
+              <span>{e.label}</span>
+            </span>
+          ))}
+        </div>
+        {car && (
+          <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, maxWidth: 96 }}>
+            <CarThumb car={car} size={48} />
+            <span style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center', lineHeight: 1.2 }}>{car}</span>
+          </span>
+        )}
+      </div>
+      {grid > 0 && <span style={{ fontSize: 13, fontWeight: 700, color: EVENT_ACCENT }}>Du startest von Platz {grid}</span>}
+    </div>
+  )
+}
+
+/** Link zum Rückblick als Story (wie „Dein Jahr“ in der Saison) */
+export function RecapBanner({ id, state, me, done }: { id: string; state: EventState; me: string | null; done: boolean }) {
+  const mine = me ? state.standings.find((s) => s.name === me) : null
+  const sub = mine ? `Platz ${mine.rank} · ${fmtPts(mine.total)} Pkt.` : state.standings[0] ? `${done ? 'Sieger' : 'Vorn'}: ${state.standings[0].name}` : ''
+  return (
+    <RecapLink
+      to={`/wettkampf/${id}/rueckblick`}
+      mine={!!mine}
+      title={`${mine ? 'Dein ' : ''}${state.def.name}${done ? '' : ' bisher'}`}
+      sub={`${sub} – zum Rückblick`}
+    />
+  )
+}
+
 const STATUS_TEXT = { done: 'gefahren', next: 'als Nächstes', ready: 'geplant', waiting: 'wartet' } as const
 
 /** Autos als kleine Bilder mit Namen */
@@ -333,23 +443,23 @@ export function CarChips({ cars, size = 32, label }: { cars: string[]; size?: nu
 
 export function HeatCard({ heat, state, me, children }: { heat: Heat; state: EventState; me: string | null; children?: ReactNode }) {
   const { model } = useData()
-  const teamTag = (n: string) => {
-    const id = heat.teamOf?.[n] ?? state.teams.find((t) => t.drivers.includes(n))?.id
+  // Team als farbiger Strich am Zeilenanfang (wie der Rand in den Ranglisten)
+  const teamBar = (n: string | null) => {
+    const id = n ? (heat.teamOf?.[n] ?? state.teams.find((t) => t.drivers.includes(n))?.id) : undefined
     const team = id ? state.teams.find((t) => t.id === id) : undefined
-    return team ? <TeamTag id={team.id} name={team.name} /> : null
+    return team ? { boxShadow: `inset 3px 0 0 ${teamColor(team.id, team.name)}`, paddingLeft: 9 } : undefined
   }
+  // Nur der eigene Name grün, nicht die ganze Zeile
+  const nameStyle = (n: string | null) => ({ whiteSpace: 'nowrap', ...(n && n === me ? { color: 'var(--me)', fontWeight: 700 } : null) }) as const
   const inModel = heat.session && model.sessions.some((s) => s.fileId === heat.session!.fileId)
   const results = heat.session ? new Map(heat.session.results.map((r) => [r.driver, r])) : null
   const mine = !!me && (heat.status === 'done' ? heat.order.includes(me) : heat.entrants.some((e) => e.name === me))
   const [why, setWhy] = useState<string | null>(null)
-  // So viele offene Läufe kommen vorher noch dran
-  const ahead = heat.status === 'done' ? 0 : state.heats.filter((h) => h.status !== 'done').indexOf(heat)
   return (
     <div className={`heat${heat.status === 'next' ? ' next' : ''}${mine ? ' mine' : ''}`}>
       <div className="heat-head">
         <b>{heat.label}</b>
         <span className={`status-chip ${heat.status}`}>{STATUS_TEXT[heat.status]}</span>
-        {ahead > 0 && <span style={{ fontSize: 11, color: mine ? 'var(--me)' : 'var(--muted)' }}>in {ahead} {ahead === 1 ? 'Lauf' : 'Läufen'}</span>}
         {heat.manual && <span className="status-chip">per Hand zugeordnet</span>}
         {heat.note && <span style={{ fontSize: 11, color: 'var(--muted)' }}>{heat.note}</span>}
         {heat.status !== 'done' && heat.grid && <span style={{ fontSize: 11, color: EVENT_ACCENT }}>Startaufstellung nach {heat.gridFrom}</span>}
@@ -366,12 +476,11 @@ export function HeatCard({ heat, state, me, children }: { heat: Heat; state: Eve
             const lines = why === n ? heatPointsExplained(state, heat, n) : []
             return (
               <Fragment key={n}>
-              <div className="entrant" style={n === me ? { color: 'var(--me)', fontWeight: 600 } : undefined}>
+              <div className="entrant" style={teamBar(n)}>
                 <span className="num" style={{ minWidth: 18, color: 'var(--muted)' }}>
                   {i + 1}.
                 </span>
-                <span style={{ whiteSpace: 'nowrap' }}>{n}</span>
-                {teamTag(n)}
+                <span style={nameStyle(n)}>{n === me ? `Du · ${n}` : n}</span>
                 <span className="car">
                   {r?.car}
                   {r?.validBestLapMs ? ` · ${formatTime(r.validBestLapMs)}` : ''}
@@ -403,14 +512,13 @@ export function HeatCard({ heat, state, me, children }: { heat: Heat; state: Eve
             )
           })
         : (heat.grid ?? heat.entrants).map((e, i) => (
-            <div key={i} className={`entrant${e.name ? '' : ' placeholder'}`} style={e.name && e.name === me ? { color: 'var(--me)', fontWeight: 600 } : undefined}>
+            <div key={i} className={`entrant${e.name ? '' : ' placeholder'}`} style={teamBar(e.name)}>
               {heat.grid && (
                 <span className="num" title={`Startplatz ${i + 1}`} style={{ minWidth: 18, color: EVENT_ACCENT, fontWeight: 700 }}>
                   {i + 1}.
                 </span>
               )}
-              <span style={{ whiteSpace: 'nowrap' }}>{e.label}</span>
-              {e.name && teamTag(e.name)}
+              <span style={nameStyle(e.name)}>{e.name && e.name === me ? `Du · ${e.label}` : e.label}</span>
               <span className="car">{e.name ? heat.cars[e.name] ?? '' : ''}</span>
               {e.name && heat.cars[e.name] && <CarThumb car={heat.cars[e.name]} size={26} />}
             </div>
@@ -446,8 +554,8 @@ export function Podium({ state }: { state: EventState }) {
       <div className="step" style={{ minHeight: height, borderTop: `3px solid ${color}` }}>
         <Avatar name={s.name} size={place === 1 ? 52 : 40} ring={color} />
         <span style={{ fontWeight: 700, fontSize: place === 1 ? 16 : 14 }}>{s.name}</span>
-        <span className="num" style={{ fontSize: 13, color: 'var(--muted)' }}>
-          {fmtPts(s.total)} Punkte
+        <span style={{ color: 'var(--muted)' }}>
+          <Pts value={s.total} size={13} />
         </span>
         <span style={{ fontSize: 22, fontWeight: 800, color }}>{place}</span>
       </div>

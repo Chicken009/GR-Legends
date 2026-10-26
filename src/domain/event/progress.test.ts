@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Result, Session } from '../../types'
 import { computeEvent, type EventContext } from './engine'
 import { normalizeEvent } from './normalize'
-import { eventProgress, heatPointsExplained, myRecap, placePoints, pointsHistory, recapMoments, waitFor } from './progress'
+import { eventProgress, heatPointsExplained, myRecap, placePoints, pointsHistory, recapFacts, recapMoments, waitFor } from './progress'
 import { newSection } from './templates'
 
 const ELO: Record<string, number> = { A: 700, B: 650, C: 600, D: 550 }
@@ -56,8 +56,10 @@ describe('Punkteverlauf und Rückblick', () => {
     const state = computeEvent(def, ctx(sessions))
     const steps = pointsHistory(def, ctx(sessions))
     const text = recapMoments(state, steps).map((m) => m.text).join('\n')
-    expect(text).toMatch(/D gewinnt Test-Cup/)
-    expect(text).toMatch(/Knappste Entscheidung/)
+    expect(text).toMatch(/D gewinnt mit/)
+    const facts = recapFacts(state, steps)
+    expect(facts.closest?.ms).toBe(80)
+    expect(facts.leaders.length).toBe(4)
     const mine = myRecap(state, steps, 'D')
     expect(mine.heats.length).toBe(2)
     expect(mine.best?.place).toBe(1)

@@ -12,9 +12,10 @@ import { ChallengeBadge, ChallengeItem } from '../ChallengeItem'
 import { byProgress, unseenDone } from '../challengeUtils'
 import { formatDate, formatTime, plural, shortName } from '../format'
 import { isQuali } from '../../domain/rating'
-import { addDays, driverInsight, eventVisible, lastDay, planVisible, todayIso } from '../../domain/event/insights'
-import { computeFor, EVENT_ACCENT } from '../event/shared'
-import { CarThumb } from '../CarPhoto'
+import { addDays, eventVisible, lastDay, planVisible, todayIso } from '../../domain/event/insights'
+import { eventCars, typicalLapMs } from '../../domain/event/context'
+import { waitFor } from '../../domain/event/progress'
+import { computeFor, EVENT_ACCENT, NextHeatPanel } from '../event/shared'
 import { EventCard } from './Events'
 import { useMe } from '../me'
 import { Amount, CurrencyIcon, XP_COLOR, XP_GRADIENT } from '../currency'
@@ -422,58 +423,36 @@ function EventTeaser() {
   return pick ? <EventCard folder={pick} me={me} /> : null
 }
 
+/** Erster Wettkampf mit einem geplanten Lauf für den Fahrer, dazu Wartezeit */
+function findNextHeat(data: ReturnType<typeof useData>, driver: string, today: string) {
+  const candidates = data.events
+    .filter((e) => eventVisible(e.def, today) && planVisible(e.def, today) && lastDay(e.def) >= today && e.def.drivers.includes(driver))
+    .sort((a, b) => a.def.start.localeCompare(b.def.start))
+  for (const folder of candidates) {
+    const state = computeFor(data, folder.def, folder.id)
+    const track = folder.def.track ?? folder.tracks[0] ?? null
+    const wait = waitFor(state, driver, typicalLapMs(data.allSessions, track, eventCars(folder.def)))
+    if (wait) return { folder, state, wait }
+  }
+  return null
+}
+
 /** Nächster eigener Lauf in einem laufenden oder bald anstehenden Wettkampf (wenn der Ablauf schon sichtbar ist) */
 export function NextHeatCard({ driver }: { driver: string }) {
   const data = useData()
   const today = todayIso()
-  const found = useMemo(() => {
-    const candidates = data.events
-      .filter((e) => eventVisible(e.def, today) && planVisible(e.def, today) && lastDay(e.def) >= today && e.def.drivers.includes(driver))
-      .sort((a, b) => a.def.start.localeCompare(b.def.start))
-    for (const folder of candidates) {
-      const state = computeFor(data, folder.def, folder.id)
-      const heat = driverInsight(state, driver).nextHeat
-      if (!heat) continue
-      const open = state.heats.filter((h) => h.status !== 'done')
-      return { folder, state, heat, before: open.indexOf(heat), section: state.sections.find((s) => s.def.id === heat.sectionId)?.def.name }
-    }
-    return null
-  }, [data, driver, today])
+  const found = useMemo(() => findNextHeat(data, driver, today), [data, driver, today])
   if (!found) return null
-  const { folder, heat, before, section } = found
-  const car = heat.cars[driver]
-  const others = heat.entrants.filter((e) => e.name !== driver)
-  const when = folder.def.start > today ? `am ${formatDate(folder.def.start)}` : heat.status === 'next' ? 'Du bist als Nächstes dran!' : before > 0 ? `Noch ${before} ${before === 1 ? 'Lauf' : 'Läufe'} vor dir` : 'Gleich'
+  const { folder, state, wait } = found
   return (
-    <Link to={`/wettkampf/${folder.id}`} className="card me-row" style={{ gap: 8 }}>
+    <Link to={`/wettkampf/${folder.id}`} className="card me-row" style={{ gap: 10 }}>
       <div className="card-head">
         <span className="kicker" style={{ color: EVENT_ACCENT }}>
           Dein nächster Lauf
         </span>
-        <span style={{ fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', color: heat.status === 'next' ? 'var(--me)' : 'var(--text-2)' }}>{when}</span>
+        <span className="hint">{folder.def.name}</span>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <span style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minWidth: 0 }}>
-          <span style={{ fontSize: 20, fontWeight: 800 }}>{heat.label}</span>
-          <span style={{ fontSize: 13, color: 'var(--muted)' }}>
-            {folder.def.name}
-            {section && section !== heat.label ? ` · ${section}` : ''}
-          </span>
-          {others.length > 0 && <span style={{ fontSize: 13, color: 'var(--text-2)' }}>gegen {others.map((e) => e.label).join(', ')}</span>}
-          {heat.grid && heat.grid.some((e) => e.name === driver) && (
-            <span style={{ fontSize: 13, fontWeight: 700, color: EVENT_ACCENT }}>
-              Du startest von Platz {heat.grid.findIndex((e) => e.name === driver) + 1}
-            </span>
-          )}
-          {heat.note && <span style={{ fontSize: 12, color: 'var(--muted)' }}>{heat.note}</span>}
-        </span>
-        {car && (
-          <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, maxWidth: 96 }}>
-            <CarThumb car={car} size={52} />
-            <span style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center', lineHeight: 1.2 }}>{car}</span>
-          </span>
-        )}
-      </div>
+      <NextHeatPanel state={state} heat={wait.heat} me={driver} ahead={wait.ahead} minutes={wait.minutes} day={folder.def.start > today ? formatDate(folder.def.start) : null} />
     </Link>
   )
 }

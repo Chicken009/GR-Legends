@@ -7,7 +7,9 @@ import { formatTime } from '../format'
 import { heatLength } from '../../domain/event/types'
 import { CarThumb } from '../CarPhoto'
 import { recapMoments } from '../../domain/event/progress'
-import { EVENT_ACCENT, fmtPts, PhasePill, phaseOf, Podium, StoryIcon, teamColor, teamEloText, TeamTag, useEventHistory, useEventState } from '../event/shared'
+import { StoryPager } from '../story'
+import { eventCards } from './EventRecap'
+import { EVENT_ACCENT, fmtPts, PhasePill, phaseOf, Podium, StoryIcon, teamColor, teamEloText, useEventHistory, useEventState } from '../event/shared'
 
 const REFRESH_MS = 30_000
 const TICKER_MS = 8_000
@@ -26,6 +28,8 @@ export function EventLive() {
   const queryClient = useQueryClient()
   const [updated, setUpdated] = useState(() => new Date())
   const [tick, setTick] = useState(0)
+  // Rückblick als Story, die von selbst weiterblättert – zum gemeinsamen Anschauen
+  const [recap, setRecap] = useState(false)
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -67,6 +71,7 @@ export function EventLive() {
 
   return (
     <div className="live" style={{ ['--accent' as string]: EVENT_ACCENT }}>
+      {recap && <StoryPager cards={eventCards(state, steps, null, done, () => setRecap(false))} label={`Rückblick ${def.name}`} onDone={() => setRecap(false)} auto={10_000} doneLabel="Schließen" />}
       {done && CONFETTI.map((c, i) => <span key={i} className="confetti" style={{ left: `${6 + i * 9.5}%`, background: c, animationDelay: `${(i * 0.37) % 3}s` }} />)}
       <header style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -77,6 +82,11 @@ export function EventLive() {
         </div>
         <PhasePill phase={phase} />
         <span style={{ marginLeft: 'auto', fontSize: 13, color: 'var(--faint)' }}>Stand {updated.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</span>
+        {state.started && (
+          <button className="btn round" onClick={() => setRecap(true)}>
+            ▶ Rückblick
+          </button>
+        )}
         <Link to={`/wettkampf/${id}`} className="btn round" aria-label="Leinwand schließen">
           Schließen
         </Link>
@@ -166,7 +176,7 @@ export function EventLive() {
           <section className="card" style={{ gap: 6 }}>
             <span className="kicker">{state.started ? 'Stand' : 'Teilnehmer'}</span>
             {(state.started ? state.standings.slice(0, 10) : state.standings).map((r) => (
-              <div key={r.name} style={{ display: 'flex', alignItems: 'center', gap: 12, minHeight: '2em' }}>
+              <div key={r.name} style={{ display: 'flex', alignItems: 'center', gap: 12, minHeight: '2em', ...(r.team ? { borderLeft: `4px solid ${teamColor(r.teamId, r.team)}`, paddingLeft: 10 } : null) }}>
                 {state.started ? (
                   <span className={`rank${r.rank <= 3 ? ` r${r.rank}` : ''}`} style={{ fontSize: '1.3em', minWidth: 30 }}>
                     {r.rank}
@@ -175,7 +185,6 @@ export function EventLive() {
                   <Avatar name={r.name} size={32} />
                 )}
                 <span style={{ fontWeight: 700 }}>{r.name}</span>
-                {r.team && <TeamTag id={r.teamId} name={r.team} size="0.75em" />}
                 {state.started && (
                   <span className="num" style={{ marginLeft: 'auto', fontSize: '1.3em', fontWeight: 800 }}>
                     {fmtPts(r.total)}

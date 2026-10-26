@@ -142,6 +142,9 @@ function qualiBest(sessions: Session[]) {
   return best
 }
 
+/** Endet ein Satz mit einem abgekürzten Namen („Pia S.“), kein zweiter Punkt */
+export const endSentence = (s: Story): Story => ({ ...s, text: s.text.replace(/\.\.$/, '.') })
+
 export interface Story {
   icon: 'crown' | 'sword' | 'bolt' | 'rocket' | 'flag' | 'star'
   text: string
@@ -180,5 +183,5 @@ export function storylines(state: EventState): Story[] {
   const dotd = [...state.overperformance].filter(([n]) => (state.standings.find((s) => s.name === n)?.races ?? 0) >= 2).sort((x, y) => y[1] - x[1])[0]
   if (dotd && dotd[1] > 0.5) out.push({ icon: 'star', text: `Fahrer des Tages${state.complete ? '' : ' bisher'}: ${dotd[0]} – ${fmt1(dotd[1])} Plätze über der Erwartung.` })
   if (state.fastestLap) out.push({ icon: 'bolt', text: `Schnellste Runde: ${state.fastestLap.name} – ${fmtSec(state.fastestLap.ms, 3)}${state.fastestLap.car ? ` im ${state.fastestLap.car}` : ''}.` })
-  return out
+  return out.map(endSentence)
 }

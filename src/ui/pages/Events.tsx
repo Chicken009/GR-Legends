@@ -6,7 +6,7 @@ import { PageHead, useData } from '../components'
 import { useMe } from '../me'
 import { StrokeIcon, TOOL_ICONS } from '../icons'
 import { CarThumb } from '../CarPhoto'
-import { computeFor, dateRange, EVENT_ACCENT, fmtPts, PhasePill, phaseOf } from '../event/shared'
+import { computeFor, dateRange, EVENT_ACCENT, PhasePill, phaseOf, Pts, teamColor } from '../event/shared'
 
 /** Liste der Wettkämpfe (Seite und Reiter „Wettkämpfe“ der Saison) */
 export function EventList() {
@@ -61,16 +61,39 @@ export function EventCard({ folder, me }: { folder: EventFolder; me: string | nu
         <PhasePill phase={phase} />
       </div>
       <span style={{ fontSize: 20, fontWeight: 800 }}>{folder.def.name}</span>
-      <span style={{ fontSize: 13, color: 'var(--muted)' }}>
-        {takesPart && <b style={{ color: 'var(--me)' }}>Du bist dabei · </b>}
-        {folder.tracks.join(', ')} · {state.drivers.length} Fahrer{state.teams.length ? ` · ${state.teams.length} Teams` : ''}
-        {state.started && leader ? ` · ${phase === 'done' ? 'Sieger' : 'vorne'}: ${leader.name} (${fmtPts(leader.total)})` : ''}
+      <span style={{ fontSize: 13, color: 'var(--muted)', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '2px 6px' }}>
+        {folder.tracks.join(', ')} · {state.drivers.length} Fahrer
+        {state.teams.length > 0 && (
+          <span style={{ display: 'inline-flex', gap: 4 }} aria-label={`${state.teams.length} Teams`}>
+            {state.teams.map((t) => (
+              <span key={t.id} style={{ width: 8, height: 8, borderRadius: '50%', background: teamColor(t.id, t.name) }} />
+            ))}
+          </span>
+        )}
       </span>
-      {mine?.standing && state.started && (
-        <span style={{ fontSize: 13, color: 'var(--me)', fontWeight: 600 }}>
-          Du: Platz {mine.standing.rank} · {fmtPts(mine.standing.total)} Punkte
-          {mine.nextHeat ? ` · als Nächstes ${mine.nextHeat.label}` : ''}
+      {state.started && leader ? (
+        <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px 16px', fontSize: 13, color: 'var(--text-2)' }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <span>
+              {phase === 'done' ? 'Sieger' : 'Vorn'}: <b style={{ color: leader.name === me ? 'var(--me)' : 'var(--text)' }}>{leader.name === me ? 'Du' : leader.name}</b>
+            </span>
+            <Pts value={leader.total} size={13} />
+          </span>
+          {mine?.standing && leader.name !== me && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <span>
+                <b style={{ color: 'var(--me)' }}>Du</b>: Platz {mine.standing.rank}
+              </span>
+              <Pts value={mine.standing.total} size={13} />
+            </span>
+          )}
         </span>
+      ) : (
+        takesPart && (
+          <span style={{ fontSize: 13, color: 'var(--text-2)' }}>
+            <b style={{ color: 'var(--me)' }}>Du</b> bist dabei
+          </span>
+        )
       )}
       {cars.length > 0 && (
         <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }} aria-label={`Autos: ${cars.join(', ')}`}>

@@ -15,6 +15,7 @@ import { DriverProfile, MedalsSheet } from './ui/pages/DriverProfile'
 import { Drivers } from './ui/pages/Drivers'
 import { EventEditor } from './ui/pages/EventEditor'
 import { EventLive } from './ui/pages/EventLive'
+import { EventRecap } from './ui/pages/EventRecap'
 import { Events } from './ui/pages/Events'
 import { EventView } from './ui/pages/EventView'
 import { History, RaceView } from './ui/pages/History'
@@ -79,6 +80,7 @@ function AppRoutes() {
           <Route path="wettkampf/neu" element={<EventEditor />} />
           <Route path="wettkampf/:id" element={<EventView />} />
           <Route path="wettkampf/:id/bearbeiten" element={<EventEditor />} />
+          <Route path="wettkampf/:id/rueckblick" element={<EventRecap />} />
           <Route path="*" element={<div className="state">Seite nicht gefunden.</div>} />
         </Route>
         {/* Leinwand: ganzer Bildschirm ohne Navigation */}

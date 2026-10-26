@@ -6,6 +6,8 @@ import { CarThumb } from '../CarPhoto'
 import { PointsChart } from '../charts/PointsChart'
 import { Sparkline } from '../charts/Sparkline'
 import { BumpChart } from '../charts/StatsCharts'
+import { PointsLadder, RuleChip } from '../PointsLadder'
+import { RecapLink } from '../story'
 import { AREA, ME, seriesColors } from '../colors'
 import { Avatar, carPath, driverPath, PageHead, Segment, useData, useMyName } from '../components'
 import { formatDate } from '../format'
@@ -77,16 +79,7 @@ function DriverStandings({ year }: { year: string }) {
   const colors = seriesColors(shown, me)
   return (
     <>
-      {mine && (
-        <Link to={`/wrapped/${year}/${encodeURIComponent(mine.name)}`} className="card me-row" style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-          <span style={{ fontSize: 26 }} aria-hidden="true">✦</span>
-          <span style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1 }}>
-            <span style={{ fontSize: 15, fontWeight: 700 }}>Dein Jahr {year}</span>
-            <span style={{ fontSize: 12, color: 'var(--text-2)' }}>Platz {mine.rank} · {mine.points} Punkte – zum Rückblick</span>
-          </span>
-          <span aria-hidden="true">›</span>
-        </Link>
-      )}
+      {mine && <RecapLink to={`/wrapped/${year}/${encodeURIComponent(mine.name)}`} mine title={`Dein Jahr ${year}`} sub={`Platz ${mine.rank} · ${mine.points} Pkt. – zum Rückblick`} />}
       <section className="card" style={{ gap: 2 }}>
         <div className="card-head">
           <span className="card-title">Fahrerwertung</span>
@@ -135,15 +128,23 @@ function DriverStandings({ year }: { year: string }) {
           <BumpChart dates={dates} series={shown.map((n) => ({ name: n, ranks: perDay.map((m) => m.get(n) ?? null) }))} colors={colors} me={me} />
         </section>
       )}
-      <section className="inner" style={{ padding: 14, gap: 6 }}>
-        <span className="card-title">So wird gewertet</span>
-        <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: 'var(--muted)', lineHeight: 1.6 }}>
-          <li>Pro Rennen {SEASON_POINTS.perBeaten} Punkt je geschlagenem Gegner, Sieg +{SEASON_POINTS.win}</li>
-          <li>Pro Renntag zählen die besten {SEASON_POINTS.racesPerDay} Rennen</li>
-          <li>Schnellste Runde des Renntags +{SEASON_POINTS.fastestLap}, Pole (Schnellster im Qualifying) +{SEASON_POINTS.pole}</li>
-          <li>Der letzte Renntag im Dezember ist das Saisonfinale und zählt doppelt</li>
-          <li>Es zählen die besten {SEASON_POINTS.countedDays} Renntage – wer mal nicht kann, verliert nichts</li>
-        </ul>
+      <section className="card" style={{ gap: 14 }}>
+        <div className="card-head">
+          <span className="card-title">So wird gewertet</span>
+          <span className="hint">Rennen mit 4 Fahrern</span>
+        </div>
+        <PointsLadder points={[3 * SEASON_POINTS.perBeaten + SEASON_POINTS.win, 2 * SEASON_POINTS.perBeaten, SEASON_POINTS.perBeaten, 0]} color={AREA.season} label="Saisonpunkte je Platz bei 4 Fahrern" />
+        <span style={{ fontSize: 13, color: 'var(--text-2)' }}>
+          Je Gegner hinter dir {SEASON_POINTS.perBeaten} Pkt., Sieg +{SEASON_POINTS.win}
+        </span>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          <RuleChip value={`${SEASON_POINTS.racesPerDay}`} label="beste Rennen je Renntag" />
+          <RuleChip value={`${SEASON_POINTS.countedDays}`} label="beste Renntage zählen" />
+          <RuleChip value={`×${SEASON_POINTS.finaleFactor}`} label="Finale im Dezember" color={AREA.season} />
+          <RuleChip value={`⚡ +${SEASON_POINTS.fastestLap}`} label="Schnellste Runde" color="var(--gold)" />
+          <RuleChip value={`P +${SEASON_POINTS.pole}`} label="Pole" color="var(--gold)" />
+        </div>
+        <span style={{ fontSize: 12, color: 'var(--muted)' }}>Wer mal nicht kann, verliert nichts – es zählen nur die besten Renntage.</span>
       </section>
     </>
   )

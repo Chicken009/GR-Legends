@@ -1,17 +1,19 @@
 import { formatDate, formatTime, shortName } from '../format'
 import { AXIS, GRID, linePath, niceTicks, scale, Tip, useTipState, useWidth } from './common'
 
-/** Rangverlauf (Bump-Chart) für wenige ausgewählte Fahrer, Namen rechts. */
+/** Rangverlauf (Bump-Chart), Namen rechts. `axis` ersetzt die Datumsbeschriftung (z. B. Läufe eines Wettkampfs). */
 export function BumpChart({
   dates,
   series,
   colors,
   me,
+  axis,
 }: {
   dates: string[]
   series: { name: string; ranks: (number | null)[] }[]
   colors: Map<string, string>
   me: string | null
+  axis?: string[]
 }) {
   const [ref, width] = useWidth<HTMLDivElement>()
   const maxRank = Math.max(4, ...series.flatMap((s) => s.ranks.filter((r): r is number => r != null)))
@@ -62,7 +64,7 @@ export function BumpChart({
         ))}
         {tickIdx.map((i) => (
           <text key={i} x={sx(i)} y={height - 2} fill={AXIS} fontSize="10" textAnchor={i === 0 ? 'start' : i === dates.length - 1 ? 'end' : 'middle'}>
-            {dates[i].slice(5, 7)}/{dates[i].slice(2, 4)}
+            {axis ? axis[i] : `${dates[i].slice(5, 7)}/${dates[i].slice(2, 4)}`}
           </text>
         ))}
       </svg>
