@@ -87,8 +87,7 @@ describe('Punkteverlauf und Rückblick', () => {
     const state = computeEvent(def, ctx(sessions))
     const heat = state.heats[0]
     const lines = heatPointsExplained(state, heat, heat.order[0])
-    expect(lines.join(' ')).toMatch(/1 Gegner dahinter/)
-    expect(lines.join(' ')).toMatch(/Siegbonus/)
+    expect(lines[0]).toBe('1 Gegner × 1 + Sieg 1 = 2 Pkt.')
     expect(placePoints(def, 4)).toEqual([4, 2, 1, 0])
   })
 

@@ -1716,18 +1716,17 @@ select.select:focus {
 }
 
 /* Wettkampf: Punkte eines Laufs antippen erklärt sie */
-.pts-btn {
-  min-width: 34px;
-  text-align: right;
-  font-weight: 700;
-  white-space: nowrap;
+.entrant-btn {
+  width: 100%;
   background: none;
   border: 0;
-  padding: 0 0 1px;
+  padding: 0;
   color: inherit;
-  font-size: inherit;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
   cursor: pointer;
-  border-bottom: 1px dotted var(--faint);
+  min-height: 32px;
 }
 
 .pts-why {

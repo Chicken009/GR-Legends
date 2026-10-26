@@ -345,7 +345,7 @@ function DoneRow({ heat, state, me }: { heat: Heat; state: EventState; me: strin
           </span>
         )}
       </summary>
-      <HeatCard heat={heat} state={state} me={me} />
+      <HeatCard heat={heat} state={state} me={me} headless />
     </details>
   )
 }
@@ -399,7 +399,7 @@ function PointsRules({ state, note }: { state: EventState; note: string | null }
             </div>
           </div>
         )}
-        <span style={{ fontSize: 12, color: 'var(--muted)' }}>Im Ablauf die Punkte eines Laufs antippen – dann steht da die Rechnung.</span>
+        <span style={{ fontSize: 12, color: 'var(--muted)' }}>Im Ablauf einen Fahrer antippen – dann stehen Auto, Zeit und die Rechnung da.</span>
       </section>
 
       <details className="card" style={{ gap: 8 }}>

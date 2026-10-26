@@ -115,42 +115,32 @@ export function sectionFactor(state: EventState, sectionId: string): number {
   return sec.def.weight * (i === last ? state.def.scoring.finaleFactor : 1)
 }
 
-/** Erklärung der Punkte eines Fahrers in einem gefahrenen Lauf, Zeile für Zeile */
+/**
+ * Punkte eines Fahrers in einem gefahrenen Lauf als kurze Rechnung, z. B. „3 Gegner × 1 + Sieg 1 =
+ * 4 Pkt.“; darunter höchstens ein Zusatz (hochgerechnet, Gewichtung, Teamrennen).
+ */
 export function heatPointsExplained(state: EventState, heat: Heat, name: string): string[] {
   const sc = state.def.scoring
   const pos = heat.order.indexOf(name)
   if (heat.status !== 'done' || pos < 0) return []
   const sec = state.sections.find((s) => s.def.id === heat.sectionId)
-  if (heat.advancing) {
-    return [
-      heat.advancing.includes(name) ? 'Weiter in die nächste Runde – Punkte gibt es erst, wenn feststeht, in welcher Runde es endet.' : `Hier ausgeschieden: Punkte für jeden, der früher ausgeschieden ist${sc.method === 'fair' ? ' (gegen Stärkere mehr)' : ''}.`,
-    ]
-  }
+  if (heat.advancing) return [heat.advancing.includes(name) ? 'Weiter – Punkte gibt es am Ende der Runde.' : 'Ausgeschieden – Punkte je Fahrer, der früher raus ist.']
   const pts = heat.points.get(name)
   if (pts == null) return []
   const beaten = heat.order.length - 1 - pos
-  const out: string[] = []
-  if (heat.kind === 'quali') out.push(`Platz ${pos + 1} nach schnellster Runde.`)
-  if (sc.method === 'fair') {
-    out.push(beaten ? `${beaten} Gegner dahinter – gegen Gleichstarke je ${fmt1(sc.perBeaten)}, gegen Stärkere bis ${fmt1(sc.perBeaten * 2)}, gegen Schwächere weniger.` : 'Kein Gegner dahinter.')
-  } else {
-    out.push(beaten ? `${beaten} Gegner dahinter × ${fmt1(sc.perBeaten)} = ${fmt1(beaten * sc.perBeaten)}` : 'Kein Gegner dahinter: 0')
-  }
-  if (pos === 0 && heat.order.length > 1 && sc.win) out.push(sc.method === 'fair' && sc.fairWin ? `Siegbonus bis +${fmt1(sc.win * 2)}, nach Stärke der Gegner.` : `Siegbonus +${fmt1(sc.win)}`)
-  if (sc.method === 'absolute') {
-    const raw = beaten * sc.perBeaten + (pos === 0 && heat.order.length > 1 ? sc.win : 0)
-    const biggest = Math.max(0, ...(sec?.heats.filter((h) => h.kind === heat.kind).map((h) => h.entrants.length) ?? []))
-    if (raw > 0 && Math.abs(raw - pts) > 0.05) out.push(`Hochgerechnet auf einen Lauf mit ${biggest} Fahrern: ${fmt1(raw)} → ${fmt1(pts)}`)
-  } else if (sec && heat.order.length < Math.max(0, ...sec.heats.filter((h) => h.kind === heat.kind).map((h) => h.entrants.length))) {
-    out.push('Weniger Fahrer im Lauf: Die Punkte werden auf den größten Lauf hochgerechnet.')
-  }
-  out.push(`Im Lauf: ${fmt1(pts)} ${pts === 1 ? 'Punkt' : 'Punkte'}`)
-  if (sec?.def.format === 'team') {
-    out.push(state.separate ? 'Teamrennen: zählt nur für die Teamwertung (Schnitt der Fahrer im Team).' : 'Teamrennen: Jedes Team bekommt den Schnitt seiner Fahrer, alle Mitglieder die Teampunkte.')
-  } else {
+  const won = pos === 0 && heat.order.length > 1 && sc.win > 0
+  const fair = sc.method === 'fair'
+  const sum = [`${beaten} Gegner${fair ? '' : ` × ${fmt1(sc.perBeaten)}`}`, won ? `Sieg ${fmt1(sc.win)}` : null].filter(Boolean).join(' + ')
+  const out = [`${sum} = ${fmt1(pts)} Pkt.`]
+  const biggest = Math.max(0, ...(sec?.heats.filter((h) => h.kind === heat.kind).map((h) => h.entrants.length) ?? []))
+  const raw = beaten * sc.perBeaten + (won ? sc.win : 0)
+  if (fair) out.push('Gegen Stärkere mehr, gegen Schwächere weniger.')
+  else if (raw > 0 && Math.abs(raw - pts) > 0.05) out.push(`Hochgerechnet auf ${biggest} Fahrer.`)
+  if (sec?.def.format === 'team') out.push(state.separate ? 'Zählt nur für die Teamwertung.' : 'Zählt als Teampunkte (Schnitt im Team).')
+  else {
     const f = sectionFactor(state, heat.sectionId)
-    if (f === 0) out.push(`${sec?.def.name ?? 'Abschnitt'} zählt nur für die Startreihenfolge.`)
-    else if (f !== 1) out.push(`${sec?.def.name ?? 'Abschnitt'} zählt ×${fmt1(f)} in der Gesamtwertung.`)
+    if (f === 0) out.push('Zählt nur für die Startreihenfolge.')
+    else if (f !== 1) out.push(`Zählt ×${fmt1(f)} in der Gesamtwertung.`)
   }
   return out
 }

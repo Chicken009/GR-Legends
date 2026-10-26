@@ -389,7 +389,7 @@ export function CarChips({ cars, size = 32, label }: { cars: string[]; size?: nu
   )
 }
 
-export function HeatCard({ heat, state, me, children, plain }: { heat: Heat; state: EventState; me: string | null; children?: ReactNode; plain?: boolean }) {
+export function HeatCard({ heat, state, me, children, plain, headless }: { heat: Heat; state: EventState; me: string | null; children?: ReactNode; plain?: boolean; headless?: boolean }) {
   const { model } = useData()
   // Team als farbiger Strich am Zeilenanfang (wie der Rand in den Ranglisten)
   const teamBar = (n: string | null) => {
@@ -406,8 +406,8 @@ export function HeatCard({ heat, state, me, children, plain }: { heat: Heat; sta
   return (
     <div className={`heat${heat.status === 'next' ? ' next' : ''}${mine && !plain ? ' mine' : ''}`}>
       <div className="heat-head">
-        <b>{heat.label}</b>
-        <span className={`status-chip ${heat.status}`}>{STATUS_TEXT[heat.status]}</span>
+        {!headless && <b>{heat.label}</b>}
+        {!headless && <span className={`status-chip ${heat.status}`}>{STATUS_TEXT[heat.status]}</span>}
         {heat.manual && <span className="status-chip">per Hand zugeordnet</span>}
         {heatNote(heat, state) && <span style={{ fontSize: 11, color: 'var(--muted)' }}>{heatNote(heat, state)}</span>}
         {heat.status !== 'done' && heat.grid && <span style={{ fontSize: 11, color: EVENT_ACCENT }}>Startaufstellung nach {heat.gridFrom}</span>}
@@ -424,44 +424,29 @@ export function HeatCard({ heat, state, me, children, plain }: { heat: Heat; sta
             const lines = why === n ? heatPointsExplained(state, heat, n) : []
             return (
               <Fragment key={n}>
-              <div className="entrant" style={teamBar(n)}>
-                <span className="num" style={{ minWidth: 18, color: 'var(--muted)' }}>
-                  {i + 1}.
-                </span>
-                <span className="entrant-text">
-                  <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                    <span style={{ ...nameStyle(n), overflow: 'hidden', textOverflow: 'ellipsis' }}>{n === me ? `Du · ${n}` : n}</span>
-                    {r?.validBestLapMs && (
-                      <span className="num" title="Beste Runde" style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-2)' }}>
-                        {formatTime(r.validBestLapMs)}
+                <button className="entrant entrant-btn" style={teamBar(n)} aria-expanded={why === n} onClick={() => setWhy(why === n ? null : n)}>
+                  <span className="num" style={{ minWidth: 18, color: 'var(--muted)' }}>
+                    {i + 1}.
+                  </span>
+                  <span style={{ ...nameStyle(n), flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'left' }}>{n === me ? `Du · ${n}` : n}</span>
+                  <span className="num" style={{ fontWeight: 700, color: heat.advancing?.includes(n) ? EVENT_ACCENT : undefined }}>
+                    {pts}
+                  </span>
+                </button>
+                {why === n && (
+                  <div className="pts-why">
+                    {r?.car && (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text)' }}>
+                        <CarThumb car={r.car} size={32} />
+                        <span style={{ flex: 1, minWidth: 0 }}>{r.car}</span>
                       </span>
                     )}
-                  </span>
-                  {r?.car && <span className="entrant-sub">{r.car}</span>}
-                </span>
-                {r?.car && <CarThumb car={r.car} size={30} />}
-                {pts ? (
-                  <button
-                    className="num pts-btn"
-                    aria-expanded={why === n}
-                    aria-label={`${n}: ${pts} – woher kommen die Punkte?`}
-                    title="Woher kommen die Punkte?"
-                    onClick={() => setWhy(why === n ? null : n)}
-                    style={{ color: heat.advancing?.includes(n) ? EVENT_ACCENT : undefined }}
-                  >
-                    {pts}
-                  </button>
-                ) : (
-                  <span style={{ minWidth: 34 }} />
+                    {r?.validBestLapMs && <span>Beste Runde: {formatTime(r.validBestLapMs)}</span>}
+                    {lines.map((l) => (
+                      <span key={l}>{l}</span>
+                    ))}
+                  </div>
                 )}
-              </div>
-              {lines.length > 0 && (
-                <div className="pts-why">
-                  {lines.map((l) => (
-                    <span key={l}>{l}</span>
-                  ))}
-                </div>
-              )}
               </Fragment>
             )
           })
