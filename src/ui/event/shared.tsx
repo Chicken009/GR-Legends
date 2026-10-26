@@ -428,12 +428,18 @@ export function HeatCard({ heat, state, me, children, plain }: { heat: Heat; sta
                 <span className="num" style={{ minWidth: 18, color: 'var(--muted)' }}>
                   {i + 1}.
                 </span>
-                <span style={nameStyle(n)}>{n === me ? `Du · ${n}` : n}</span>
-                <span className="car">
-                  {r?.car}
-                  {r?.validBestLapMs ? ` · ${formatTime(r.validBestLapMs)}` : ''}
+                <span className="entrant-text">
+                  <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                    <span style={{ ...nameStyle(n), overflow: 'hidden', textOverflow: 'ellipsis' }}>{n === me ? `Du · ${n}` : n}</span>
+                    {r?.validBestLapMs && (
+                      <span className="num" title="Beste Runde" style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-2)' }}>
+                        {formatTime(r.validBestLapMs)}
+                      </span>
+                    )}
+                  </span>
+                  {r?.car && <span className="entrant-sub">{r.car}</span>}
                 </span>
-                {r?.car && <CarThumb car={r.car} size={26} />}
+                {r?.car && <CarThumb car={r.car} size={30} />}
                 {pts ? (
                   <button
                     className="num pts-btn"
@@ -466,9 +472,11 @@ export function HeatCard({ heat, state, me, children, plain }: { heat: Heat; sta
                   {i + 1}.
                 </span>
               )}
-              <span style={nameStyle(e.name)}>{e.name && e.name === me ? `Du · ${e.label}` : e.label}</span>
-              <span className="car">{e.name ? heat.cars[e.name] ?? '' : ''}</span>
-              {e.name && heat.cars[e.name] && <CarThumb car={heat.cars[e.name]} size={26} />}
+              <span className="entrant-text">
+                <span style={nameStyle(e.name)}>{e.name && e.name === me ? `Du · ${e.label}` : e.label}</span>
+                {e.name && heat.cars[e.name] && <span className="entrant-sub">{heat.cars[e.name]}</span>}
+              </span>
+              {e.name && heat.cars[e.name] && <CarThumb car={heat.cars[e.name]} size={30} />}
             </div>
           ))}
       {heat.status !== 'done' && heat.carChoice ? (
