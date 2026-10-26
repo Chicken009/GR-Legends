@@ -6,7 +6,8 @@ import { Avatar, useData } from '../components'
 import { formatTime } from '../format'
 import { heatLength } from '../../domain/event/types'
 import { CarThumb } from '../CarPhoto'
-import { EVENT_ACCENT, fmtPts, PhasePill, phaseOf, Podium, StoryIcon, teamColor, teamEloText, TeamTag, useEventState } from '../event/shared'
+import { recapMoments } from '../../domain/event/progress'
+import { EVENT_ACCENT, fmtPts, PhasePill, phaseOf, Podium, StoryIcon, teamColor, teamEloText, TeamTag, useEventHistory, useEventState } from '../event/shared'
 
 const REFRESH_MS = 30_000
 const TICKER_MS = 8_000
@@ -21,6 +22,7 @@ export function EventLive() {
   const data = useData()
   const folder = data.events.find((e) => e.id === id)
   const state = useEventState(folder)
+  const steps = useEventHistory(folder)
   const queryClient = useQueryClient()
   const [updated, setUpdated] = useState(() => new Date())
   const [tick, setTick] = useState(0)
@@ -55,12 +57,13 @@ export function EventLive() {
   }
   const def = folder.def
   const phase = phaseOf(def, state)
-  const stories = storylines(state)
+  const done = phase === 'done' && state.started
+  // Nach dem Wettkampf läuft der Rückblick: besondere Momente zum gemeinsamen Anschauen
+  const stories = done ? recapMoments(state, steps) : storylines(state)
   const story = stories.length ? stories[tick % stories.length] : null
   const showPlan = planVisible(def, todayIso())
   const lastDone = [...state.heats].reverse().find((h) => h.status === 'done')
   const after = state.next ? state.heats.slice(state.heats.indexOf(state.next) + 1).filter((h) => h.status !== 'done').slice(0, 2) : []
-  const done = phase === 'done' && state.started
 
   return (
     <div className="live" style={{ ['--accent' as string]: EVENT_ACCENT }}>

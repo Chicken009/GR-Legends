@@ -1,5 +1,6 @@
 import type { Result, Session } from '../../types'
 import { computeEvent, type EventContext, type EventState } from './engine'
+import { heatMs } from './progress'
 import { seededRandom } from './random'
 import type { EventDef } from './types'
 
@@ -100,8 +101,7 @@ export function simulate(def: EventDef, ctx: EventContext, lapMs: number, runs =
   const heats = first?.heats.filter((h) => h.status === 'done') ?? []
   const perDriver = new Map<string, number>()
   for (const h of heats) for (const n of h.order) perDriver.set(n, (perDriver.get(n) ?? 0) + 1)
-  // Pro Lauf: Runden × typische Rundenzeit (+10 % für Abflüge) bzw. die feste Zeit, plus 2 Minuten Wechsel
-  const ms = heats.reduce((sum, h) => sum + (h.minutes ? h.minutes * 60_000 : (h.laps ?? (h.kind === 'quali' ? 4 : 10)) * lapMs * 1.1) + 120_000, 0)
+  const ms = heats.reduce((sum, h) => sum + heatMs(h, lapMs), 0)
   return {
     runs,
     heats: heats.length,

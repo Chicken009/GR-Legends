@@ -1,26 +1,57 @@
 import { Link, useParams } from 'react-router-dom'
 import { driverInsight, planFromText, planVisible, storylines, todayIso } from '../../domain/event/insights'
+import { eventProgress, placePoints, sectionFactor, waitFor } from '../../domain/event/progress'
 import { FORMAT_LABEL, heatLength } from '../../domain/event/types'
 import { teamSplit } from '../../domain/event/engine'
-import { Avatar, PageHead, Segment, useData, useMyName } from '../components'
-import type { EventState } from '../../domain/event/engine'
+import { Avatar, PageHead, Segment, Tile, useData, useMyName } from '../components'
+import type { EventState, Heat } from '../../domain/event/engine'
 import { useMe } from '../me'
 import { StrokeIcon, TOOL_ICONS } from '../icons'
 import { useStored } from '../useStored'
 import { CarThumb } from '../CarPhoto'
-import { CarChips, dateRange, EVENT_ACCENT, fmtPts, HeatCard, PhasePill, phaseOf, Podium, rulesText, StandingsList, Stories, teamColor, TeamList, TeamStandings, TeamTag, useEventState } from '../event/shared'
+import { Recap } from '../event/Recap'
+import {
+  BONUS_ICON,
+  CarChips,
+  dateRange,
+  EVENT_ACCENT,
+  fmtPts,
+  HeatCard,
+  PhasePill,
+  phaseOf,
+  Podium,
+  ProgressChart,
+  rulesText,
+  StandingsList,
+  Stories,
+  teamColor,
+  TeamList,
+  TeamStandings,
+  TeamTag,
+  useEventHistory,
+  useEventState,
+  useLapMs,
+} from '../event/shared'
 
-type Tab = 'stand' | 'ablauf' | 'regeln'
+type Tab = 'stand' | 'ablauf' | 'punkte' | 'rueckblick'
+
+/** „ca. 25 Min.“ bzw. „ca. 1 Std. 10 Min.“ */
+const fmtMinutes = (m: number) => {
+  const r = Math.max(5, Math.round(m / 5) * 5)
+  return r < 60 ? `ca. ${r} Min.` : `ca. ${Math.floor(r / 60)} Std.${r % 60 ? ` ${r % 60} Min.` : ''}`
+}
 
 export function EventView() {
   const { id = '' } = useParams()
   const data = useData()
   const folder = data.events.find((e) => e.id === id)
   const state = useEventState(folder)
+  const steps = useEventHistory(folder)
+  const lapMs = useLapMs(folder)
   const { me: picked } = useMe()
   const known = useMyName()
   const me = picked && state?.drivers.includes(picked) ? picked : known
-  const [tab, setTab] = useStored<Tab>('event:tab', 'stand')
+  const [stored, setTab] = useStored<Tab>('event:tab', 'stand')
   if (!folder || !state) {
     return (
       <div className="page">
@@ -37,6 +68,18 @@ export function EventView() {
   const showPlan = planVisible(def, today)
   const insight = me && state.drivers.includes(me) ? driverInsight(state, me) : null
   const stories = storylines(state)
+  const progress = eventProgress(state, lapMs)
+  const tabs: [Tab, string][] = [
+    ['stand', 'Stand'],
+    ['ablauf', 'Ablauf'],
+    ['punkte', 'Punkte'],
+    ...(state.started ? [['rueckblick', 'Rückblick'] as [Tab, string]] : []),
+  ]
+  const tab = tabs.some(([t]) => t === stored) ? stored : 'stand'
+  const openRecap = () => {
+    setTab('rueckblick')
+    requestAnimationFrame(() => document.getElementById('event-tabs')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+  }
   return (
     <div className="page" style={{ ['--accent' as string]: EVENT_ACCENT }}>
       <PageHead title={def.name} kicker={`Wettkampf · ${dateRange(def)}`} color={EVENT_ACCENT}>
@@ -49,13 +92,23 @@ export function EventView() {
         <span className="pill">{folder.tracks.join(', ')}</span>
         <span className="pill">{state.drivers.length} Fahrer</span>
         {state.teams.length > 0 && <span className="pill">Teams {teamSplit(state.teams)}</span>}
-        <span className="pill">{def.scoring.method === 'fair' ? 'Wertung fair' : 'Wertung absolut'}</span>
         <span style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
           <Link to={`/wettkampf/${id}/leinwand`} className="btn round">
             Leinwand
           </Link>
         </span>
       </div>
+      {showPlan && progress.total > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div className="ev-progress" role="progressbar" aria-valuemin={0} aria-valuemax={progress.total} aria-valuenow={progress.done} aria-label="Gefahrene Läufe">
+            <span style={{ width: `${(progress.done / progress.total) * 100}%` }} />
+          </div>
+          <span style={{ fontSize: 12, color: 'var(--muted)' }}>
+            {progress.done} von {progress.total} Läufen gefahren
+            {progress.done < progress.total && progress.minutesLeft > 0 ? ` · noch ${fmtMinutes(progress.minutesLeft)}` : ''}
+          </span>
+        </div>
+      )}
       {folder.problem && (
         <p className="inner" style={{ margin: 0, padding: '10px 12px', fontSize: 12, color: 'var(--muted)' }}>
           {folder.problem}
@@ -76,61 +129,21 @@ export function EventView() {
               Bestes Team: <b style={{ color: teamColor(state.teamStandings[0].id, state.teamStandings[0].name) }}>{state.teamStandings[0].name}</b> ({state.teamStandings[0].drivers.join(', ')})
             </span>
           )}
+          <button className="btn round" style={{ alignSelf: 'center' }} onClick={openRecap}>
+            Rückblick ansehen
+          </button>
         </section>
       )}
 
-      {insight && (
-        <section className="card me-row" style={{ gap: 8 }}>
-          <div className="card-head">
-            <span className="card-title">Dein Wettkampf</span>
-            {insight.standing && state.started && (
-              <span className="num" style={{ fontWeight: 800 }}>
-                Platz {insight.standing.rank} · {fmtPts(insight.standing.total)} Punkte
-              </span>
-            )}
-          </div>
-          {showPlan && insight.nextHeat && (
-            <span style={{ fontSize: 14 }}>
-              Als Nächstes: <b>{insight.nextHeat.label}</b>
-              {insight.nextHeat.entrants.length > 1 && ` gegen ${insight.nextHeat.entrants.filter((e) => e.name !== me).map((e) => e.label).join(', ')}`}
-            </span>
-          )}
-          {showPlan && insight.nextHeat && me && insight.nextHeat.cars[me] && (
-            <span style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14 }}>
-              <CarThumb car={insight.nextHeat.cars[me]} size={44} />
-              <span>
-                Dein Auto: <b>{insight.nextHeat.cars[me]}</b>
-              </span>
-            </span>
-          )}
-          {showPlan && !insight.nextHeat && state.started && <span style={{ fontSize: 13, color: 'var(--muted)' }}>Keine Läufe mehr für dich geplant.</span>}
-          {[...(showPlan ? insight.needs : []), ...insight.tips].map((t) => (
-            <span key={t} style={{ fontSize: 13, color: 'var(--text-2)', lineHeight: 1.45 }}>
-              • {t}
-            </span>
-          ))}
-        </section>
-      )}
+      {insight && <MyEvent state={state} me={me!} insight={insight} showPlan={showPlan} lapMs={lapMs} />}
 
-      {showPlan && state.next && phase !== 'done' && (
-        <section className="card" style={{ gap: 8 }}>
-          <span className="card-title">Als Nächstes</span>
-          <HeatCard heat={state.next} state={state} me={me} />
-        </section>
-      )}
+      {showPlan && state.next && phase !== 'done' && <NextUp state={state} me={me} />}
 
-      <Stories list={stories} />
+      {phase !== 'done' && <Stories list={stories} />}
 
-      <Segment
-        value={tab}
-        onChange={setTab}
-        label="Ansicht"
-        options={[
-          ['stand', 'Stand'],
-          ['ablauf', 'Ablauf'],
-          ['regeln', 'Regeln'],
-        ]}
-      />
+      <div id="event-tabs" style={{ scrollMarginTop: 12 }}>
+        <Segment value={tab} onChange={setTab} label="Ansicht" options={tabs} />
+      </div>
 
       {tab === 'stand' &&
         (state.started ? (
@@ -138,11 +151,12 @@ export function EventView() {
             <section className="card" style={{ gap: 2 }}>
               <div className="card-head">
                 <span className="card-title">{state.separate ? 'Einzelwertung' : 'Gesamtwertung'}</span>
-                <span className="hint">{state.separate ? 'Punkte aus den Einzelrennen' : 'Punkte'}</span>
+                <span className="hint">{state.separate ? 'Punkte aus den Einzelrennen' : 'Punkte · Abstand zur Spitze'}</span>
               </div>
               <StandingsList state={state} me={me} />
             </section>
-            <TeamStandings state={state} />
+            <TeamStandings state={state} me={me} />
+            <ProgressChart state={state} steps={steps} me={me} />
           </>
         ) : (
           <>
@@ -153,58 +167,256 @@ export function EventView() {
 
       {tab === 'ablauf' &&
         (showPlan ? (
-          state.sections.map((sec) => (
-            <section key={sec.def.id} className="card" style={{ gap: 8 }}>
-              <div className="card-head">
-                <span className="card-title">{sec.def.name}</span>
-                <span className="hint">
-                  {FORMAT_LABEL[sec.def.format]}
-                  {heatLength(sec.def) ? ` · ${heatLength(sec.def)}` : ''}
-                </span>
-              </div>
-              {sec.heats.length === 0 && <span style={{ fontSize: 13, color: 'var(--muted)' }}>Noch keine Läufe.</span>}
-              {sec.heats.map((h) => (
-                <HeatCard key={h.id} heat={h} state={state} me={me} />
-              ))}
-              {sec.started && sec.ranking.length > 0 && sec.def.format !== 'team' && (
-                <details>
-                  <summary style={{ fontSize: 13, color: 'var(--text-2)', cursor: 'pointer' }}>Wertung {sec.def.name}</summary>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 6 }}>
-                    {sec.ranking.map((r) => (
-                      <div key={r.name} className="entrant">
-                        <span className="num" style={{ minWidth: 22, color: 'var(--muted)' }}>
-                          {r.rank}.
-                        </span>
-                        <span style={r.name === me ? { color: 'var(--me)', fontWeight: 600 } : undefined}>{r.name}</span>
-                        <span className="car">{r.detail}</span>
-                        <span className="num" style={{ minWidth: 34, textAlign: 'right', fontWeight: 700 }}>
-                          {sec.def.weight > 0 ? fmtPts(r.points) : ''}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </details>
-              )}
-            </section>
-          ))
+          state.sections.map((sec) => <SectionCard key={sec.def.id} sec={sec} state={state} me={me} />)
         ) : (
           <section className="card">
             <span style={{ fontSize: 14, color: 'var(--text-2)' }}>Der Ablauf wird {planFromText(def)} sichtbar.</span>
           </section>
         ))}
 
-      {tab === 'regeln' && (
-        <section className="card" style={{ gap: 8 }}>
-          <span className="card-title">So wird gewertet</span>
-          <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: 'var(--text-2)', lineHeight: 1.6 }}>
-            {rulesText(def, state).map((t) => (
-              <li key={t}>{t}</li>
-            ))}
-          </ul>
-        </section>
-      )}
-      {tab === 'regeln' && <CarsCard def={def} />}
+      {tab === 'punkte' && <PointsRules state={state} />}
+      {tab === 'punkte' && <CarsCard def={def} />}
+
+      {tab === 'rueckblick' && <Recap state={state} steps={steps} me={me} />}
     </div>
+  )
+}
+
+/** Eigene Karte: Platz, Punkte, Team, wann man dran ist und was drin ist */
+function MyEvent({ state, me, insight, showPlan, lapMs }: { state: EventState; me: string; insight: ReturnType<typeof driverInsight>; showPlan: boolean; lapMs: number }) {
+  const s = insight.standing
+  const team = s?.teamId ? state.teamStandings.find((t) => t.id === s.teamId) : null
+  const color = team ? teamColor(team.id, team.name) : undefined
+  const wait = showPlan ? waitFor(state, me, lapMs) : null
+  const heat = insight.nextHeat
+  return (
+    <section className="card me-row" style={{ gap: 10 }}>
+      <div className="card-head">
+        <span className="card-title">Dein Wettkampf</span>
+        {team && <TeamTag id={team.id} name={team.name} size={12} />}
+      </div>
+      {s && state.started && (
+        <div className="tiles">
+          <Tile value={`${s.rank}.`} label={`Platz von ${state.standings.length}`} color="var(--me)" />
+          <Tile value={fmtPts(s.total)} label="Punkte" color={color} />
+          {team ? (
+            <>
+              <Tile value={`${team.rank}.`} label="Team-Platz" color={color} />
+              <Tile value={fmtPts(team.points)} label="Team-Punkte" color={color} />
+            </>
+          ) : (
+            <>
+              <Tile value={insight.above ? `−${fmtPts(Math.round((insight.above.total - s.total) * 10) / 10)}` : '–'} label={insight.above ? `auf Platz ${insight.above.rank}` : 'du führst'} />
+              <Tile value={String(s.wins)} label={s.wins === 1 ? 'Sieg' : 'Siege'} />
+            </>
+          )}
+        </div>
+      )}
+      {showPlan && heat && wait && (
+        <div className={`heat-wait${wait.ahead === 0 ? ' now' : ''}`}>
+          <span className="kicker" style={{ color: wait.ahead === 0 ? EVENT_ACCENT : 'var(--muted)' }}>
+            {wait.ahead === 0 ? (heat.status === 'next' ? 'Du bist jetzt dran' : 'Dein nächster Lauf') : `Du bist in ${wait.ahead} ${wait.ahead === 1 ? 'Lauf' : 'Läufen'} dran · ${fmtMinutes(wait.minutes)}`}
+          </span>
+          <span style={{ fontSize: 14 }}>
+            <b>{heat.label}</b>
+            {heat.entrants.length > 1 && ` gegen ${heat.entrants.filter((e) => e.name !== me).map((e) => e.label).join(', ')}`}
+          </span>
+          {heat.cars[me] && (
+            <span style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
+              <CarThumb car={heat.cars[me]} size={40} />
+              <span>
+                Dein Auto: <b>{heat.cars[me]}</b>
+              </span>
+            </span>
+          )}
+          {heat.grid && <span style={{ fontSize: 12, color: 'var(--muted)' }}>Startplatz {heat.grid.findIndex((e) => e.name === me) + 1}</span>}
+        </div>
+      )}
+      {showPlan && !heat && state.started && <span style={{ fontSize: 13, color: 'var(--muted)' }}>{state.complete ? 'Alle deine Läufe sind gefahren.' : 'Gerade ist kein Lauf mehr für dich eingeplant.'}</span>}
+      {[...(showPlan ? insight.needs : []), ...insight.tips].map((t) => (
+        <span key={t} style={{ fontSize: 13, color: 'var(--text-2)', lineHeight: 1.45 }}>
+          • {t}
+        </span>
+      ))}
+    </section>
+  )
+}
+
+/** Nächster Lauf und die zwei danach */
+function NextUp({ state, me }: { state: EventState; me: string | null }) {
+  const next = state.next!
+  const after = state.heats.slice(state.heats.indexOf(next) + 1).filter((h) => h.status !== 'done').slice(0, 2)
+  return (
+    <section className="card" style={{ gap: 8 }}>
+      <div className="card-head">
+        <span className="card-title">Als Nächstes</span>
+        <span className="hint">{[state.sections.find((s) => s.def.id === next.sectionId)?.def.name, heatLength(next)].filter(Boolean).join(' · ')}</span>
+      </div>
+      <HeatCard heat={next} state={state} me={me} />
+      {after.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <span style={{ fontSize: 12, color: 'var(--muted)' }}>Danach</span>
+          {after.map((h) => (
+            <AfterRow key={h.id} heat={h} me={me} />
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
+function AfterRow({ heat, me }: { heat: Heat; me: string | null }) {
+  const mine = !!me && heat.entrants.some((e) => e.name === me)
+  return (
+    <span style={{ fontSize: 13, color: 'var(--text-2)', ...(mine ? { color: 'var(--me)', fontWeight: 600 } : null) }}>
+      <b>{heat.label}</b>: {heat.entrants.map((e) => (e.name === me ? 'du' : e.label)).join(', ')}
+    </span>
+  )
+}
+
+/** Abschnitt im Ablauf: gefahrene Läufe eingeklappt, offene sichtbar */
+function SectionCard({ sec, state, me }: { sec: EventState['sections'][number]; state: EventState; me: string | null }) {
+  const done = sec.heats.filter((h) => h.status === 'done')
+  const open = sec.heats.filter((h) => h.status !== 'done')
+  const fold = done.length > 0 && open.length > 0 ? done : sec.complete && sec.heats.length > 3 ? done : []
+  const shown = sec.heats.filter((h) => !fold.includes(h))
+  return (
+    <section className="card" style={{ gap: 8 }}>
+      <div className="card-head">
+        <span className="card-title">{sec.def.name}</span>
+        <span className="hint">
+          {FORMAT_LABEL[sec.def.format]}
+          {heatLength(sec.def) ? ` · ${heatLength(sec.def)}` : ''}
+          {sec.heats.length ? ` · ${done.length}/${sec.heats.length}` : ''}
+        </span>
+      </div>
+      {sec.heats.length === 0 && <span style={{ fontSize: 13, color: 'var(--muted)' }}>Noch keine Läufe.</span>}
+      {fold.length > 0 && (
+        <details>
+          <summary style={{ fontSize: 13, color: 'var(--text-2)', cursor: 'pointer' }}>
+            {fold.length} {fold.length === 1 ? 'gefahrener Lauf' : 'gefahrene Läufe'}
+          </summary>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
+            {fold.map((h) => (
+              <HeatCard key={h.id} heat={h} state={state} me={me} />
+            ))}
+          </div>
+        </details>
+      )}
+      {shown.map((h) => (
+        <HeatCard key={h.id} heat={h} state={state} me={me} />
+      ))}
+      {sec.started && sec.ranking.length > 0 && sec.def.format !== 'team' && (
+        <details open={sec.complete}>
+          <summary style={{ fontSize: 13, color: 'var(--text-2)', cursor: 'pointer' }}>Wertung {sec.def.name}</summary>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 6 }}>
+            {sec.ranking.map((r) => (
+              <div key={r.name} className="entrant">
+                <span className="num" style={{ minWidth: 22, color: 'var(--muted)' }}>
+                  {r.rank}.
+                </span>
+                <span style={r.name === me ? { color: 'var(--me)', fontWeight: 600 } : undefined}>{r.name}</span>
+                <span className="car">{r.detail}</span>
+                <span className="num" style={{ minWidth: 34, textAlign: 'right', fontWeight: 700 }}>
+                  {sec.def.weight > 0 ? fmtPts(r.points) : ''}
+                </span>
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+    </section>
+  )
+}
+
+const BONUS_TEXT = {
+  fastestLap: 'Schnellste Runde aller Rennen',
+  pole: 'Pole im Qualifying',
+  driverOfDay: 'Fahrer des Tages (am meisten über der Erwartung)',
+  personalBest: 'Neue persönliche Bestzeit auf der Strecke',
+  clean: 'Je Rennen ohne Abflug',
+} as const
+
+/** Wofür gibt es Punkte? Kurz und mit Beispiel, darunter alle Regeln */
+function PointsRules({ state }: { state: EventState }) {
+  const def = state.def
+  const sc = def.scoring
+  const raceSizes = state.heats.filter((h) => h.kind === 'race').map((h) => h.entrants.length)
+  const n = Math.max(2, Math.min(raceSizes.length ? Math.max(...raceSizes) : def.maxPerHeat, state.drivers.length || def.maxPerHeat))
+  const places = placePoints(def, n)
+  const sections = state.sections.filter((s) => s.def.format !== 'free')
+  const bonuses = (Object.keys(BONUS_TEXT) as (keyof typeof BONUS_TEXT)[]).filter((k) => sc[k] > 0)
+  return (
+    <>
+      <section className="card" style={{ gap: 12 }}>
+        <span className="card-title">So gibt es Punkte</span>
+        <span style={{ fontSize: 14, color: 'var(--text-2)', lineHeight: 1.5 }}>
+          Für jeden Gegner, der im Lauf hinter dir landet, gibt es {sc.method === 'fair' ? <>bis zu <b>{fmtPts(sc.perBeaten * 2)}</b> Punkte – je stärker der Gegner laut Elo, desto mehr (gegen Gleichstarke {fmtPts(sc.perBeaten)})</> : <><b>{fmtPts(sc.perBeaten)}</b> {sc.perBeaten === 1 ? 'Punkt' : 'Punkte'}</>}. Der Sieger bekommt <b>+{fmtPts(sc.win)}</b> extra{sc.method === 'fair' && sc.fairWin ? ', ebenfalls nach Stärke gewichtet' : ''}.
+        </span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <span style={{ fontSize: 12, color: 'var(--muted)' }}>
+            Beispiel: Lauf mit {n} Fahrern{sc.method === 'fair' ? ', alle gleich stark' : ''}
+          </span>
+          <div className="place-pts">
+            {places.map((p, i) => (
+              <span key={i}>
+                <b>{fmtPts(p)}</b>Platz {i + 1}
+              </span>
+            ))}
+          </div>
+          <span style={{ fontSize: 12, color: 'var(--muted)' }}>Läufe mit weniger Fahrern werden hochgerechnet. Tipp: Im Ablauf die Punkte eines Laufs antippen – dann steht da, wie sie zustande kommen.</span>
+        </div>
+      </section>
+
+      <section className="card" style={{ gap: 6 }}>
+        <span className="card-title">Was wie viel zählt</span>
+        {sections.map((sec) => {
+          const f = sectionFactor(state, sec.def.id)
+          const value = sec.def.format === 'team' ? (state.separate ? 'nur Team' : `×${fmtPts(f)}`) : f === 0 ? 'Startplatz' : `×${fmtPts(f)}`
+          return (
+            <div key={sec.def.id} className="entrant">
+              <span>{sec.def.name}</span>
+              <span className="car">{FORMAT_LABEL[sec.def.format]}</span>
+              <span className="num" style={{ minWidth: 70, textAlign: 'right', fontWeight: 700, color: f > 1 ? EVENT_ACCENT : undefined }}>
+                {value}
+              </span>
+            </div>
+          )
+        })}
+        {bonuses.length > 0 && (
+          <>
+            <span style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>Bonuspunkte</span>
+            {bonuses.map((k) => (
+              <div key={k} className="entrant">
+                <span className="day-chip" style={{ color: 'var(--gold)' }}>
+                  {BONUS_ICON[k]}
+                </span>
+                <span>{BONUS_TEXT[k]}</span>
+                <span className="num" style={{ marginLeft: 'auto', fontWeight: 700, color: 'var(--gold)' }}>
+                  +{fmtPts(sc[k])}
+                </span>
+              </div>
+            ))}
+          </>
+        )}
+        {state.teams.length > 0 && (
+          <span style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6, lineHeight: 1.45 }}>
+            {state.separate ? 'Teamwertung: nur aus den Teamrennen – Einzelrennen zählen für die eigenen Punkte.' : 'Teamwertung: Schnitt der Punkte aller Mitglieder – unterschiedlich große Teams bleiben fair.'}
+          </span>
+        )}
+      </section>
+
+      <details className="card" style={{ gap: 8 }}>
+        <summary className="card-title" style={{ cursor: 'pointer' }}>
+          Alle Regeln im Detail
+        </summary>
+        <ul style={{ margin: '8px 0 0', paddingLeft: 18, fontSize: 13, color: 'var(--text-2)', lineHeight: 1.6 }}>
+          {rulesText(def, state).map((t) => (
+            <li key={t}>{t}</li>
+          ))}
+        </ul>
+      </details>
+    </>
   )
 }
 

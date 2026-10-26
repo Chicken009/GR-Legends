@@ -1715,3 +1715,86 @@ select.select:focus {
     transition: none;
   }
 }
+
+/* Wettkampf: Punkte eines Laufs antippen erklärt sie */
+.pts-btn {
+  min-width: 34px;
+  text-align: right;
+  font-weight: 700;
+  white-space: nowrap;
+  background: none;
+  border: 0;
+  padding: 0 0 1px;
+  color: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  border-bottom: 1px dotted var(--faint);
+}
+
+.pts-why {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: -2px 0 4px 26px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: var(--inner);
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-2);
+}
+
+/* Fortschritt eines Wettkampfs */
+.ev-progress {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--line-2);
+  overflow: hidden;
+}
+
+.ev-progress > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+}
+
+/* Punkte je Platz */
+.place-pts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.place-pts > span {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 42px;
+  padding: 4px 6px;
+  border-radius: 10px;
+  background: var(--inner);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.place-pts > span b {
+  font-size: 15px;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Wettkampf: eigener nächster Lauf */
+.heat-wait {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--inner-2);
+  border: 1px solid transparent;
+}
+
+.heat-wait.now {
+  border-color: var(--accent);
+}

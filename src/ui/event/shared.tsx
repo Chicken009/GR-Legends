@@ -1,14 +1,16 @@
-import { useMemo, type ReactNode } from 'react'
+import { Fragment, useMemo, useState, type ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import type { AppData } from '../../data/useRaceDays'
 import { eventSessions } from '../../data/useRaceDays'
 import type { EventFolder } from '../../data/events'
-import { eventContext } from '../../domain/event/context'
+import { eventContext, typicalLapMs } from '../../domain/event/context'
 import { computeEvent, type EventState, type Heat, type Standing } from '../../domain/event/engine'
 import { eventPhase, lastDay, todayIso, type EventPhase, type Story } from '../../domain/event/insights'
+import { heatPointsExplained, pointsHistory, type ProgressStep } from '../../domain/event/progress'
 import { FORMAT_LABEL, type EventDef } from '../../domain/event/types'
-import { AREA, SERIES } from '../colors'
-import { Avatar, driverPath, useData } from '../components'
+import { AREA, ME, SERIES } from '../colors'
+import { PointsChart } from '../charts/PointsChart'
+import { Avatar, driverPath, Segment, useData } from '../components'
 import { fmtElo, fmtNum, formatDate, formatTime } from '../format'
 import { Bolt, Crown, PoleFlag, Rocket, Sword, Trophy } from '../icons'
 import { CarThumb } from '../CarPhoto'
@@ -46,15 +48,31 @@ export function TeamTag({ id, name, size }: { id: string | null | undefined; nam
   )
 }
 
+const contextFor = (data: AppData, def: EventDef, folderId: string | null) =>
+  eventContext(def, data.model.rating, data.allSessions, folderId ? eventSessions(data.allSessions, folderId) : [], def.track ?? null)
+
 export function computeFor(data: AppData, def: EventDef, folderId: string | null): EventState {
-  const sessions = folderId ? eventSessions(data.allSessions, folderId) : []
-  return computeEvent(def, eventContext(def, data.model.rating, data.allSessions, sessions, def.track ?? null))
+  return computeEvent(def, contextFor(data, def, folderId))
 }
 
 export function useEventState(folder: EventFolder | undefined, def?: EventDef) {
   const data = useData()
   const d = def ?? folder?.def
   return useMemo(() => (d ? computeFor(data, d, folder?.id ?? null) : null), [data, d, folder?.id])
+}
+
+/** Stand nach jedem gefahrenen Lauf (für Punkteverlauf und Rückblick) */
+export function useEventHistory(folder: EventFolder | undefined): ProgressStep[] {
+  const data = useData()
+  const def = folder?.def
+  return useMemo(() => (def && folder ? pointsHistory(def, contextFor(data, def, folder.id)) : []), [data, def, folder])
+}
+
+/** Typische Rundenzeit auf der Strecke des Wettkampfs (für die Zeitschätzung) */
+export function useLapMs(folder: EventFolder | undefined): number {
+  const data = useData()
+  const track = folder?.def.track ?? folder?.tracks[0] ?? null
+  return useMemo(() => typicalLapMs(data.allSessions, track), [data, track])
 }
 
 export const PHASE_LABEL: Record<EventPhase, string> = { planned: 'geplant', running: 'läuft', done: 'beendet' }
@@ -113,12 +131,13 @@ export function Stories({ list }: { list: Story[] }) {
   )
 }
 
-const BONUS_ICON = { fastestLap: '⚡', pole: 'P', driverOfDay: '★', personalBest: 'PB', clean: '✓' } as const
+export const BONUS_ICON = { fastestLap: '⚡', pole: 'P', driverOfDay: '★', personalBest: 'PB', clean: '✓' } as const
 
 export function StandingsList({ state, me, compact }: { state: EventState; me: string | null; compact?: boolean }) {
   const location = useLocation()
   const { model } = useData()
   const scoring = state.sections.filter((s) => s.def.weight > 0 && s.def.format !== 'free')
+  const leader = state.standings[0]?.total ?? 0
   return (
     <>
       {state.standings.map((r) => {
@@ -158,14 +177,15 @@ export function StandingsList({ state, me, compact }: { state: EventState; me: s
               )}
             </span>
             <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', paddingTop: 2 }}>
-              <span className="num" style={{ fontSize: 20, fontWeight: 800 }}>
+              <span className="num" style={{ fontSize: 20, fontWeight: 800, color: r.team ? teamColor(r.teamId, r.team) : undefined }}>
                 {fmtPts(r.total)}
               </span>
-              <span style={{ fontSize: 10, color: 'var(--muted)' }}>Punkte</span>
+              <span style={{ fontSize: 10, color: 'var(--muted)' }}>{r.rank > 1 && leader - r.total > 0 ? `−${fmtPts(Math.round((leader - r.total) * 10) / 10)}` : 'Punkte'}</span>
             </span>
           </>
         )
-        const style = { padding: '8px', alignItems: 'flex-start' } as const
+        // Teamfarbe als Streifen links, Punkte in Teamfarbe
+        const style = { padding: '8px', alignItems: 'flex-start', ...(r.team ? { borderLeft: `4px solid ${teamColor(r.teamId, r.team)}` } : null) } as const
         return known ? (
           <Link key={r.name} to={driverPath(r.name)} state={{ bg: location }} className={`row${r.name === me ? ' me-row' : ''}`} style={style}>
             {body}
@@ -212,30 +232,83 @@ export function TeamList({ state }: { state: EventState }) {
   )
 }
 
-export function TeamStandings({ state }: { state: EventState }) {
+export function TeamStandings({ state, me }: { state: EventState; me?: string | null }) {
   if (!state.teamStandings.length) return null
+  const max = Math.max(1, ...state.teamStandings.map((t) => t.points))
   return (
     <section className="card" style={{ gap: 4 }}>
       <div className="card-head">
         <span className="card-title">Teamwertung</span>
         <span className="hint">{state.separate ? 'nur Teamrennen' : 'Schnitt der Mitglieder'}</span>
       </div>
-      {state.teamStandings.map((t) => (
-        <div key={t.id} className="row" style={{ padding: 8, borderLeft: `4px solid ${teamColor(t.id, t.name)}` }}>
-          <span className={`rank${t.rank <= 3 ? ` r${t.rank}` : ''}`} style={{ minWidth: 22, fontSize: 16 }}>
-            {t.rank}
-          </span>
-          <span className="grow">
-            <span className="name" style={{ color: teamColor(t.id, t.name) }}>{t.name}</span>
-            <span className="sub">
-              {t.drivers.join(', ')} · {teamEloText(t, state.teamStandings)}
+      {state.teamStandings.map((t) => {
+        const color = teamColor(t.id, t.name)
+        const mine = !!me && t.drivers.includes(me)
+        return (
+          <div key={t.id} className={`row${mine ? ' me-row' : ''}`} style={{ padding: 8, borderLeft: `4px solid ${color}`, flexWrap: 'wrap', rowGap: 6 }}>
+            <span className={`rank${t.rank <= 3 ? ` r${t.rank}` : ''}`} style={{ minWidth: 22, fontSize: 16 }}>
+              {t.rank}
             </span>
-          </span>
-          <span className="num" style={{ fontSize: 18, fontWeight: 800 }}>
-            {fmtPts(t.points)}
-          </span>
-        </div>
-      ))}
+            <span className="grow">
+              <span className="name" style={{ color }}>
+                {t.name}
+                {mine ? ' · dein Team' : ''}
+              </span>
+              <span className="sub">
+                {t.drivers.join(', ')} · {teamEloText(t, state.teamStandings)}
+              </span>
+            </span>
+            <span className="num" style={{ fontSize: 18, fontWeight: 800, color }}>
+              {fmtPts(t.points)}
+            </span>
+            <span aria-hidden="true" style={{ flexBasis: '100%', height: 4, borderRadius: 2, background: 'var(--line-2)', overflow: 'hidden' }}>
+              <span style={{ display: 'block', height: '100%', width: `${(Math.max(0, t.points) / max) * 100}%`, background: color, borderRadius: 2 }} />
+            </span>
+          </div>
+        )
+      })}
+    </section>
+  )
+}
+
+/** Punkteverlauf: Stand nach jedem Lauf – Fahrer (die besten sechs und du) oder Teams in Teamfarben */
+export function ProgressChart({ state, steps, me }: { state: EventState; steps: ProgressStep[]; me: string | null }) {
+  const [view, setView] = useState<'fahrer' | 'teams'>('fahrer')
+  if (steps.length < 3) return null
+  const teams = state.teamStandings.length > 0
+  const shown = view === 'teams' && teams ? 'teams' : 'fahrer'
+  const top = state.standings.slice(0, 6).map((s) => s.name)
+  const names = me && state.standings.some((s) => s.name === me) && !top.includes(me) ? [...top, me] : top
+  let i = 0
+  const series =
+    shown === 'teams'
+      ? state.teamStandings.map((t) => ({ name: t.name, color: teamColor(t.id, t.name), values: steps.map((s) => s.teams.get(t.id) ?? 0) }))
+      : names.map((n) => ({ name: n, color: n === me ? ME : SERIES[i++ % SERIES.length], values: steps.map((s) => s.totals.get(n) ?? 0) }))
+  return (
+    <section className="card" style={{ gap: 8 }}>
+      <div className="card-head">
+        <span className="card-title">Punkteverlauf</span>
+        <span className="hint">{shown === 'teams' ? 'Teams' : state.standings.length > names.length ? 'die besten sechs' : 'alle Fahrer'} · nach jedem Lauf</span>
+      </div>
+      {teams && (
+        <Segment
+          small
+          value={shown}
+          onChange={setView}
+          label="Verlauf für"
+          options={[
+            ['fahrer', 'Fahrer'],
+            ['teams', 'Teams'],
+          ]}
+        />
+      )}
+      <PointsChart
+        dates={steps.map((s, k) => s.heatId ?? `start-${k}`)}
+        axis={steps.map((_, k) => (k === 0 ? 'Start' : String(k)))}
+        tips={steps.map((s) => (s.heatId ? `nach ${s.label}` : 'zu Beginn'))}
+        series={series}
+        label={`Punkteverlauf ${state.def.name}`}
+      />
     </section>
   )
 }
@@ -266,6 +339,7 @@ export function HeatCard({ heat, state, me, children }: { heat: Heat; state: Eve
   const inModel = heat.session && model.sessions.some((s) => s.fileId === heat.session!.fileId)
   const results = heat.session ? new Map(heat.session.results.map((r) => [r.driver, r])) : null
   const mine = !!me && (heat.status === 'done' ? heat.order.includes(me) : heat.entrants.some((e) => e.name === me))
+  const [why, setWhy] = useState<string | null>(null)
   return (
     <div className={`heat${heat.status === 'next' ? ' next' : ''}${mine ? ' mine' : ''}`}>
       <div className="heat-head">
@@ -283,8 +357,11 @@ export function HeatCard({ heat, state, me, children }: { heat: Heat; state: Eve
       {heat.status === 'done'
         ? heat.order.map((n, i) => {
             const r = results?.get(n)
+            const pts = heat.advancing?.includes(n) ? '↑ weiter' : heat.kind === 'race' && heat.points.has(n) ? `+${fmtPts(heat.points.get(n)!)}` : ''
+            const lines = why === n ? heatPointsExplained(state, heat, n) : []
             return (
-              <div key={n} className="entrant" style={n === me ? { color: 'var(--me)', fontWeight: 600 } : undefined}>
+              <Fragment key={n}>
+              <div className="entrant" style={n === me ? { color: 'var(--me)', fontWeight: 600 } : undefined}>
                 <span className="num" style={{ minWidth: 18, color: 'var(--muted)' }}>
                   {i + 1}.
                 </span>
@@ -295,10 +372,29 @@ export function HeatCard({ heat, state, me, children }: { heat: Heat; state: Eve
                   {r?.validBestLapMs ? ` · ${formatTime(r.validBestLapMs)}` : ''}
                 </span>
                 {r?.car && <CarThumb car={r.car} size={26} />}
-                <span className="num" style={{ minWidth: 34, textAlign: 'right', fontWeight: 700, whiteSpace: 'nowrap', color: heat.advancing?.includes(n) ? EVENT_ACCENT : undefined }}>
-                  {heat.advancing?.includes(n) ? '↑ weiter' : heat.kind === 'race' && heat.points.has(n) ? `+${fmtPts(heat.points.get(n)!)}` : ''}
-                </span>
+                {pts ? (
+                  <button
+                    className="num pts-btn"
+                    aria-expanded={why === n}
+                    aria-label={`${n}: ${pts} – woher kommen die Punkte?`}
+                    title="Woher kommen die Punkte?"
+                    onClick={() => setWhy(why === n ? null : n)}
+                    style={{ color: heat.advancing?.includes(n) ? EVENT_ACCENT : undefined }}
+                  >
+                    {pts}
+                  </button>
+                ) : (
+                  <span style={{ minWidth: 34 }} />
+                )}
               </div>
+              {lines.length > 0 && (
+                <div className="pts-why">
+                  {lines.map((l) => (
+                    <span key={l}>{l}</span>
+                  ))}
+                </div>
+              )}
+              </Fragment>
             )
           })
         : (heat.grid ?? heat.entrants).map((e, i) => (

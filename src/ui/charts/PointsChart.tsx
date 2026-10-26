@@ -4,8 +4,9 @@ import { AXIS, GRID, linePath, niceTicks, Tip, useTipState, useWidth } from './c
 /**
  * Punkteverlauf der Saison: Punkte nach jedem Renntag, Punkte direkt verbunden, Namen rechts.
  * `values[i]` = Punktestand nach Renntag i (null = noch nicht dabei).
+ * Statt Daten gehen auch eigene Achsen- und Tooltip-Texte (`axis`, `tips`), z. B. Läufe eines Wettkampfs.
  */
-export function PointsChart({ dates, series, label }: { dates: string[]; series: { name: string; color: string; values: (number | null)[] }[]; label: string }) {
+export function PointsChart({ dates, series, label, axis, tips }: { dates: string[]; series: { name: string; color: string; values: (number | null)[] }[]; label: string; axis?: string[]; tips?: string[] }) {
   const [ref, width] = useWidth<HTMLDivElement>()
   const [open, setOpen] = useTipState<{ s: number; i: number }>(ref)
   if (dates.length < 2 || !series.length) return null
@@ -43,7 +44,7 @@ export function PointsChart({ dates, series, label }: { dates: string[]; series:
         {dates.map((d, i) =>
           i % step === 0 || i === dates.length - 1 ? (
             <text key={d} x={sx(i)} y={h - 6} textAnchor={i === 0 ? 'start' : i === dates.length - 1 ? 'end' : 'middle'} fill={AXIS} fontSize="10">
-              {formatDate(d).slice(0, 5)}
+              {axis ? axis[i] : formatDate(d).slice(0, 5)}
             </text>
           ) : null,
         )}
@@ -73,7 +74,7 @@ export function PointsChart({ dates, series, label }: { dates: string[]; series:
             <button
               key={`${si}-${i}`}
               className="hit"
-              aria-label={`${s.name}, ${formatDate(dates[i])}: ${v} Punkte`}
+              aria-label={`${s.name}, ${tips ? tips[i] : formatDate(dates[i])}: ${v} Punkte`}
               style={{ left: sx(i) - 13, top: sy(v) - 13, width: 26, height: 26, borderRadius: 13 }}
               onClick={() => setOpen(open?.s === si && open.i === i ? null : { s: si, i })}
               onPointerEnter={(e) => e.pointerType === 'mouse' && setOpen({ s: si, i })}
@@ -83,7 +84,7 @@ export function PointsChart({ dates, series, label }: { dates: string[]; series:
         ),
       )}
       {open && series[open.s]?.values[open.i] != null && (
-        <Tip x={sx(open.i)} y={sy(series[open.s].values[open.i]!)} width={width} tip={{ title: series[open.s].name, text: `${series[open.s].values[open.i]} Punkte nach dem ${formatDate(dates[open.i])}`, color: series[open.s].color }} />
+        <Tip x={sx(open.i)} y={sy(series[open.s].values[open.i]!)} width={width} tip={{ title: series[open.s].name, text: `${series[open.s].values[open.i]} Punkte ${tips ? tips[open.i] : `nach dem ${formatDate(dates[open.i])}`}`, color: series[open.s].color }} />
       )}
     </div>
   )
