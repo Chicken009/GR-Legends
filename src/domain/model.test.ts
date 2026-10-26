@@ -187,6 +187,8 @@ describe('Inaktive Fahrer', () => {
     const all = m.ranking('all', true)
     expect(all.map((r) => r.name)).toEqual(['Ben', 'Anna', 'Mika'])
     expect(all[0]).toMatchObject({ rank: 1, inactive: true, placing: false })
+    // man selbst wird nicht ans Ende gesetzt
+    expect(m.ranking('all', false, 'Ben').map((r) => [r.name, r.rank, r.inactive])).toEqual([['Ben', 1, false], ['Anna', 2, false], ['Mika', 3, false]])
     // im Jahr 2024 war Ben aktiv
     expect(m.ranking('2024').find((r) => r.name === 'Ben')?.inactive).toBe(false)
   })

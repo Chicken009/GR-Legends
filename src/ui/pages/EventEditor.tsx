@@ -6,6 +6,7 @@ import { isGuest } from '../../domain/drivers'
 import { eventCars, eventContext, typicalLapMs } from '../../domain/event/context'
 import { carCap, TEAMS_BY_AVERAGE_FROM, teamsAsDefs, teamSplit, type Heat, type TeamPlan, type TeamState } from '../../domain/event/engine'
 import { todayIso } from '../../domain/event/insights'
+import { RATING } from '../../domain/rating'
 import { eventSlug, normalizeEvent, serializeEvent } from '../../domain/event/normalize'
 import { newSeed } from '../../domain/event/random'
 import { simulate, type Simulation } from '../../domain/event/simulate'
@@ -398,7 +399,7 @@ export function EventEditor() {
             {sim === 'running' ? 'Läuft …' : 'Probelauf starten'}
           </button>
         </div>
-        <span style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.45 }}>Der Wettkampf wird 120-mal mit zufälligen Ergebnissen nach Elo durchgespielt: Wie lange dauert er, wie oft fährt jeder, wer ist Favorit, wie knapp wird es?</span>
+        <span style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.45 }}>Der Wettkampf wird 120-mal mit zufälligen Ergebnissen nach Elo durchgespielt: Wie lange dauert er, wie oft fährt jeder, wer ist Favorit, wer hat kaum Chancen und warum, wie knapp wird es?</span>
         {sim && sim !== 'running' && <SimResult sim={sim} note={uncertainty(data, def)} />}
       </section>
 
@@ -534,11 +535,14 @@ const untouched = (sc: Scoring) => !sc.fairWin && (Object.keys(DEFAULT_SCORING) 
 function ScoringCard({ def, update }: { def: EventDef; update: (p: Partial<EventDef>) => void }) {
   const sc = def.scoring
   const set = (patch: Partial<EventDef['scoring']>) => update({ scoring: { ...sc, ...patch } })
+  // Wettkämpfe ab RATING.v2From: neue Regeln für die Boni
+  const newRules = def.start >= RATING.v2From
+  const byCar = newRules && sc.method === 'fair' ? ' – bei „Fair“ gemessen an der typischen Runde des eigenen Autos' : ''
   const bonus: [keyof EventDef['scoring'], string, string][] = [
-    ['fastestLap', 'Schnellste Runde', 'Schnellste Runde aller Rennen'],
-    ['pole', 'Pole', 'Schnellster im Qualifying'],
-    ['driverOfDay', 'Fahrer des Tages', 'Größte Leistung über der Erwartung laut Elo – gewinnt selten der Schnellste'],
-    ['personalBest', 'Persönliche Bestzeit', 'Neue Bestzeit auf der Strecke'],
+    ['fastestLap', 'Schnellste Runde', `Schnellste Runde aller Rennen${byCar}`],
+    ['pole', 'Pole', `Schnellster im Qualifying${byCar}`],
+    ['driverOfDay', 'Fahrer des Tages', newRules ? 'Größte Leistung über der Erwartung laut Elo, je Gegner – fast gleichauf wird geteilt; gewinnt selten der Schnellste' : 'Größte Leistung über der Erwartung laut Elo – gewinnt selten der Schnellste'],
+    ['personalBest', 'Persönliche Bestzeit', newRules ? 'Neue Bestzeit auf der Strecke im selben Maßstab (1:24 / 1:32)' : 'Neue Bestzeit auf der Strecke'],
     ['clean', 'Ohne Abflug', 'Je Rennen ohne Abflug'],
   ]
   return (
@@ -556,7 +560,7 @@ function ScoringCard({ def, update }: { def: EventDef; update: (p: Partial<Event
       />
       <span style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.45 }}>
         {sc.method === 'fair'
-          ? 'Fair: Ein Sieg gegen einen stärkeren Gegner (Fahrer + Auto laut Elo) bringt bis zu doppelt so viele Punkte, gegen einen schwächeren entsprechend weniger. Über den Abend gleicht sich die Erwartung für alle aus – Außenseiter haben eine echte Chance.'
+          ? 'Fair: Ein Sieg gegen einen stärkeren Gegner (Fahrer + Auto laut Elo) bringt bis zu doppelt so viele Punkte, gegen einen schwächeren entsprechend weniger. So erwartet jeder gleich viele Punkte – Außenseiter haben eine echte Chance, ganz gleich sind die Siegchancen bei wenigen Rennen aber nicht.'
           : 'Absolut: Punkte nur für die Platzierung – wer vorne ist, bekommt mehr.'}
       </span>
       {sc.method === 'fair' && (

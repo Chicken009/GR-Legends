@@ -272,7 +272,9 @@ Fahrer- **plus** Autowertung (pro Strecke) – wer im schwächeren Auto gewinnt,
 mit einem Minus unter dem Startwert einsteigt. In der Rangliste haben sie noch keinen Platz: Sie stehen ohne
 Platzzahl hinter den Eingestuften und verdrängen niemanden (wer nach wenigen Rennen aufhört, steht
 so nicht dauerhaft weit oben). Wer seit über 12 Monaten (vor dem letzten Renntag) kein Rennen
-gefahren ist, steht als „inaktiv“ ohne Platz ganz am Ende – bis zum nächsten Rennen. Im
+gefahren ist, steht als „inaktiv“ ohne Platz ganz am Ende – bis zum nächsten Rennen (Schalter
+„Inaktive Fahrer filtern“, standardmäßig an; aus = wie alle anderen nach Elo). Der eigene Name
+(„Wer bist du?“) wird von keinem Filter der Rangliste erfasst. Im
 Elo-Verlauf ist die Einstufung grau gestrichelt. Medaillen wie
 „Aufsteiger des Jahres“ rechnen weiter mit allen Fahrern, damit sich nichts rückwirkend ändert.
 

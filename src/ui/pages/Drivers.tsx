@@ -24,7 +24,8 @@ export function Drivers() {
   const p = period === 'all' || model.years.includes(period) ? period : 'all'
   const stats = model.stats(p).drivers
   const statuses = model.statuses(p)
-  const all = model.ranking(p, !hideInactive).filter((r) => !minRaces || r.races >= 3 || r.name === me)
+  // Man selbst wird von keinem Filter ausgeblendet oder ans Ende gesetzt
+  const all = model.ranking(p, !hideInactive, me).filter((r) => !minRaces || r.races >= 3 || r.name === me)
   const open = (name: string) => navigate(driverPath(name), { state: { bg: location } })
   const d = (r: RankRow) => stats.get(r.name)
   const seasonRows = p !== 'all' ? model.season(p) : []

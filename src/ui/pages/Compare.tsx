@@ -291,8 +291,8 @@ function WhatIf({ a, b, carA, carB, colorA, colorB }: { a: string; b: string; ca
   const eloB = model.rating.drivers.get(b) ?? 0
   const sA = eloA + carR(carA)
   const sB = eloB + carR(carB)
-  const runsA = model.rating.history.get(a)?.length ?? 0
-  const runsB = model.rating.history.get(b)?.length ?? 0
+  const placingA = model.placement(a) != null || !model.rating.history.has(a)
+  const placingB = model.placement(b) != null || !model.rating.history.has(b)
   const outcomes: [string, number][] = [
     ['Sieg mit 1 Runde Vorsprung', 1],
     ['Knapper Sieg', 0.03],
@@ -339,15 +339,15 @@ function WhatIf({ a, b, carA, carB, colorA, colorB }: { a: string; b: string; ca
         {outcomes.map(([label, margin]) => (
           <div key={label} style={{ display: 'contents' }}>
             <span style={{ color: 'var(--text-2)' }}>{label}</span>
-            <span style={{ textAlign: 'right' }}>{cell(duelDelta(sA, sB, margin, runsA))}</span>
-            <span style={{ textAlign: 'right' }}>{cell(duelDelta(sB, sA, -margin, runsB))}</span>
+            <span style={{ textAlign: 'right' }}>{cell(duelDelta(sA, sB, margin, placingA))}</span>
+            <span style={{ textAlign: 'right' }}>{cell(duelDelta(sB, sA, -margin, placingB))}</span>
           </div>
         ))}
       </div>
       <p style={{ margin: 0, fontSize: 11, color: 'var(--muted)', lineHeight: 1.45 }}>
         Stärke = Elo + Autowertung. Minus = schwächeres Auto: Siege bringen mehr Elo (Underdog-Bonus). Je größer der Abstand im Ziel, desto mehr Punkte. Bei mehr Fahrern verteilt sich das auf alle Duelle im Rennen.
         {Math.abs(sA - sB) > 10 && ' Als Außenseiter bringt sogar eine knappe Niederlage Punkte – weil sie besser ist als erwartet.'}
-        {(runsA < 5 || runsB < 5) && ' Fahrer mit weniger als 5 Läufen bewegen sich doppelt so stark.'}
+        {(placingA || placingB) && ' Fahrer in der Einstufung bewegen sich doppelt so stark.'}
       </p>
     </section>
   )

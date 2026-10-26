@@ -73,7 +73,7 @@ export function Cars() {
     .sort((a, b) => a.q[2] - b.q[2])
   const columns: Column<CarStats>[] = [
     { key: 'name', label: 'Fahrzeug', left: true, value: (c) => c.name, render: (c) => <CarName car={c} /> },
-    { key: 'rating', label: 'Wertung', title: 'Autowertung in Elo-Punkten: fahrerbereinigtes Tempo und Abflüge aus allen Rennen, gleichbleibende neue Entwicklungen zählen zusätzlich', strong: true, value: (c) => c.rating, render: (c) => (c.rating == null ? '–' : <>{fmtRating(c.rating)}{c.provisional && <Provisional />}</>) },
+    { key: 'rating', label: 'Wertung', title: `Autowertung in Elo-Punkten: fahrerbereinigtes Tempo und Zeitverlust durch Abflüge und Defekte aus allen Rennen, gleichbleibende neue Entwicklungen zählen zusätzlich. vorl. = weniger als ${CAR_PROVISIONAL_RACES} Rennen`, strong: true, value: (c) => c.rating, render: (c) => (c.rating == null ? '–' : <>{fmtRating(c.rating)}{c.provisional && <Provisional />}</>) },
     { key: 'races', label: 'Rennen', value: (c) => c.races },
     { key: 'qualis', label: 'Qualis', value: (c) => c.qualis },
     { key: 'wins', label: 'Siege', value: (c) => c.wins },
@@ -134,8 +134,10 @@ export function Cars() {
       <SettingsProblem />
       <SettingsHint names={unmatched.cars} kind="Fahrzeug" />
       <div className="legend">
-        <span>Rang nach Autowertung: Tempo und Abflüge des Autos, umgerechnet in Elo-Punkte (ab 3 Rennen)</span>
-        {view === 'table' && <span>Tempo und Abflüge sind fahrerbereinigt: verglichen wird, was dieselben Fahrer im selben Lauf mit anderen Autos fahren</span>}
+        <span>Rang nach Autowertung: Tempo und Zeitverlust durch Abflüge und Defekte, umgerechnet in Elo-Punkte (ab 3 Rennen)</span>
+        {view === 'table' && <span>Tempo, Zeitverlust und Abflüge sind fahrerbereinigt: verglichen wird, was dieselben Fahrer im selben Lauf mit anderen Autos fahren</span>}
+        <span>vorl. = vorläufig: weniger als {CAR_PROVISIONAL_RACES} Rennen, die Wertung kann sich noch deutlich ändern</span>
+        {view === 'table' && <span>Verlust/10 Rd = verlorene Sekunden je 10 Runden durch Abflüge und Defekte, neutral (nicht um Fahrer bereinigt), je Zwischenfall höchstens 5 Runden</span>}
         <span>
           <UnderdogBonus bonus={1} compact /> Underdog-Bonus: schwaches Auto, Siege zählen mehr
         </span>
