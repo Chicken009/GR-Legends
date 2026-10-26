@@ -1,6 +1,6 @@
 import type { Session } from '../../types'
 import { isGuest } from '../drivers'
-import { carKey, RATING, type RatingResult } from '../rating'
+import { carValue, RATING, type RatingResult } from '../rating'
 import type { EventContext } from './engine'
 import type { EventDef } from './types'
 
@@ -35,7 +35,8 @@ export function eventContext(def: EventDef, rating: RatingResult, allSessions: S
   return {
     sessions: eventSessions,
     elo: (n) => elo.get(n) ?? RATING.start,
-    car: (c) => (track ? (rating.cars.get(carKey(track, c)) ?? 0) : 0),
+    // Gefahrene Läufe: Stand vor dem Lauf (festgeschrieben), sonst der aktuelle Stand
+    car: (c, at) => (track ? carValue(at ? rating.carsBefore(at) : rating.cars, track, c) : 0),
     previousBest: (n, car) => best.get(bestKey(n, car)) ?? null,
   }
 }

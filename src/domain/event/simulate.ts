@@ -25,8 +25,26 @@ export interface Simulation {
   underdogs: { name: string; chance: number; reasons: string[] }[]
 }
 
-/** Wechselzeit zwischen zwei Läufen (Minuten): Autos tauschen, aufstellen, Start – Rennen dauern länger */
-export const CHANGEOVER_MIN = { quali: 2, race: 5 }
+/**
+ * Wechselzeit vor einem Lauf (Minuten): Grundzeit plus je Fahrer, der neu an einen Regler geht, und
+ * je Auto, das neu auf die Bahn kommt. Abgeglichen mit den Zeitstempeln eines Smartrace-Backups:
+ * etwa eine Minute je neuem Fahrer; Autos wechselten dort fast immer mit, ihr Anteil ist geschätzt.
+ */
+export const CHANGEOVER_MIN = { base: 1, perDriver: 1, perCar: 0.5 }
+
+/** Wechselzeit vor jedem Lauf (der erste Lauf hat keine); ohne geplantes Auto bringt jeder sein eigenes mit */
+export function changeoverMinutes(heats: { order: string[]; cars: Record<string, string> }[]): number {
+  let total = 0
+  for (let i = 1; i < heats.length; i++) {
+    const carsOf = (h: (typeof heats)[number]) => new Set(h.order.map((n) => h.cars[n] ?? `\u0000${n}`))
+    const before = new Set(heats[i - 1].order)
+    const beforeCars = carsOf(heats[i - 1])
+    const drivers = heats[i].order.filter((n) => !before.has(n)).length
+    const cars = [...carsOf(heats[i])].filter((c) => !beforeCars.has(c)).length
+    total += CHANGEOVER_MIN.base + drivers * CHANGEOVER_MIN.perDriver + cars * CHANGEOVER_MIN.perCar
+  }
+  return total
+}
 
 function fakeSession(i: number, def: EventDef, heat: EventState['heats'][number], ctx: EventContext, rnd: () => number, lapMs: number): Session {
   const names = heat.entrants.map((e) => e.name!)
@@ -105,8 +123,8 @@ export function simulate(def: EventDef, ctx: EventContext, lapMs: number, runs =
   const heats = first?.heats.filter((h) => h.status === 'done') ?? []
   const perDriver = new Map<string, number>()
   for (const h of heats) for (const n of h.order) perDriver.set(n, (perDriver.get(n) ?? 0) + 1)
-  // Pro Lauf: Runden × typische Rundenzeit (+10 % für Abflüge) bzw. die feste Zeit, plus Wechselzeit
-  const ms = heats.reduce((sum, h) => sum + (h.minutes ? h.minutes * 60_000 : (h.laps ?? (h.kind === 'quali' ? 4 : 10)) * lapMs * 1.1) + CHANGEOVER_MIN[h.kind] * 60_000, 0)
+  // Pro Lauf: Runden × typische Rundenzeit (+10 % für Abflüge) bzw. die feste Zeit, dazu die Wechsel
+  const ms = heats.reduce((sum, h) => sum + (h.minutes ? h.minutes * 60_000 : (h.laps ?? (h.kind === 'quali' ? 4 : 10)) * lapMs * 1.1), 0) + changeoverMinutes(heats) * 60_000
   return {
     runs,
     heats: heats.length,

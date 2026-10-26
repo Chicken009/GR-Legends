@@ -16,8 +16,11 @@ export interface EventContext {
   sessions: Session[]
   /** Elo des Fahrers zu Beginn des Wettkampfs */
   elo: (driver: string) => number
-  /** Autowertung auf der Strecke (Elo-Punkte, 0 = Durchschnitt) */
-  car: (car: string) => number
+  /**
+   * Autowertung auf der Strecke (Elo-Punkte, 0 = Durchschnitt). Mit Lauf: Stand vor diesem Lauf
+   * (festgeschrieben), ohne: aktueller Stand (für die Planung).
+   */
+  car: (car: string, at?: Session) => number
   /** Persönliche Bestzeit auf der Strecke vor dem Wettkampf (im Maßstab dieses Autos) */
   previousBest: (driver: string, car: string) => number | null
 }
@@ -291,7 +294,7 @@ interface Env {
   heats: Heat[]
 }
 
-const strengthOf = (env: Env, name: string, car?: string) => env.ctx.elo(name) + (car ? env.ctx.car(car) : 0)
+const strengthOf = (env: Env, name: string, car?: string, at?: Session) => env.ctx.elo(name) + (car ? env.ctx.car(car, at) : 0)
 
 /** Punkte für eine Reihenfolge: je geschlagenem Gegner + Sieg; fair: gegen Stärkere mehr */
 function orderPoints(env: Env, order: string[], strength: (n: string) => number): Map<string, number> {
@@ -478,7 +481,7 @@ function addHeat(
     heat.status = 'done'
     heat.order = finishOrder(session, heat.kind)
     const driven = new Map(session.results.map((r) => [r.driver, r.car]))
-    heat.points = orderPoints(env, heat.order, (n) => strengthOf(env, n, driven.get(n)))
+    heat.points = orderPoints(env, heat.order, (n) => strengthOf(env, n, driven.get(n), session))
     // Gefahrene Besetzung gilt (auch wenn jemand eingesprungen ist)
     heat.entrants = heat.order.map(named)
   }
@@ -1260,7 +1263,7 @@ export function computeEvent(def: EventDef, ctx: EventContext): EventState {
       if (sc.clean && res && res.laps >= 3 && !res.lapTimes.some((l) => l.status === 'crash')) row.bonuses.push({ kind: 'clean', label: `Ohne Abflug · ${h.label}`, points: sc.clean })
     }
     if (h.kind === 'race' && h.order.length > 1) {
-      const str = (n: string) => strengthOf(env, n, driven.get(n)?.car)
+      const str = (n: string) => strengthOf(env, n, driven.get(n)?.car, h.session!)
       h.order.forEach((n, i) => {
         let expected = 0
         for (const o of h.order) if (o !== n) expected += winProb(str(n), str(o))

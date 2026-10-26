@@ -3,7 +3,7 @@ import type { Result, Session } from '../../types'
 import { balanceAverages, buildTeams, chunkEven, computeEvent, ladderAuto, ladderPlan, ladderSizes, snake, type EventContext } from './engine'
 import { driverInsight, eventPhase, planVisible, storylines } from './insights'
 import { normalizeEvent, serializeEvent } from './normalize'
-import { playThrough, simulate } from './simulate'
+import { changeoverMinutes, playThrough, simulate } from './simulate'
 import { eventContext } from './context'
 import { computeRatings } from '../rating'
 import { newSection } from './templates'
@@ -547,6 +547,16 @@ describe('Ansicht', () => {
     const sum = [...sim.winChance.values()].reduce((a, b) => a + b, 0)
     expect(sum).toBeCloseTo(1)
     expect(sim.winChance.get('A') ?? 0).toBeGreaterThan(sim.winChance.get('F') ?? 0)
+  })
+
+  it('Wechselzeit hängt davon ab, wie viele Fahrer und Autos wechseln', () => {
+    type Plan = { order: string[]; cars: Record<string, string> }[]
+    const same: Plan = [{ order: ['A', 'B'], cars: { A: 'X', B: 'Y' } }, { order: ['A', 'B'], cars: { A: 'X', B: 'Y' } }]
+    const swap: Plan = [{ order: ['A', 'B'], cars: { A: 'X', B: 'Y' } }, { order: ['C', 'D'], cars: { C: 'Z', D: 'Y' } }]
+    expect(changeoverMinutes(same)).toBe(1)
+    expect(changeoverMinutes(swap)).toBe(1 + 2 + 0.5)
+    // ohne geplante Autos bringt jeder neue Fahrer sein Auto mit
+    expect(changeoverMinutes([{ order: ['A'], cars: {} }, { order: ['B'], cars: {} }])).toBe(1 + 1 + 0.5)
   })
 
   it('Probelauf begründet deutlich geringere Chancen', () => {

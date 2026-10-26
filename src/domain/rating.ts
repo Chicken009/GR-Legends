@@ -82,7 +82,13 @@ export interface RatingEvent {
 
 export interface RatingResult {
   drivers: Map<string, number>
+  /** Autowertung je carKey, Stand nach allen Läufen (für Anzeige und künftige Läufe) */
   cars: Map<string, number>
+  /**
+   * Autowertung, wie sie vor einem Lauf feststand (aus allen früheren Läufen). Festgeschrieben: neue
+   * Läufe ändern sie nicht mehr. Für Läufe nach dem letzten gewerteten Lauf gilt der aktuelle Stand.
+   */
+  carsBefore: (s: { date: string; createdTime: string }) => Map<string, number>
   /** Verlauf pro Fahrer (chronologisch) */
   history: Map<string, RatingEvent[]>
   /** Verlauf aller Läufe, für Rangverläufe */
@@ -90,6 +96,14 @@ export interface RatingResult {
 }
 
 export const carKey = (track: string, car: string) => `${track}\u0000${car}`
+
+/** Autowertung aus einer Tabelle; neu auf dieser Strecke: Schnitt desselben Autos auf anderen Strecken */
+export function carValue(cars: Map<string, number>, track: string, car: string): number {
+  const own = cars.get(carKey(track, car))
+  if (own != null) return own
+  const others = [...cars].filter(([k]) => k.endsWith(`\u0000${car}`)).map(([, v]) => v)
+  return others.length ? others.reduce((a, b) => a + b, 0) / others.length : 0
+}
 
 
 export function isQuali(s: Session) {
@@ -149,26 +163,20 @@ export function computeRatings(sessions: Session[], cfg = RATING): RatingResult 
   const history = new Map<string, RatingEvent[]>()
   const events: RatingEvent[] = []
 
-  // Autowertung: vor jedem Renntag aus allen früheren Läufen geschätzt (nie aus dem Ergebnis selbst)
+  // Autowertung: immer nur aus früheren Läufen geschätzt (nie aus dem Ergebnis selbst)
+  const ordered = sortSessions(sessions)
+  const order = new Map(ordered.map((s, i) => [s.fileId, i]))
   const paceObs = paceObservations(sessions, carKey, isQuali, cfg.qualiWeight)
   const lossObs = lossObservations(sessions, carKey, isQuali)
-  const refit = (asOf: string, inclusive: boolean) => {
-    const before = (o: CarObs) => (inclusive ? o.date <= asOf : o.date < asOf)
-    cars.clear()
+  const fit = (asOf: string, upTo: number) => {
+    const before = (o: CarObs) => (order.get(o.session) ?? Infinity) < upTo
     const est = estimateCars(paceObs.filter(before), lossObs.filter(before), {
       asOf, halfLifeDays: cfg.carHalfLifeDays, prior: cfg.carPrior, trendPrior: cfg.carTrendPrior,
       consistency: cfg.carConsistency,
     })
-    for (const [k, e] of est.total) cars.set(k, -e * 100 * cfg.carEloPerPct)
+    return new Map([...est.total].map(([k, e]) => [k, -e * 100 * cfg.carEloPerPct]))
   }
-  let fittedFor = ''
-  const carRating = (track: string, car: string) => {
-    const own = cars.get(carKey(track, car))
-    if (own != null) return own
-    // Neu auf dieser Strecke: Schnitt desselben Autos auf anderen Strecken
-    const others = [...cars].filter(([k]) => k.endsWith(`\u0000${car}`)).map(([, v]) => v)
-    return others.length ? others.reduce((a, b) => a + b, 0) / others.length : 0
-  }
+  const carRating = (track: string, car: string) => carValue(cars, track, car)
 
   // Typische saubere Runde je Auto und Strecke über alle Läufe (fester Maßstab für das Duell gegen die Bahn)
   const lapPools = new Map<string, number[]>()
@@ -181,9 +189,12 @@ export function computeRatings(sessions: Session[], cfg = RATING): RatingResult 
   const typical = new Map([...lapPools].map(([k, xs]) => [k, xs.length >= 30 ? quantile([...xs].sort((a, b) => a - b), 0.5) : null]))
   const benchRef = (track: string, car: string) => typical.get(carKey(track, car)) ?? typical.get(track) ?? null
 
-  for (const s of sortSessions(sessions)) {
+  let fittedFor = ''
+  for (const [i, s] of ordered.entries()) {
+    // Für die Elo: vor jedem Renntag aus allen früheren Tagen
     if (s.date !== fittedFor) {
-      refit(s.date, false)
+      cars.clear()
+      for (const [k, v] of fit(s.date, i)) cars.set(k, v)
       fittedFor = s.date
     }
     const players = s.results.filter((r) => !isGuest(r.driver))
@@ -258,10 +269,19 @@ export function computeRatings(sessions: Session[], cfg = RATING): RatingResult 
       history.set(a.driver, h)
     }
   }
-  // Stand am letzten Renntag, inklusive dieses Tages
-  const last = sessions.reduce((m, s) => (s.date > m ? s.date : m), '')
-  if (last) refit(last, true)
-  return { drivers, cars, history, events }
+  // Aktueller Stand: aus allen Läufen
+  const last = ordered[ordered.length - 1]
+  cars.clear()
+  if (last) for (const [k, v] of fit(last.date, ordered.length)) cars.set(k, v)
+  const latest = new Map(cars)
+  // Stand vor einem Lauf: erst bei Bedarf geschätzt (Wettkämpfe), dann zwischengespeichert
+  const snapshots = new Map<number, Map<string, number>>()
+  const carsBefore = (x: { date: string; createdTime: string }) => {
+    const i = ordered.findIndex((p) => p.date > x.date || (p.date === x.date && p.createdTime >= x.createdTime))
+    if (i < 0) return latest
+    return snapshots.get(i) ?? snapshots.set(i, fit(ordered[i].date, i)).get(i)!
+  }
+  return { drivers, cars, carsBefore, history, events }
 }
 
 /**

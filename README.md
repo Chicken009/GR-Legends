@@ -122,7 +122,8 @@ GR Legends
 - **Autobilder:** Ablauf, Leinwand, „Dein Wettkampf“, Wettkampfliste und Regeln zeigen die Autos
   mit Foto (aus dem Ordner „Fotos“).
 - **Fair:** Ein geschlagener Gegner bringt `2 × (1 − eigene Siegchance)` × Punkte je Gegner; die
-  Siegchance kommt aus Fahrer- plus Auto-Elo zu Beginn des Wettkampfs. Die erwarteten Punkte sind
+  Siegchance kommt aus der Fahrer-Elo zu Beginn des Wettkampfs plus der Autowertung, wie sie vor
+  dem jeweiligen Lauf feststand. Diese ist festgeschrieben: Spätere Läufe ändern alte Punkte nicht. Die erwarteten Punkte sind
   so für beide Seiten eines Duells gleich.
 - **Bonus:** schnellste Runde, Pole, Fahrer des Tages (größte Leistung über der Erwartung), neue
   persönliche Bestzeit, Rennen ohne Abflug – jeweils einstellbar, 0 = aus.
@@ -133,8 +134,9 @@ GR Legends
   Wettkampf-Ordner speichern.
 - **Probelauf** im Editor: spielt den Wettkampf 120-mal mit zufälligen Ergebnissen nach Elo durch
   (Läufe, Dauer, Läufe je Fahrer, Siegchancen, wie knapp). Die Dauer rechnet mit der typischen
-  Runde der Autos des Wettkampfs (sonst der Strecke) und 2 Minuten Wechsel nach einem Qualifying,
-  5 nach einem Rennen. Hat ein Team deutlich weniger Chancen (unter zwei Dritteln des gleichen
+  Runde der Autos des Wettkampfs (sonst der Strecke). Wechselzeit vor jedem Lauf: 1 Minute plus
+  1 Minute je Fahrer, der neu an einen Regler geht, plus ½ Minute je Auto, das neu auf die Bahn kommt
+  (abgeglichen mit den Zeitstempeln eines Smartrace-Backups). Hat ein Team deutlich weniger Chancen (unter zwei Dritteln des gleichen
   Anteils; ohne Teams ein Fahrer unter der Hälfte), nennt der Probelauf die Gründe.
 - Ohne `wettkampf.json` wird der Ordner „wie gefahren“ gewertet. Mit „zählt nicht für Elo und
   Saison“ bleiben die Läufe aus allen anderen Wertungen heraus.
@@ -274,8 +276,8 @@ gewichtet (1 / Streuung, relativ zum Schnitt, zwischen 0,25 und 3; bei wenigen L
 geglättet). Wer gleichmäßig fährt, bei dem sind Abweichungen eher echte Autounterschiede – egal,
 wie schnell er ist.
 
-1 % schnellere Runden ≈ 8 Elo-Punkte (abgeleitet aus Tempo und Wertung der Fahrer). Vor jedem
-Renntag wird nur aus früheren Läufen geschätzt. Über die Zeit: Der Grundwert kommt aus allen Läufen
+1 % schnellere Runden ≈ 8 Elo-Punkte (abgeleitet aus Tempo und Wertung der Fahrer). Für die Elo
+wird vor jedem Renntag nur aus früheren Läufen geschätzt, für Wettkämpfe vor jedem einzelnen Lauf. Über die Zeit: Der Grundwert kommt aus allen Läufen
 (alte zählen voll), dazu ein Trend aus den neueren Läufen (Halbwertszeit 120 Tage). Der Trend setzt
 sich erst durch, wenn er über mehrere Rennen gleich bleibt (halbe Wirkung nach ca. 20 Läufen) –
 so zeigen sich mechanische Änderungen, einzelne Ausreißer aber kaum. Underdog-Bonus ab 6 Punkten unter

@@ -36,6 +36,23 @@ function race(id: string, date: string, order: [string, string, number][]): Sess
 }
 
 describe('Wertung', () => {
+  it('schreibt die Autowertung vor jedem Lauf fest: spätere Läufe ändern sie nicht', () => {
+    // A und B tauschen die Autos; mit Auto „Schnell“ ist jeder eine Runde vorne
+    const day = (n: number, date: string) => [
+      race(`${date}a`, date, [['Anna', 'Schnell', 10 + n], ['Ben', 'Langsam', 9 + n]]),
+      race(`${date}b`, date, [['Ben', 'Schnell', 10 + n], ['Anna', 'Langsam', 9 + n]]),
+    ]
+    const early = [...day(0, '2026-01-01'), ...day(0, '2026-01-02')]
+    const later = [...early, ...day(1, '2026-01-03'), ...day(2, '2026-01-04')]
+    const at = { date: '2026-01-02', createdTime: '2026-01-02T00:00:00Z' }
+    const a = computeRatings(early).carsBefore(at)
+    const b = computeRatings(later).carsBefore(at)
+    expect(b).toEqual(a)
+    expect(a.get('X\u0000Schnell')!).toBeGreaterThan(a.get('X\u0000Langsam')!)
+    // Der aktuelle Stand nimmt die neuen Läufe auf
+    expect(computeRatings(later).cars).not.toEqual(computeRatings(early).cars)
+  })
+
   it('startet bei 500 und bleibt dreistellig', () => {
     const { model } = prepare(fixtureSessions(), EMPTY_SETTINGS)
     for (const v of model.rating.drivers.values()) {
