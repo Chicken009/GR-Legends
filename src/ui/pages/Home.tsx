@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { nextCareerTitle, type NewsItem } from '../../domain/model'
+import { type NewsItem } from '../../domain/model'
 import { SEASON_POINTS } from '../../domain/season'
 import { isGuest } from '../../domain/drivers'
 import { AREA, ME } from '../colors'
@@ -232,7 +232,6 @@ function XpStrip({ driver }: { driver: string }) {
   const c = model.career(driver)
   if (!c) return null
   const progress = (c.xp - c.levelXp) / Math.max(1, c.nextXp - c.levelXp)
-  const next = nextCareerTitle(c.level)
   return (
     <Link to={driverPath(driver)} state={{ bg: location }} className="card" style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: '12px 14px' }}>
       <span
@@ -253,10 +252,6 @@ function XpStrip({ driver }: { driver: string }) {
         </span>
         <span className="bar" style={{ width: '100%', height: 7 }}>
           <span style={{ width: `${Math.round(progress * 100)}%`, borderRadius: 4, background: XP_COLOR }} />
-        </span>
-        <span style={{ fontSize: 11, color: 'var(--muted)' }}>
-          noch {(c.nextXp - c.xp).toLocaleString('de-DE')} XP bis Level {c.level + 1}
-          {next ? ` · „${next[1]}“ ab Level ${next[0]}` : ''}
         </span>
       </span>
     </Link>

@@ -112,23 +112,6 @@ export function StoryIcon({ icon, size = 18 }: { icon: Story['icon']; size?: num
   }
 }
 
-export function Stories({ list }: { list: Story[] }) {
-  if (!list.length) return null
-  return (
-    <section className="card" style={{ gap: 10 }}>
-      <span className="card-title">Was gerade spannend ist</span>
-      {list.map((s, i) => (
-        <div key={i} className="story">
-          <span style={{ flexShrink: 0, paddingTop: 1 }}>
-            <StoryIcon icon={s.icon} />
-          </span>
-          <span>{s.text}</span>
-        </div>
-      ))}
-    </section>
-  )
-}
-
 export const BONUS_ICON = { fastestLap: '⚡', pole: 'P', driverOfDay: '★', personalBest: 'PB', clean: '✓' } as const
 
 /** Punkte wie überall in der App: große Zahl, dahinter klein „Pkt.“ */

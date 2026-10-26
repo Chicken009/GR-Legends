@@ -1,5 +1,5 @@
 import { Link, useParams } from 'react-router-dom'
-import { driverInsight, planFromText, planVisible, storylines, todayIso } from '../../domain/event/insights'
+import { driverInsight, planFromText, planVisible, todayIso } from '../../domain/event/insights'
 import { eventProgress, placePoints, sectionFactor, waitFor } from '../../domain/event/progress'
 import { FORMAT_LABEL, heatLength } from '../../domain/event/types'
 import { Avatar, PageHead, Segment, useData, useMyName } from '../components'
@@ -27,7 +27,6 @@ import {
   RecapBanner,
   rulesText,
   StandingsList,
-  Stories,
   teamColor,
   TeamList,
   TeamStandings,
@@ -127,8 +126,6 @@ export function EventView() {
       {inEvent && phase !== 'done' && <MyEvent state={state} me={me!} showPlan={showPlan} lapMs={lapMs} />}
 
       {showPlan && state.next && phase !== 'done' && <NextUp state={state} me={me} shownAbove={inEvent && state.next.entrants.some((e) => e.name === me)} />}
-
-      {phase !== 'done' && <Stories list={storylines(state).slice(0, 3)} />}
 
       <Segment
         value={tab}
@@ -237,10 +234,10 @@ function MyEvent({ state, me, showPlan, lapMs }: { state: EventState; me: string
   )
 }
 
-/** Nächster Lauf für alle, darunter die zwei danach */
+/** Nächster Lauf für alle, darunter der Lauf danach */
 function NextUp({ state, me, shownAbove }: { state: EventState; me: string | null; shownAbove: boolean }) {
   const next = state.next!
-  const after = state.heats.slice(state.heats.indexOf(next) + 1).filter((h) => h.status !== 'done').slice(0, 2)
+  const after = state.heats.slice(state.heats.indexOf(next) + 1).filter((h) => h.status !== 'done').slice(0, 1)
   // Ist der nächste Lauf dein eigener, steht er schon in „Dein Wettkampf“ – hier nur noch, was danach kommt
   if (shownAbove) {
     if (!after.length) return null
