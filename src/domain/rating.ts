@@ -1,6 +1,6 @@
 import type { Result, Session } from '../types'
 import { isGuest } from './drivers'
-import { crashCost, crashObservations, estimateCars, paceObservations, type CarObs } from './carModel'
+import { estimateCars, lossObservations, paceObservations, type CarObs } from './carModel'
 import { cleanReference, quantile } from './laps'
 
 export const RATING = {
@@ -17,22 +17,23 @@ export const RATING = {
   kProvisional: 48,
   provisionalRaces: 5,
   /**
-   * Autowertung aus den Runden (pro Strecke): fahrer- und laufbereinigtes Tempo plus Abflugneigung
-   * (über den typischen Zeitverlust eines Abflugs), umgerechnet in Elo-Punkte. 1 % schnellere
-   * Runden ≈ so viele Punkte – abgeleitet aus dem Zusammenhang von Tempo und Wertung bei den Fahrern.
+   * Autowertung aus den Runden (pro Strecke): fahrer- und laufbereinigtes Tempo plus Zeitverlust durch
+   * Abflüge und Defekte, umgerechnet in Elo-Punkte. 1 % schnellere Runden ≈ so viele Punkte –
+   * abgeleitet aus dem Zusammenhang von Tempo und Wertung bei den Fahrern.
    */
   carEloPerPct: 8,
   /**
-   * Wie stark Autos mit wenig Daten zum Durchschnitt gezogen werden (in Läufen). Abflüge sind pro
-   * Auto kaum verlässlich messbar (viel Zufall), deshalb zählen sie erst mit vielen Läufen.
+   * Wie stark Autos mit wenig Daten zum Durchschnitt gezogen werden (in Läufen). Abgestimmt daran, wie
+   * gut die Autowertung Rennen vorhersagt, die bei der Schätzung weggelassen wurden: Das Tempo braucht
+   * etwa 10 Läufe für die halbe Wirkung, Zwischenfälle (viel Zufall und Fahrer) etwa 15.
    */
-  carPrior: { pace: 2, crash: 15 },
+  carPrior: { pace: 10, loss: 15 },
   /**
    * Trend der Autowertung: Neuere Läufe können den Grundwert (aus allen Läufen) verschieben, aber
    * erst, wenn die Entwicklung über mehrere Rennen gleich bleibt – so viele Läufe braucht ein Trend
    * für die halbe Wirkung.
    */
-  carTrendPrior: { pace: 4, crash: 30 },
+  carTrendPrior: { pace: 20, loss: 30 },
   /**
    * Konsistente Fahrer zählen für die Autowertung mehr: Gewicht = 1 / eigene Rest-Streuung im Modell
    * (relativ zum Schnitt, zwischen `min` und `max`). Wer gleichmäßig fährt, bei dem sind
@@ -150,12 +151,11 @@ export function computeRatings(sessions: Session[], cfg = RATING): RatingResult 
 
   // Autowertung: vor jedem Renntag aus allen früheren Läufen geschätzt (nie aus dem Ergebnis selbst)
   const paceObs = paceObservations(sessions, carKey, isQuali, cfg.qualiWeight)
-  const crashObs = crashObservations(sessions, carKey, isQuali)
-  const cost = crashCost(sessions)
+  const lossObs = lossObservations(sessions, carKey, isQuali)
   const refit = (asOf: string, inclusive: boolean) => {
     const before = (o: CarObs) => (inclusive ? o.date <= asOf : o.date < asOf)
     cars.clear()
-    const est = estimateCars(paceObs.filter(before), crashObs.filter(before), cost, {
+    const est = estimateCars(paceObs.filter(before), lossObs.filter(before), {
       asOf, halfLifeDays: cfg.carHalfLifeDays, prior: cfg.carPrior, trendPrior: cfg.carTrendPrior,
       consistency: cfg.carConsistency,
     })

@@ -182,7 +182,7 @@ describe('dropDuplicates', () => {
     [
       'Position;Abstand;Fahrer;Fahrzeug;Runden;Schnellste Runde;Boxenstops;1;2;3;',
       '1;;F. Lorenz;Mercedes C63 AMG DTM;3;0:09.982;0;0:12.001;0:11.365;0:09.982;',
-      `2;+0:03.045;Ole;${car2};3;0:10.352;0;0:12.321;0:12.099;0:10.352;`,
+      `2;+0:03.045;Mika;${car2};3;0:10.352;0;0:12.321;0:12.099;0:10.352;`,
     ].join('\n')
   const file = (id: string, name: string, modifiedTime: string) => ({ id, name, track: 'Musterring', createdTime: modifiedTime, modifiedTime })
 

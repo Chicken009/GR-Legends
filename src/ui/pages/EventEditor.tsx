@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { eventSessions } from '../../data/useRaceDays'
+import { carScale } from '../../data/settings'
 import { isGuest } from '../../domain/drivers'
-import { eventContext, typicalLapMs } from '../../domain/event/context'
-import { carCap, teamsAsDefs, teamSplit, type Heat, type TeamPlan, type TeamState } from '../../domain/event/engine'
+import { eventCars, eventContext, typicalLapMs } from '../../domain/event/context'
+import { carCap, TEAMS_BY_AVERAGE_FROM, teamsAsDefs, teamSplit, type Heat, type TeamPlan, type TeamState } from '../../domain/event/engine'
 import { todayIso } from '../../domain/event/insights'
 import { eventSlug, normalizeEvent, serializeEvent } from '../../domain/event/normalize'
 import { newSeed } from '../../domain/event/random'
@@ -151,8 +152,8 @@ export function EventEditor() {
     // Kurz warten, damit „läuft …“ angezeigt wird
     setTimeout(() => {
       const sessions = folder ? eventSessions(data.allSessions, folder.id) : []
-      const ctx = eventContext(current, data.model.rating, data.allSessions, sessions, track)
-      const result = simulate(current, ctx, typicalLapMs(data.allSessions, track))
+      const ctx = eventContext(current, data.model.rating, data.allSessions, sessions, track, (c) => carScale(data.settings, c))
+      const result = simulate(current, ctx, typicalLapMs(data.allSessions, track, eventCars(current)))
       setSimFor((s) => (s?.def === current ? { def: current, result } : s))
     }, 30)
   }
@@ -634,7 +635,9 @@ function TeamEditor({ def, update, teams, warnings }: { def: EventDef; update: (
         )}
       </div>
       <span style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.45 }}>
-        {rule.mode === 'elo' && 'Ausgeglichene Teams per Schlangenverteilung (1-2-3-3-2-1) nach Elo – jedes Gerät rechnet dasselbe.'}
+        {rule.mode === 'elo' && (def.start >= TEAMS_BY_AVERAGE_FROM
+          ? 'Ausgeglichene Teams nach Elo: Schlangenverteilung, dann tauschen, bis jedes Team möglichst denselben Elo-Schnitt hat – jedes Gerät rechnet dasselbe.'
+          : 'Ausgeglichene Teams per Schlangenverteilung (1-2-3-3-2-1) nach Elo – jedes Gerät rechnet dasselbe.')}
         {rule.mode === 'random' && 'Ausgelost mit festem Startwert – überall dieselbe Auslosung. „Neu losen“ ändert den Startwert.'}
         {rule.mode === 'manual' && 'Teams selbst einteilen. „Nach Elo“ oder „Ausgelost“ wählen und dann „Festschreiben“ übernimmt die Teams hierher.'}
         {uneven && ` ${def.drivers.length} Fahrer bei Teamgröße ${rule.size} gehen nicht auf: ${teamSplit(teams)}. Gewertet wird mit dem Schnitt der Mitglieder, das bleibt fair; in Positionsduellen fährt der Schwächste des kleineren Teams doppelt.`}
@@ -1031,6 +1034,18 @@ function SimResult({ sim }: { sim: Simulation }) {
         <ChanceBar key={n} name={n} share={c} />
       ))}
       {minRaces < maxRaces && <span style={{ fontSize: 12, color: 'var(--muted)' }}>Manche fahren deutlich öfter als andere ({per.map(([n, c]) => `${n.split(' ')[0]} ${c}`).join(', ')}).</span>}
+      {sim.underdogs.map((u) => (
+        <div key={u.name} className="inner" style={{ gap: 4, padding: '10px 12px' }}>
+          <b style={{ fontSize: 13 }}>
+            Warum {u.name} nur {Math.round(u.chance * 100)} % hat
+          </b>
+          {u.reasons.map((r) => (
+            <span key={r} style={{ fontSize: 12, color: 'var(--text-2)', lineHeight: 1.45 }}>
+              • {r}
+            </span>
+          ))}
+        </div>
+      ))}
       {sim.reasons.length > 0 && (
         <div className="inner" style={{ gap: 4, padding: '10px 12px' }}>
           <b style={{ fontSize: 13 }}>Warum es einen klaren Favoriten gibt</b>

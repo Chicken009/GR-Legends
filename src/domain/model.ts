@@ -1,7 +1,7 @@
 import { formatTime } from '../data/time'
 import type { Result, Session } from '../types'
 import { isGuest } from './drivers'
-import { crashCost, crashObservations, estimateCars, paceObservations, type CarFit } from './carModel'
+import { crashObservations, estimateCars, fitCars, lossObservations, paceObservations, type CarFit } from './carModel'
 import { carTraits, radarAxes, type RadarAxis } from './carProfile'
 export type { RadarAxis } from './carProfile'
 import { quantile, SPLIT_LAPS } from './laps'
@@ -438,12 +438,13 @@ export function buildModel(input: Session[]): Model {
     const inP = sessions.filter((x) => inPeriod(x.date, period))
     const asOf = inP.reduce((m, x) => (x.date > m ? x.date : m), '')
     const crashObs = crashObservations(inP, carKey, isQuali)
-    const est = estimateCars(paceObservations(inP, carKey, isQuali, RATING.qualiWeight), crashObs, crashCost(inP), {
+    const est = estimateCars(paceObservations(inP, carKey, isQuali, RATING.qualiWeight), lossObservations(inP, carKey, isQuali), {
       asOf, halfLifeDays: RATING.carHalfLifeDays, prior: RATING.carPrior, trendPrior: RATING.carTrendPrior,
       consistency: RATING.carConsistency,
     })
     const paceFit = est.pace
-    const crashFit = est.crash
+    // Abflüge pro 100 Runden zur Anzeige – geglättet wie der Zeitverlust
+    const crashFit = fitCars(crashObs, asOf, RATING.carHalfLifeDays, RATING.carPrior.loss, RATING.carTrendPrior.loss, RATING.carConsistency)
     const baseCrash = crashObs.length ? crashObs.reduce((a, o) => a + o.y, 0) / crashObs.length : null
     const weighted = (fit: CarFit, value: (key: string, e: number) => number | null) => {
       const acc = new Map<string, [number, number]>()

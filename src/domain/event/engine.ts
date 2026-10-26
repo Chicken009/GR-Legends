@@ -18,8 +18,8 @@ export interface EventContext {
   elo: (driver: string) => number
   /** Autowertung auf der Strecke (Elo-Punkte, 0 = Durchschnitt) */
   car: (car: string) => number
-  /** Persönliche Bestzeit auf der Strecke vor dem Wettkampf */
-  previousBest: (driver: string) => number | null
+  /** Persönliche Bestzeit auf der Strecke vor dem Wettkampf (im Maßstab dieses Autos) */
+  previousBest: (driver: string, car: string) => number | null
 }
 
 /** Startplatz in einem Lauf: Name, sobald er feststeht, sonst ein Platzhalter („Top 2 aus Rennen 1“) */
@@ -221,9 +221,45 @@ export function buildTeams(def: EventDef, drivers: string[], elo: (n: string) =>
   }
   const count = Math.max(1, Math.floor(drivers.length / Math.max(1, rule.size)))
   const ordered = rule.mode === 'random' ? shuffle(drivers, `${def.seed}|teams`) : [...drivers].sort((a, b) => elo(b) - elo(a) || a.localeCompare(b))
-  const groups = rule.mode === 'random' ? ordered.reduce<string[][]>((g, d, i) => (g[i % count].push(d), g), Array.from({ length: count }, () => [])) : snake(ordered, count)
+  let groups = rule.mode === 'random' ? ordered.reduce<string[][]>((g, d, i) => (g[i % count].push(d), g), Array.from({ length: count }, () => [])) : snake(ordered, count)
+  if (rule.mode === 'elo' && def.start >= TEAMS_BY_AVERAGE_FROM) groups = balanceAverages(groups, elo)
   const names = rule.teams.map((t) => t.name)
   return { teams: withElo(groups.map((g, i) => ({ id: `t${i + 1}`, name: names[i] || `Team ${i + 1}`, drivers: g })).filter((t) => t.drivers.length), elo), warnings }
+}
+
+/**
+ * Teams nach Elo-Schnitt ausgleichen: ausgehend von der Schlangenverteilung so lange zwei Fahrer
+ * verschiedener Teams tauschen, wie die Schnitte dadurch näher zusammenrücken. Bei ungleich großen
+ * Teams zählt der Schnitt (fährt das größere Team reihum, zählt jeder Einsatz), nicht die Summe.
+ */
+export function balanceAverages(groups: string[][], elo: (n: string) => number): string[][] {
+  const teams = groups.map((g) => [...g])
+  const all = teams.flat()
+  if (all.length < 2) return teams
+  const mean = all.reduce((a, d) => a + elo(d), 0) / all.length
+  const avg = (t: string[]) => t.reduce((a, d) => a + elo(d), 0) / t.length
+  const cost = (t: string[]) => (avg(t) - mean) ** 2
+  for (let step = 0; step < 200; step++) {
+    let best: { i: number; j: number; a: number; b: number; gain: number } | null = null
+    for (let i = 0; i < teams.length; i++) {
+      for (let j = i + 1; j < teams.length; j++) {
+        const before = cost(teams[i]) + cost(teams[j])
+        for (let a = 0; a < teams[i].length; a++) {
+          for (let b = 0; b < teams[j].length; b++) {
+            const ti = teams[i].map((d, k) => (k === a ? teams[j][b] : d))
+            const tj = teams[j].map((d, k) => (k === b ? teams[i][a] : d))
+            const gain = before - cost(ti) - cost(tj)
+            if (gain > 1e-9 && (!best || gain > best.gain)) best = { i, j, a, b, gain }
+          }
+        }
+      }
+    }
+    if (!best) break
+    const { i, j, a, b } = best
+    ;[teams[i][a], teams[j][b]] = [teams[j][b], teams[i][a]]
+  }
+  // Innerhalb des Teams nach Elo (wie bei der Schlangenverteilung)
+  return teams.map((t) => t.sort((x, y) => elo(y) - elo(x) || x.localeCompare(y)))
 }
 
 const withElo = (teams: Omit<TeamState, 'elo'>[], elo: (n: string) => number): TeamState[] =>
@@ -250,7 +286,7 @@ interface Env {
   /** Wie viele Läufe jeder Fahrer schon geplant hat (für das Durchtauschen der Autos) */
   heatCount: Map<string, number>
   carBase: Map<string, number>
-  /** Wie oft ein Auto aus einer Liste schon geplant ist: je Auto und je Fahrer (Schlüssel: `useKey`) */
+  /** Wie oft ein Auto aus einer Liste schon geplant ist: je Auto und je Fahrer (Schlüssel: `countKey`) */
   carUse: Map<string, number>
   heats: Heat[]
 }
@@ -325,7 +361,7 @@ function carsFor(env: Env, rule: CarRule, names: string[], heatId: string): { ca
   if (override) for (const [d, c] of Object.entries(override)) if (names.includes(d)) cars[d] = c
   if (rule.mode === 'random') {
     for (const [d, c] of Object.entries(cars)) {
-      for (const key of [useKey(pool, d, c), useKey(pool, '', c)]) env.carUse.set(key, (env.carUse.get(key) ?? 0) + 1)
+      for (const key of [countKey(pool, d, c), countKey(pool, '', c)]) env.carUse.set(key, (env.carUse.get(key) ?? 0) + 1)
     }
   }
   const hint = rule.mode === 'free' ? null : rule.mode === 'list' && pool.length ? `Freie Wahl aus: ${pool.join(', ')}` : null
@@ -333,7 +369,7 @@ function carsFor(env: Env, rule: CarRule, names: string[], heatId: string): { ca
 }
 
 /** Zählschlüssel je Autoliste (andere Abschnitte mit eigener Liste zählen getrennt); Fahrer leer = alle */
-const useKey = (pool: string[], driver: string, car: string) => [...pool, driver, car].join('\u0000')
+const countKey = (pool: string[], driver: string, car: string) => [...pool, driver, car].join('\u0000')
 
 /**
  * Zufällig verteilte Autos (ab CAR_ROTATION_FROM): Jeder Fahrer bekommt das freie Auto, das er selbst
@@ -343,7 +379,7 @@ const useKey = (pool: string[], driver: string, car: string) => [...pool, driver
 function rotateCars(env: Env, pool: string[], names: string[], heatId: string): Record<string, string> {
   const cars: Record<string, string> = {}
   const taken = new Set<string>()
-  const use = (d: string, c: string) => env.carUse.get(useKey(pool, d, c)) ?? 0
+  const use = (d: string, c: string) => env.carUse.get(countKey(pool, d, c)) ?? 0
   const lot = (d: string, c: string) => hashString(`${env.def.seed}|car|${heatId}|${d}|${c}`)
   for (const d of shuffle(names, `${env.def.seed}|cars|${heatId}`)) {
     const free = pool.filter((c) => !taken.has(c))
@@ -714,6 +750,9 @@ export const EVENT_RULES_FROM = '2026-10-24'
  * bereits gefahrene Wettkämpfe behalten ihren Plan.
  */
 export const CAR_ROTATION_FROM = '2026-10-26'
+
+/** Teams „Nach Elo“ nach Schnitt statt Summe ausgleichen (`balanceAverages`) – für Wettkämpfe ab diesem Tag */
+export const TEAMS_BY_AVERAGE_FROM = '2026-10-26'
 
 /** Läufe derselben Aufteilung auf einer Kopie der Umgebung durchspielen (ohne Nebenwirkungen) */
 const cloneEnv = (env: Env): Env => ({ ...env, used: new Set(env.used), heatCount: new Map(env.heatCount), carBase: new Map(env.carBase), carUse: new Map(env.carUse), heats: [...env.heats] })
@@ -1199,14 +1238,18 @@ export function computeEvent(def: EventDef, ctx: EventContext): EventState {
   // Kennzahlen und Erwartung (nur Rennen)
   const over = new Map<string, number>()
   let fastest: EventState['fastestLap'] = null
-  const eventBest = new Map<string, number>()
+  /** Fahrer → Auto → beste Runde im Wettkampf */
+  const eventBest = new Map<string, Map<string, number>>()
   for (const h of heats) {
     if (h.status !== 'done' || !h.session) continue
     const driven = new Map(h.session.results.map((r) => [r.driver, r]))
     for (const n of h.order) {
       const res = driven.get(n)
       const ms = res?.validBestLapMs ?? null
-      if (ms != null && ms < (eventBest.get(n) ?? Infinity)) eventBest.set(n, ms)
+      if (ms != null && res) {
+        const own = eventBest.get(n) ?? eventBest.set(n, new Map()).get(n)!
+        if (ms < (own.get(res.car) ?? Infinity)) own.set(res.car, ms)
+      }
       const row = rows.get(n)
       if (!row) continue
       if (ms != null && (row.bestLapMs == null || ms < row.bestLapMs)) row.bestLapMs = ms
@@ -1234,9 +1277,12 @@ export function computeEvent(def: EventDef, ctx: EventContext): EventState {
   const dotd = [...over].filter(([n]) => (rows.get(n)?.races ?? 0) >= 2).sort((a, b) => b[1] - a[1])[0]
   if (dotd && dotd[1] > 0.5 && sc.driverOfDay) rows.get(dotd[0])?.bonuses.push({ kind: 'driverOfDay', label: 'Fahrer des Tages', points: sc.driverOfDay })
   if (sc.personalBest) {
-    for (const [n, ms] of eventBest) {
-      const before = ctx.previousBest(n)
-      if (before != null && ms < before) rows.get(n)?.bonuses.push({ kind: 'personalBest', label: 'Neue persönliche Bestzeit', points: sc.personalBest })
+    for (const [n, own] of eventBest) {
+      const beaten = [...own].some(([car, ms]) => {
+        const before = ctx.previousBest(n, car)
+        return before != null && ms < before
+      })
+      if (beaten) rows.get(n)?.bonuses.push({ kind: 'personalBest', label: 'Neue persönliche Bestzeit', points: sc.personalBest })
     }
   }
   for (const row of rows.values()) row.total = Math.round((row.sections.reduce((a, b) => a + b, 0) + row.bonuses.reduce((a, b) => a + b.points, 0)) * 10) / 10

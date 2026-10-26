@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom'
 import type { AppData } from '../../data/useRaceDays'
 import { eventSessions } from '../../data/useRaceDays'
 import type { EventFolder } from '../../data/events'
+import { carScale } from '../../data/settings'
 import { eventContext } from '../../domain/event/context'
 import { computeEvent, type EventState, type Heat, type Standing } from '../../domain/event/engine'
 import { eventPhase, lastDay, todayIso, type EventPhase, type Story } from '../../domain/event/insights'
@@ -48,7 +49,7 @@ export function TeamTag({ id, name, size }: { id: string | null | undefined; nam
 
 export function computeFor(data: AppData, def: EventDef, folderId: string | null): EventState {
   const sessions = folderId ? eventSessions(data.allSessions, folderId) : []
-  return computeEvent(def, eventContext(def, data.model.rating, data.allSessions, sessions, def.track ?? null))
+  return computeEvent(def, eventContext(def, data.model.rating, data.allSessions, sessions, def.track ?? null, (c) => carScale(data.settings, c)))
 }
 
 export function useEventState(folder: EventFolder | undefined, def?: EventDef) {

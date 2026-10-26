@@ -313,10 +313,10 @@ describe('Autowertung gewichtet konsistente Fahrer', () => {
       obs.push({ session: `w${i}`, date, driver: 'Ref', car: 'X\u0000C', y: 0, w: 1 })
     }
     const opt = { asOf: '2026-02-01', halfLifeDays: RATING.carHalfLifeDays, prior: RATING.carPrior, trendPrior: RATING.carTrendPrior }
-    const est = estimateCars(obs, [], new Map(), { ...opt, consistency: RATING.carConsistency })
+    const est = estimateCars(obs, [], { ...opt, consistency: RATING.carConsistency })
     expect(est.total.get('X\u0000A')!).toBeLessThan(est.total.get('X\u0000B')!)
     // ohne Gewichtung nach Konsistenz zieht der Wechselhafte das Ergebnis Richtung B
-    const flat = estimateCars(obs, [], new Map(), { ...opt, consistency: { ...RATING.carConsistency, rounds: 0 } })
+    const flat = estimateCars(obs, [], { ...opt, consistency: { ...RATING.carConsistency, rounds: 0 } })
     expect(flat.total.get('X\u0000A')! - flat.total.get('X\u0000B')!).toBeGreaterThan(est.total.get('X\u0000A')! - est.total.get('X\u0000B')!)
   })
 })

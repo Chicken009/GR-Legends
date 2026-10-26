@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import type { Result, Session } from '../../types'
-import { buildTeams, chunkEven, computeEvent, ladderAuto, ladderPlan, ladderSizes, snake, type EventContext } from './engine'
+import { balanceAverages, buildTeams, chunkEven, computeEvent, ladderAuto, ladderPlan, ladderSizes, snake, type EventContext } from './engine'
 import { driverInsight, eventPhase, planVisible, storylines } from './insights'
 import { normalizeEvent, serializeEvent } from './normalize'
 import { playThrough, simulate } from './simulate'
+import { eventContext } from './context'
+import { computeRatings } from '../rating'
 import { newSection } from './templates'
 import type { EventDef } from './types'
 
@@ -47,6 +49,19 @@ function def(partial: Partial<EventDef> & { sections: EventDef['sections'] }): E
 }
 
 describe('Hilfen', () => {
+  it('gleicht Teams nach Elo-Schnitt aus, auch bei ungleicher Größe', () => {
+    const elo: Record<string, number> = { a: 610, b: 590, c: 570, d: 565, e: 535, f: 525, g: 520, h: 500, i: 500, j: 480, k: 435 }
+    const names = Object.keys(elo)
+    const avg = (t: string[]) => t.reduce((s, n) => s + elo[n], 0) / t.length
+    const spread = (ts: string[][]) => Math.max(...ts.map(avg)) - Math.min(...ts.map(avg))
+    const before = snake(names, 5)
+    const after = balanceAverages(before, (n) => elo[n])
+    expect(after.map((t) => t.length).sort()).toEqual(before.map((t) => t.length).sort())
+    expect(after.flat().sort()).toEqual(names)
+    expect(spread(before)).toBeGreaterThan(30)
+    expect(spread(after)).toBeLessThan(15)
+  })
+
   it('verteilt in Schlangenreihenfolge', () => {
     expect(snake([1, 2, 3, 4, 5, 6], 2)).toEqual([[1, 4, 5], [2, 3, 6]])
   })
@@ -466,6 +481,16 @@ describe('Wertung und Autos', () => {
     }
   })
 
+  it('vergleicht die persönliche Bestzeit nur im selben Maßstab', () => {
+    const before = { ...run('race', ['A', 'B'], { best: [9000, 9500], car: 'Klein' }), track: 'T', date: '2026-10-01' }
+    const scaleOf = (c: string) => (c === 'Groß' ? 24 : 32)
+    const make = (start: string) => eventContext(def({ start, sections: [] }), computeRatings([before]), [before], [], 'T', scaleOf)
+    expect(make('2026-11-01').previousBest('A', 'Groß')).toBeNull()
+    expect(make('2026-11-01').previousBest('A', 'Klein')).toBe(9000)
+    // Ältere Wettkämpfe behalten den Vergleich über alle Autos
+    expect(make('2026-10-25').previousBest('A', 'Groß')).toBe(9000)
+  })
+
   it('übernimmt manuelle Änderungen an einem Lauf', () => {
     const d = def({ drivers: ['A', 'B', 'C'], sections: [newSection('races', { id: 'r', rounds: 1 })], overrides: { 'r-r1-1': { drivers: ['A', 'C'], cars: { A: 'Ferrari' } } } })
     const s = computeEvent(d, ctx())
@@ -523,19 +548,27 @@ describe('Ansicht', () => {
     expect(sum).toBeCloseTo(1)
     expect(sim.winChance.get('A') ?? 0).toBeGreaterThan(sim.winChance.get('F') ?? 0)
   })
+
+  it('Probelauf begründet deutlich geringere Chancen', () => {
+    const weak = def({ drivers: ['A', 'B', 'G'], scoring: { method: 'absolute' }, sections: [newSection('races', { id: 'r', rounds: 3 })] } as never)
+    const sim = simulate(weak, ctx(), 10000, 60)
+    const g = sim.underdogs.find((u) => u.name === 'G')
+    expect(g?.reasons.join(' ')).toMatch(/Elo unter dem Schnitt/)
+    expect(sim.underdogs.some((u) => u.name === 'A')).toBe(false)
+  })
 })
 
 describe('Namen im Wettkampf', () => {
   it('Initialen im Wettkampf passen auch, wenn später ein Anzeigename dazukommt', async () => {
     const { renameEventDrivers } = await import('../../data/events')
-    const d = def({ drivers: ['T. J.', 'S. A.'], teams: { mode: 'manual', size: 1, teams: [{ name: 'Rot', drivers: ['T. J.'] }, { name: 'Blau', drivers: ['S. A.'] }] }, cars: { scale: '1:32', mode: 'fixed', pool: [], fixed: { 'T. J.': 'Corvette' } }, sections: [newSection('races', { id: 'r', rounds: 1 })] })
-    const aliases: Record<string, string> = { 't. j.': 'Till' }
+    const d = def({ drivers: ['A. B.', 'K. L.'], teams: { mode: 'manual', size: 1, teams: [{ name: 'Rot', drivers: ['A. B.'] }, { name: 'Blau', drivers: ['K. L.'] }] }, cars: { scale: '1:32', mode: 'fixed', pool: [], fixed: { 'A. B.': 'Corvette' } }, sections: [newSection('races', { id: 'r', rounds: 1 })] })
+    const aliases: Record<string, string> = { 'a. b.': 'Anton' }
     const renamed = renameEventDrivers(d, (n) => aliases[n.toLowerCase()] ?? n)
-    expect(renamed.drivers).toEqual(['Till', 'S. A.'])
-    expect(renamed.teams!.teams[0].drivers).toEqual(['Till'])
-    expect(renamed.cars.fixed).toEqual({ Till: 'Corvette' })
-    // Läufe tragen nach dem Sheet ebenfalls „Till“ – der Lauf wird zugeordnet
-    const s = computeEvent(renamed, ctx([run('race', ['Till', 'S. A.'])]))
+    expect(renamed.drivers).toEqual(['Anton', 'K. L.'])
+    expect(renamed.teams!.teams[0].drivers).toEqual(['Anton'])
+    expect(renamed.cars.fixed).toEqual({ Anton: 'Corvette' })
+    // Läufe tragen nach dem Sheet ebenfalls „Anton“ – der Lauf wird zugeordnet
+    const s = computeEvent(renamed, ctx([run('race', ['Anton', 'K. L.'])]))
     expect(s.heats[0].status).toBe('done')
   })
 })

@@ -110,6 +110,11 @@ GR Legends
   auf; alle Rennen sind voll, fehlen Fahrer, werden die untersten Rennen kleiner.
 - **Autoliste:** Bei „Freie Wahl aus Liste“, „Nach Können“ und „Zufällig“ fahren höchstens so viele
   gleichzeitig, wie Autos ausgewählt sind – sonst müssten sich zwei ein Auto teilen.
+- **Teams „Nach Elo“** (Wettkämpfe ab 26.10.2026): erst Schlangenverteilung, dann werden Fahrer
+  getauscht, bis jedes Team möglichst denselben Elo-**Schnitt** hat. Bei ungleich großen Teams fährt
+  das größere reihum – zählen muss also der Schnitt, nicht die Summe.
+- **Bestzeit-Bonus** (Wettkämpfe ab 26.10.2026): nur gegen frühere Zeiten im selben Maßstab
+  (1:24 ist deutlich schneller als 1:32).
 - **Zufällige Autos** (Wettkämpfe ab 26.10.2026): Jeder bekommt das freie Auto, das er selbst am
   seltensten hatte, bei Gleichstand das insgesamt seltenste, sonst entscheidet das Los. So kommt jedes
   Auto etwa gleich oft dran und jeder wechselt durch die Liste. Abschnitte mit eigener Autoliste
@@ -127,7 +132,10 @@ GR Legends
   sich alle 30 Sekunden. Tipp: Smartrace-Exporte mit Google Drive für Desktop direkt in den
   Wettkampf-Ordner speichern.
 - **Probelauf** im Editor: spielt den Wettkampf 120-mal mit zufälligen Ergebnissen nach Elo durch
-  (Läufe, Dauer, Läufe je Fahrer, Siegchancen, wie knapp).
+  (Läufe, Dauer, Läufe je Fahrer, Siegchancen, wie knapp). Die Dauer rechnet mit der typischen
+  Runde der Autos des Wettkampfs (sonst der Strecke) und 2 Minuten Wechsel nach einem Qualifying,
+  5 nach einem Rennen. Hat ein Team deutlich weniger Chancen (unter zwei Dritteln des gleichen
+  Anteils; ohne Teams ein Fahrer unter der Hälfte), nennt der Probelauf die Gründe.
 - Ohne `wettkampf.json` wird der Ordner „wie gefahren“ gewertet. Mit „zählt nicht für Elo und
   Saison“ bleiben die Läufe aus allen anderen Wertungen heraus.
 - Beispiele für die lokale Entwicklung: `test/events/` (bzw. `local-data/<Strecke>/<Wettkampf>/`).
@@ -251,10 +259,15 @@ Diese 5 Läufe sind die **Einstufung**: Neue Fahrer sehen statt Elo-Zahl und Ver
 Rundenzeit = Lauf + Fahrer + Auto. Der Lauf fängt Bahnzustand und Tagesform ab, der Fahrer sein
 Können – übrig bleibt, was das Auto ausmacht, gelernt aus Fahrern, die verschiedene Autos gefahren
 sind. Zwei Teile:
-- **Tempo**: Ø saubere Runde gegenüber dem Ø Auto.
-- **Abflüge** pro 100 Runden (Rennen ohne Tank), eingerechnet mit dem typischen Zeitverlust eines
-  Abflugs. Abflüge sind pro Auto kaum verlässlich messbar (viel Zufall) und werden deshalb stark zum
-  Schnitt gezogen.
+- **Tempo**: Ø saubere Runde gegenüber dem Ø Auto (halbe Wirkung nach etwa 10 Läufen).
+- **Zeitverlust** durch Abflüge und Defekte (Rennen ohne Tank): die tatsächlich verlorene Zeit als
+  Anteil der Fahrzeit. Ein Auto, das immer wieder stehen bleibt, kostet so viel mehr als ein kurzer
+  Abflug. Zwischenfälle hängen viel am Zufall und am Fahrer und werden deshalb stärker zum Schnitt
+  gezogen (halbe Wirkung nach etwa 15 Läufen). Die Abflüge pro 100 Runden in der Autoliste sind nur
+  Anzeige.
+
+Die Glättung ist daran abgestimmt, wie gut die Autowertung Rennen vorhersagt, die bei der Schätzung
+weggelassen wurden (Rennen mit verschiedenen Autos seit 2025).
 
 Konsistente Fahrer zählen mehr: Jeder Fahrer wird nach seiner eigenen Rest-Streuung im Modell
 gewichtet (1 / Streuung, relativ zum Schnitt, zwischen 0,25 und 3; bei wenigen Läufen zum Schnitt
@@ -264,7 +277,7 @@ wie schnell er ist.
 1 % schnellere Runden ≈ 8 Elo-Punkte (abgeleitet aus Tempo und Wertung der Fahrer). Vor jedem
 Renntag wird nur aus früheren Läufen geschätzt. Über die Zeit: Der Grundwert kommt aus allen Läufen
 (alte zählen voll), dazu ein Trend aus den neueren Läufen (Halbwertszeit 120 Tage). Der Trend setzt
-sich erst durch, wenn er über mehrere Rennen gleich bleibt (halbe Wirkung nach ca. 4 Läufen) –
+sich erst durch, wenn er über mehrere Rennen gleich bleibt (halbe Wirkung nach ca. 20 Läufen) –
 so zeigen sich mechanische Änderungen, einzelne Ausreißer aber kaum. Underdog-Bonus ab 6 Punkten unter
 dem Schnitt (≈ 0,75 % langsamer).
 
