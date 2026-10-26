@@ -255,7 +255,8 @@ export interface Model {
   rating: RatingResult
   drivers: string[]
   stats: (period: Period) => { drivers: Map<string, DriverStats>; cars: Map<string, CarStats> }
-  ranking: (period: Period) => RankRow[]
+  /** Rangliste; `withInactive`: inaktive wie alle anderen nach Elo einreihen (Filter „Inaktive Fahrer filtern“ aus) */
+  ranking: (period: Period, withInactive?: boolean) => RankRow[]
   statuses: (period: Period) => Map<string, Status[]>
   medals: Map<string, Medal[]>
   trackRecords: Map<string, RecordEntry>
@@ -543,9 +544,9 @@ export function buildModel(input: Session[]): Model {
    * (für Ranglisten und Anzeigen) – Medaillen rechnen wie bisher mit allen, damit sich nichts
    * rückwirkend ändert.
    */
-  const rankingAt = (date: string, rankedOnly = false) => {
+  const rankingAt = (date: string, rankedOnly = false, withInactive = false) => {
     const rows = drivers
-      .filter((n) => !rankedOnly || (!placingAt(n, date) && !inactiveAt(n, date)))
+      .filter((n) => !rankedOnly || (!placingAt(n, date) && (withInactive || !inactiveAt(n, date))))
       .map((n) => ({ name: n, elo: eloAt(n, date) }))
       .filter((r): r is { name: string; elo: number } => r.elo != null)
     rows.sort((a, b) => b.elo - a.elo)
@@ -558,26 +559,26 @@ export function buildModel(input: Session[]): Model {
     const prev = dates.filter((d) => d < `${period}-01-01`)
     return prev.length ? prev[prev.length - 1] : null
   }
-  const ranking = (period: Period): RankRow[] => {
+  const ranking = (period: Period, withInactive = false): RankRow[] => {
     const end = periodEnd(period)
     const start = periodStart(period)
-    const endRanks = rankingAt(end, true)
-    const startRanks = start ? rankingAt(start, true) : new Map<string, number>()
+    const endRanks = rankingAt(end, true, withInactive)
+    const startRanks = start ? rankingAt(start, true, withInactive) : new Map<string, number>()
     const st = stats(period).drivers
     const active = (n: string) => (st.get(n)?.races ?? 0) + (st.get(n)?.qualis ?? 0) > 0
     const ranked = [...endRanks]
       .filter(([n]) => active(n))
-      .map(([name, rank]) => ({ name, elo: eloAt(name, end)!, rank, rankStart: startRanks.get(name) ?? null, races: st.get(name)?.races ?? 0, placing: false, inactive: false }))
+      .map(([name, rank]) => ({ name, elo: eloAt(name, end)!, rank, rankStart: startRanks.get(name) ?? null, races: st.get(name)?.races ?? 0, placing: false, inactive: withInactive && inactiveAt(name, end) }))
       .sort((a, b) => a.rank - b.rank)
     const rest = drivers.filter((n) => active(n) && !endRanks.has(n) && eloAt(n, end) != null)
     // Fahrer in der Einstufung: dahinter, ohne Platz (nach gefahrenen Läufen)
     const placing = rest
-      .filter((n) => !inactiveAt(n, end))
+      .filter((n) => withInactive || !inactiveAt(n, end))
       .sort((a, b) => (rating.history.get(b)?.length ?? 0) - (rating.history.get(a)?.length ?? 0) || a.localeCompare(b))
       .map((name) => ({ name, elo: eloAt(name, end)!, rank: 0, rankStart: null, races: st.get(name)?.races ?? 0, placing: true, inactive: false }))
     // Inaktive (länger als INACTIVE_DAYS kein Rennen): ganz am Ende, ohne Platz, nach Elo
     const inactive = rest
-      .filter((n) => inactiveAt(n, end))
+      .filter((n) => !withInactive && inactiveAt(n, end))
       .sort((a, b) => eloAt(b, end)! - eloAt(a, end)! || a.localeCompare(b))
       .map((name) => ({ name, elo: eloAt(name, end)!, rank: 0, rankStart: null, races: st.get(name)?.races ?? 0, placing: placingAt(name, end), inactive: true }))
     // Platz nur zur Sortierung fortlaufend (angezeigt wird er bei Einstufung und inaktiv nicht)

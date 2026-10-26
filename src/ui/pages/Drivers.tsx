@@ -19,10 +19,12 @@ export function Drivers() {
   const [period, setPeriod] = useStored('drivers:period', 'all')
   const [view, setView] = useStored<'table' | 'cards'>('drivers:view2', 'table')
   const [minRaces, setMinRaces] = useStored('drivers:min3', true)
+  // An: Inaktive (über 12 Monate kein Rennen) ohne Platz ans Ende; aus: wie alle anderen nach Elo
+  const [hideInactive, setHideInactive] = useStored('drivers:inactive', true)
   const p = period === 'all' || model.years.includes(period) ? period : 'all'
   const stats = model.stats(p).drivers
   const statuses = model.statuses(p)
-  const all = model.ranking(p).filter((r) => !minRaces || r.races >= 3 || r.name === me)
+  const all = model.ranking(p, !hideInactive).filter((r) => !minRaces || r.races >= 3 || r.name === me)
   const open = (name: string) => navigate(driverPath(name), { state: { bg: location } })
   const d = (r: RankRow) => stats.get(r.name)
   const seasonRows = p !== 'all' ? model.season(p) : []
@@ -31,7 +33,7 @@ export function Drivers() {
   const seasonOrder = new Map(seasonRows.map((r, i) => [r.name, i]))
   const seasonRank = new Map(seasonRows.map((r) => [r.name, r.rank]))
   const rows = p === 'all' ? all : [...all].sort((a, b) => (seasonOrder.get(a.name) ?? 999) - (seasonOrder.get(b.name) ?? 999))
-  const rankOf = (r: RankRow) => (p === 'all' ? (r.placing || r.inactive ? null : r.rank) : (seasonRank.get(r.name) ?? null))
+  const rankOf = (r: RankRow) => (p === 'all' ? (r.placing || (r.inactive && hideInactive) ? null : r.rank) : (seasonRank.get(r.name) ?? null))
   const medalCount = (name: string) => (model.medals.get(name) ?? []).filter((m) => !m.former).length
   const columns: Column<RankRow>[] = [
     {
@@ -99,6 +101,10 @@ export function Drivers() {
         <label className="check">
           <input type="checkbox" checked={minRaces} onChange={(e) => setMinRaces(e.target.checked)} />
           ab 3 Rennen
+        </label>
+        <label className="check" title="Wer seit über 12 Monaten kein Rennen gefahren ist, steht ohne Platz am Ende">
+          <input type="checkbox" checked={hideInactive} onChange={(e) => setHideInactive(e.target.checked)} />
+          Inaktive Fahrer filtern
         </label>
         {p !== 'all' && (
           <Link to={`/saison/${p}`} className="pill" style={{ marginLeft: 'auto' }}>
@@ -183,7 +189,7 @@ export function Drivers() {
           <span>Streuung = Schwankung sauberer Runden (kleiner = präziser)</span>
           <span>Abflüge nur aus Rennen ohne Tankfunktion</span>
           {p !== 'all' && <span>Sortiert nach Saisonwertung {p} (Punkte, beste {SEASON_POINTS.countedDays} Renntage)</span>}
-          <span>Inaktiv = seit über 12 Monaten kein Rennen – ohne Platz am Ende, bis zum nächsten Rennen</span>
+          <span>Inaktiv = seit über 12 Monaten kein Rennen – mit „Inaktive Fahrer filtern“ ohne Platz am Ende, bis zum nächsten Rennen</span>
           <span>Einstufung = neue Fahrer, die ersten {PLACEMENT_RUNS} Läufe pendeln die Wertung ein (wer vor dem {formatDate(RATING.v2From)} angefangen hat: {RATING.provisionalRacesLegacy})</span>
         </div>
       )}

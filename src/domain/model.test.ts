@@ -183,6 +183,10 @@ describe('Inaktive Fahrer', () => {
     expect(rows.map((r) => r.name)).toEqual(['Anna', 'Mika', 'Ben'])
     expect(rows[2].inactive).toBe(true)
     expect(rows.slice(0, 2).every((r) => !r.inactive)).toBe(true)
+    // Filter aus: wie alle anderen nach Elo eingereiht (Ben hat die meisten Siege), aber markiert
+    const all = m.ranking('all', true)
+    expect(all.map((r) => r.name)).toEqual(['Ben', 'Anna', 'Mika'])
+    expect(all[0]).toMatchObject({ rank: 1, inactive: true, placing: false })
     // im Jahr 2024 war Ben aktiv
     expect(m.ranking('2024').find((r) => r.name === 'Ben')?.inactive).toBe(false)
   })
