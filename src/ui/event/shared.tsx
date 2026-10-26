@@ -141,12 +141,6 @@ export function Pts({ value, color, size = 18 }: { value: number; color?: string
   )
 }
 
-/** Farbe des Teams eines Fahrers (oder undefined ohne Team) */
-export function driverTeamColor(state: EventState, name: string): string | undefined {
-  const t = state.teams.find((x) => x.drivers.includes(name))
-  return t ? teamColor(t.id, t.name) : undefined
-}
-
 /**
  * Gesamtwertung im Stil der Saison-Fahrerwertung: Platz, Avatar, Name, Siege und Rennen,
  * Punkte je Abschnitt und Bonus als Chips, Punkte und Verlauf rechts. Team = farbiger Rand links.
@@ -363,50 +357,18 @@ export function fmtWait(m: number): string {
 /** „Du bist als Nächstes dran“ bzw. „Noch 2 Läufe, dann bist du dran“ */
 export const waitHeadline = (ahead: number) => (ahead === 0 ? 'Du bist als Nächstes dran' : `Noch ${ahead} ${ahead === 1 ? 'Lauf' : 'Läufe'}, dann bist du dran`)
 
-/** Warteschlange: ein Punkt je Lauf bis zum eigenen; der nächste Lauf in Akzentfarbe, der eigene grün mit „Du“ */
-export function WaitQueue({ ahead }: { ahead: number }) {
-  const dots = ahead > 6 ? [0, 1, 2, -1, ahead - 2, ahead - 1] : Array.from({ length: ahead }, (_, i) => i)
-  return (
-    <span className="wait-queue" aria-hidden="true">
-      {dots.map((d, i) => (d < 0 ? <span key={i} className="gap">…</span> : <span key={i} className="dot" style={d === 0 ? { background: EVENT_ACCENT } : undefined} />))}
-      <span className="you">Du</span>
-    </span>
-  )
-}
-
 /**
- * Der eigene nächste Lauf: Warteschlange, ein kurzer Satz, wann es losgeht, Gegner (Ring in
- * Teamfarbe) und Auto. Gleich auf der Startseite und auf der Wettkampf-Seite.
+ * Der eigene nächste Lauf: ein kurzer Satz, wann es losgeht, darunter der Lauf selbst – mit allen
+ * Fahrern einschließlich dir („Du“), Teams als Strich. Gleich auf der Startseite und der Wettkampf-Seite.
  */
 export function NextHeatPanel({ state, heat, me, ahead, minutes, day }: { state: EventState; heat: Heat; me: string; ahead: number; minutes: number | null; day?: string | null }) {
-  const car = heat.cars[me]
-  const others = heat.entrants.filter((e) => e.name !== me)
-  const section = state.sections.find((s) => s.def.id === heat.sectionId)?.def.name
-  const grid = heat.grid ? heat.grid.findIndex((e) => e.name === me) + 1 : 0
   return (
     <div className="next-heat">
-      {!day && <WaitQueue ahead={ahead} />}
       <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
         <b style={{ fontSize: 18, lineHeight: 1.25, color: !day && ahead === 0 ? EVENT_ACCENT : undefined }}>{day ? `Am ${day} geht’s los` : waitHeadline(ahead)}</b>
-        <span style={{ fontSize: 13, color: 'var(--muted)' }}>{[!day && ahead > 0 && minutes != null ? fmtWait(minutes) : null, heat.label, section && !heat.label.startsWith(section) ? section : null].filter(Boolean).join(' · ')}</span>
+        {!day && ahead > 0 && minutes != null && <span style={{ fontSize: 13, color: 'var(--muted)' }}>{fmtWait(minutes)}</span>}
       </span>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, flex: 1, minWidth: 0 }}>
-          {others.map((e, i) => (
-            <span key={i} className="opponent">
-              {e.name ? <Avatar name={e.name} size={28} ring={driverTeamColor(state, e.name)} /> : <span className="avatar-empty" />}
-              <span>{e.label}</span>
-            </span>
-          ))}
-        </div>
-        {car && (
-          <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, maxWidth: 96 }}>
-            <CarThumb car={car} size={48} />
-            <span style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center', lineHeight: 1.2 }}>{car}</span>
-          </span>
-        )}
-      </div>
-      {grid > 0 && <span style={{ fontSize: 13, fontWeight: 700, color: EVENT_ACCENT }}>Du startest von Platz {grid}</span>}
+      <HeatCard heat={heat} state={state} me={me} plain />
     </div>
   )
 }
@@ -441,7 +403,7 @@ export function CarChips({ cars, size = 32, label }: { cars: string[]; size?: nu
   )
 }
 
-export function HeatCard({ heat, state, me, children }: { heat: Heat; state: EventState; me: string | null; children?: ReactNode }) {
+export function HeatCard({ heat, state, me, children, plain }: { heat: Heat; state: EventState; me: string | null; children?: ReactNode; plain?: boolean }) {
   const { model } = useData()
   // Team als farbiger Strich am Zeilenanfang (wie der Rand in den Ranglisten)
   const teamBar = (n: string | null) => {
@@ -456,7 +418,7 @@ export function HeatCard({ heat, state, me, children }: { heat: Heat; state: Eve
   const mine = !!me && (heat.status === 'done' ? heat.order.includes(me) : heat.entrants.some((e) => e.name === me))
   const [why, setWhy] = useState<string | null>(null)
   return (
-    <div className={`heat${heat.status === 'next' ? ' next' : ''}${mine ? ' mine' : ''}`}>
+    <div className={`heat${heat.status === 'next' ? ' next' : ''}${mine && !plain ? ' mine' : ''}`}>
       <div className="heat-head">
         <b>{heat.label}</b>
         <span className={`status-chip ${heat.status}`}>{STATUS_TEXT[heat.status]}</span>

@@ -126,7 +126,7 @@ export function EventView() {
 
       {inEvent && phase !== 'done' && <MyEvent state={state} me={me!} showPlan={showPlan} lapMs={lapMs} />}
 
-      {showPlan && state.next && phase !== 'done' && <NextUp state={state} me={me} />}
+      {showPlan && state.next && phase !== 'done' && <NextUp state={state} me={me} shownAbove={inEvent && state.next.entrants.some((e) => e.name === me)} />}
 
       {phase !== 'done' && <Stories list={storylines(state).slice(0, 3)} />}
 
@@ -178,7 +178,7 @@ export function EventView() {
   )
 }
 
-/** Eigene Karte: wann man dran ist und wo man steht – Team als Rand */
+/** Eigene Karte in zwei Abschnitten: dein nächster Lauf und dein Stand – Team als Rand */
 function MyEvent({ state, me, showPlan, lapMs }: { state: EventState; me: string; showPlan: boolean; lapMs: number }) {
   const insight = driverInsight(state, me)
   const s = insight.standing
@@ -191,39 +191,46 @@ function MyEvent({ state, me, showPlan, lapMs }: { state: EventState; me: string
   const slice = s && state.started ? [insight.above, s, insight.below].filter((x): x is NonNullable<typeof x> => x != null) : []
   return (
     <section className="card me-row" style={{ gap: 12, ...(color ? { borderLeft: `4px solid ${color}` } : null) }}>
-      <div className="card-head">
-        <span className="card-title">Dein Wettkampf</span>
-        {team && teamStarted && (
-          <span className="hint" style={{ color }}>
-            Team-Platz {team.rank}
-          </span>
-        )}
-      </div>
-      {wait && <NextHeatPanel state={state} heat={wait.heat} me={me} ahead={wait.ahead} minutes={wait.minutes} day={future ? formatDate(state.def.start) : null} />}
-      {showPlan && !wait && state.started && <span style={{ fontSize: 13, color: 'var(--muted)' }}>Gerade ist kein Lauf mehr für dich eingeplant.</span>}
+      <span className="card-title">Dein Wettkampf</span>
+      {(wait || (showPlan && state.started)) && (
+        <div className="card-part">
+          <span className="part-label">Dein nächster Lauf</span>
+          {wait ? (
+            <NextHeatPanel state={state} heat={wait.heat} me={me} ahead={wait.ahead} minutes={wait.minutes} day={future ? formatDate(state.def.start) : null} />
+          ) : (
+            <span style={{ fontSize: 13, color: 'var(--muted)' }}>Gerade ist kein Lauf mehr für dich eingeplant.</span>
+          )}
+        </div>
+      )}
       {slice.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {slice.map((r) => {
-            const gap = Math.round((r.total - s!.total) * 10) / 10
-            return (
-              <div key={r.name} className="row" style={{ padding: '4px 8px', minHeight: 36, ...(r.name === me ? { background: 'rgba(59, 188, 74, 0.16)' } : null) }}>
-                <span className={`rank${r.rank <= 3 ? ` r${r.rank}` : ''}`} style={{ minWidth: 22, fontSize: 15 }}>
-                  {r.rank}
-                </span>
-                <span className="grow">
-                  <span className="name" style={r.name === me ? { color: 'var(--me)' } : undefined}>
-                    {r.name === me ? 'Du' : r.name}
+        <div className="card-part">
+          <span className="part-label">
+            <span>Dein Stand</span>
+            {team && teamStarted && <span style={{ color }}>Team-Platz {team.rank}</span>}
+          </span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {slice.map((r) => {
+              const gap = Math.round((r.total - s!.total) * 10) / 10
+              return (
+                <div key={r.name} className="row" style={{ padding: '4px 8px', minHeight: 36, ...(r.name === me ? { background: 'rgba(59, 188, 74, 0.16)' } : null) }}>
+                  <span className={`rank${r.rank <= 3 ? ` r${r.rank}` : ''}`} style={{ minWidth: 22, fontSize: 15 }}>
+                    {r.rank}
                   </span>
-                </span>
-                {r.name !== me && (
-                  <span className="num" style={{ fontSize: 12, fontWeight: 700, color: gap > 0 ? 'var(--muted)' : 'var(--me)' }}>
-                    {gap > 0 ? `+${fmtPts(gap)}` : gap < 0 ? `−${fmtPts(-gap)}` : '±0'}
+                  <span className="grow">
+                    <span className="name" style={r.name === me ? { color: 'var(--me)' } : undefined}>
+                      {r.name === me ? 'Du' : r.name}
+                    </span>
                   </span>
-                )}
-                <Pts value={r.total} size={15} />
-              </div>
-            )
-          })}
+                  {r.name !== me && (
+                    <span className="num" style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)' }}>
+                      {gap > 0 ? `${fmtPts(gap)} vor dir` : gap < 0 ? `${fmtPts(-gap)} hinter dir` : 'gleich'}
+                    </span>
+                  )}
+                  <Pts value={r.total} size={15} />
+                </div>
+              )
+            })}
+          </div>
         </div>
       )}
     </section>
@@ -231,9 +238,21 @@ function MyEvent({ state, me, showPlan, lapMs }: { state: EventState; me: string
 }
 
 /** Nächster Lauf für alle, darunter die zwei danach */
-function NextUp({ state, me }: { state: EventState; me: string | null }) {
+function NextUp({ state, me, shownAbove }: { state: EventState; me: string | null; shownAbove: boolean }) {
   const next = state.next!
   const after = state.heats.slice(state.heats.indexOf(next) + 1).filter((h) => h.status !== 'done').slice(0, 2)
+  // Ist der nächste Lauf dein eigener, steht er schon in „Dein Wettkampf“ – hier nur noch, was danach kommt
+  if (shownAbove) {
+    if (!after.length) return null
+    return (
+      <section className="card" style={{ gap: 6 }}>
+        <span className="card-title">Danach</span>
+        {after.map((h) => (
+          <AfterRow key={h.id} heat={h} me={me} />
+        ))}
+      </section>
+    )
+  }
   return (
     <section className="card" style={{ gap: 8 }}>
       <div className="card-head">

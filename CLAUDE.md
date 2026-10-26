@@ -33,11 +33,13 @@ Smartrace-CSVs und dem Einstellungen-Sheet sind **für jeden lesbar**. Deshalb g
 
 - **Ich:** grün hinterlegte Zeile/Karte (`me-row`), grüner Ring am Avatar, „Du · Name“. In Texten und
   Listen nur den eigenen Namen bzw. „Du“ grün färben, nie ganze Zeilen.
-- **Teams:** nur als farbiger Rand links (`teamColor`), bei Avataren als Ring in Teamfarbe. Den
-  Teamnamen nicht in jeder Zeile wiederholen – er steht einmal in der Teamwertung.
+- **Teams:** nur als farbiger Rand bzw. Strich links (`teamColor`). Den Teamnamen nicht in jeder Zeile
+  wiederholen – er steht einmal in der Teamwertung. Keine Ringe in Teamfarbe: der grüne Ring gehört dir.
 - **Punkte:** große Zahl mit kleinem „Pkt.“ dahinter (`Pts`, in der Saison `Amount`).
-- **Karten:** Titel, rechts höchstens ein kurzer Hinweis, dann Inhalt. Lieber Zahl, Grafik oder Chip
-  als Satz; höchstens 2–3 Zeilen Fließtext. Erklärungen erst beim Antippen oder eingeklappt.
+- **Karten:** Titel, rechts höchstens ein kurzer Hinweis, dann Inhalt. Mehrere Themen in einer Karte
+  als Abschnitte mit kleiner Überschrift und Trennlinie (`card-part`, `part-label`). Lieber Zahl,
+  Grafik oder Chip als Satz; höchstens 2–3 Zeilen Fließtext. Erklärungen erst beim Antippen oder
+  eingeklappt.
 - **Sprache:** kurz, Zahl zuerst („in ca. 10 Min.“, „Noch 2 Läufe, dann bist du dran“).
 - **Regeln/Wertung:** Punkte je Platz als Treppe (`PointsLadder`), Gewichtungen und Bonus als
   `RuleChip`, der ausführliche Text eingeklappt.
