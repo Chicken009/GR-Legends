@@ -760,6 +760,11 @@ function SectionEditor({ sec, index, count, def, plan, onChange, onMove, onRemov
             </select>
           </Field>
         )}
+        {(sec.format === 'races' || sec.format === 'ladder' || sec.format === 'ko') && (sec.seeding === 'elo' || sec.seeding === 'previous') && (
+          <Group label="Startaufstellung" help={sec.seeding === 'elo' || index === 0 ? 'nach Elo zu Beginn des Wettkampfs' : 'nach dem Ergebnis des vorigen Abschnitts'}>
+            <Segment small label="Startaufstellung" value={sec.gridOrder ?? 'best'} onChange={(v) => onChange({ gridOrder: v === 'worst' ? 'worst' : undefined })} options={[['best', 'Beste vorne'], ['worst', 'Schwächste vorne']]} />
+          </Group>
+        )}
         <Group label="Zählt" help={sec.weight === 0 ? 'Nur für Startreihenfolge und Pole' : sec.weight === 1 ? 'Normal' : `×${fmtPts(sec.weight)}`}>
           <Stepper label="Gewichtung" value={sec.weight} min={0} max={3} step={0.5} onChange={(weight) => onChange({ weight })} format={(v) => `×${fmtPts(v)}`} />
         </Group>

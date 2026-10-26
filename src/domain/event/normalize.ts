@@ -64,6 +64,7 @@ function normalizeSection(v: Obj, i: number): SectionDef {
   if (v.teamMode === 'teams' || v.teamMode === 'single') out.teamMode = v.teamMode
   if (v.advanceAuto === true) out.advanceAuto = true
   if (v.finalDirect != null) out.finalDirect = num(v.finalDirect, 2, 1, 11)
+  if (v.gridOrder === 'worst') out.gridOrder = 'worst'
   if (v.advance != null) out.advance = num(v.advance, 1, 1, 11)
   if (Array.isArray(v.heats)) {
     out.heats = v.heats.filter(isObj).map((h) => ({ kind: h.kind === 'quali' ? 'quali' : 'race', drivers: strList(h.drivers) }))

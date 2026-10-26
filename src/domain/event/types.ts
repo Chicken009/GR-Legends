@@ -99,6 +99,8 @@ export interface SectionDef {
   advanceAuto?: boolean
   /** ladder: so viele Fahrer stehen direkt im Finale (leer = automatisch) */
   finalDirect?: number
+  /** Startaufstellung nach Startreihenfolge (vorheriger Abschnitt oder Elo): Beste vorne (Standard) oder Schwächste vorne */
+  gridOrder?: 'best' | 'worst'
   /** custom: Läufe mit festen Fahrern */
   heats?: { kind: 'race' | 'quali'; drivers: string[] }[]
 }

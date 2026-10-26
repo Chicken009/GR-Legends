@@ -95,6 +95,9 @@ GR Legends
 - **Einer je Team mit unterschiedlich großen Teams** (ab 24.10.2026): Ein Durchgang ist so lang,
   dass es für alle aufgeht – jedes Team gleich oft dran, die Fahrer wechseln reihum. Ein halber
   Durchgang: jeder fährt genau einmal, die Teampunkte werden auf gleich viele Einsätze hochgerechnet.
+- **Startaufstellung:** Offene Rennläufe zeigen die Startplätze, wenn die Startreihenfolge nach dem
+  vorigen Abschnitt (sobald er komplett ist) oder nach Elo (zu Beginn des Wettkampfs) gilt –
+  einstellbar „Beste vorne“ oder „Schwächste vorne“.
 - **Teamrennen-Durchgänge:** Passen zwei Teams auf die Bahn, ist ein Durchgang „jedes Team einmal
   gegen jedes“ (4 Teams = 6 Rennen); optional nur ein halber Durchgang mit nach Elo ausgeglichenen
   Gegnern. Der Editor zeigt die Rennzahl je Durchgang. Läufe mit weniger Fahrern werden auf die
