@@ -114,6 +114,8 @@ export interface RankRow {
   races: number
   /** Noch in der Einstufung: kein Platz in der Rangliste */
   placing: boolean
+  /** Länger als INACTIVE_DAYS kein Rennen (bis zum Stichtag): ohne Platz am Ende */
+  inactive: boolean
 }
 
 export type StatusCode =
@@ -300,6 +302,9 @@ export interface Model {
 
 /** Läufe, bis die Wertung eines neuen Fahrers eingependelt ist */
 export const PLACEMENT_RUNS = RATING.provisionalRaces
+
+/** Wer so viele Tage vor dem letzten Renntag zuletzt gefahren ist, steht als inaktiv am Ende der Rangliste */
+export const INACTIVE_DAYS = 365
 
 /** Autowertung gilt als vorläufig, solange ein Auto weniger Rennen hat (Tempo hat nach etwa 10 Läufen die halbe Wirkung) */
 export const CAR_PROVISIONAL_RACES = 10
@@ -528,13 +533,19 @@ export function buildModel(input: Session[]): Model {
   }
   /** Noch in der Einstufung (zum Stand dieses Tages) */
   const placingAt = (driver: string, date: string) => (rating.history.get(driver) ?? []).filter((e) => e.date <= date).length < rating.placementRuns(driver)
+  /** Letztes Rennen länger als INACTIVE_DAYS vor diesem Tag */
+  const inactiveAt = (driver: string, date: string) => {
+    const last = (rating.history.get(driver) ?? []).filter((e) => e.date <= date).pop()?.date
+    return last != null && (Date.parse(date) - Date.parse(last)) / 86_400_000 > INACTIVE_DAYS
+  }
   /**
-   * Rangfolge nach Elo an einem Tag. `rankedOnly`: ohne Fahrer in der Einstufung (für Ranglisten und
-   * Anzeigen) – Medaillen rechnen wie bisher mit allen, damit sich nichts rückwirkend ändert.
+   * Rangfolge nach Elo an einem Tag. `rankedOnly`: ohne Fahrer in der Einstufung und ohne inaktive
+   * (für Ranglisten und Anzeigen) – Medaillen rechnen wie bisher mit allen, damit sich nichts
+   * rückwirkend ändert.
    */
   const rankingAt = (date: string, rankedOnly = false) => {
     const rows = drivers
-      .filter((n) => !rankedOnly || !placingAt(n, date))
+      .filter((n) => !rankedOnly || (!placingAt(n, date) && !inactiveAt(n, date)))
       .map((n) => ({ name: n, elo: eloAt(n, date) }))
       .filter((r): r is { name: string; elo: number } => r.elo != null)
     rows.sort((a, b) => b.elo - a.elo)
@@ -556,14 +567,21 @@ export function buildModel(input: Session[]): Model {
     const active = (n: string) => (st.get(n)?.races ?? 0) + (st.get(n)?.qualis ?? 0) > 0
     const ranked = [...endRanks]
       .filter(([n]) => active(n))
-      .map(([name, rank]) => ({ name, elo: eloAt(name, end)!, rank, rankStart: startRanks.get(name) ?? null, races: st.get(name)?.races ?? 0, placing: false }))
+      .map(([name, rank]) => ({ name, elo: eloAt(name, end)!, rank, rankStart: startRanks.get(name) ?? null, races: st.get(name)?.races ?? 0, placing: false, inactive: false }))
       .sort((a, b) => a.rank - b.rank)
+    const rest = drivers.filter((n) => active(n) && !endRanks.has(n) && eloAt(n, end) != null)
     // Fahrer in der Einstufung: dahinter, ohne Platz (nach gefahrenen Läufen)
-    const placing = drivers
-      .filter((n) => active(n) && !endRanks.has(n) && eloAt(n, end) != null)
+    const placing = rest
+      .filter((n) => !inactiveAt(n, end))
       .sort((a, b) => (rating.history.get(b)?.length ?? 0) - (rating.history.get(a)?.length ?? 0) || a.localeCompare(b))
-      .map((name, i) => ({ name, elo: eloAt(name, end)!, rank: ranked.length + i + 1, rankStart: null, races: st.get(name)?.races ?? 0, placing: true }))
-    return [...ranked, ...placing]
+      .map((name) => ({ name, elo: eloAt(name, end)!, rank: 0, rankStart: null, races: st.get(name)?.races ?? 0, placing: true, inactive: false }))
+    // Inaktive (länger als INACTIVE_DAYS kein Rennen): ganz am Ende, ohne Platz, nach Elo
+    const inactive = rest
+      .filter((n) => inactiveAt(n, end))
+      .sort((a, b) => eloAt(b, end)! - eloAt(a, end)! || a.localeCompare(b))
+      .map((name) => ({ name, elo: eloAt(name, end)!, rank: 0, rankStart: null, races: st.get(name)?.races ?? 0, placing: placingAt(name, end), inactive: true }))
+    // Platz nur zur Sortierung fortlaufend (angezeigt wird er bei Einstufung und inaktiv nicht)
+    return [...ranked, ...placing, ...inactive].map((r, i) => (r.rank ? r : { ...r, rank: i + 1 }))
   }
 
   // ---- Rekorde ---------------------------------------------------------------------------
@@ -618,7 +636,7 @@ export function buildModel(input: Session[]): Model {
       const d = st.get(row.name)
       const list: Status[] = []
       const hist = (rating.history.get(row.name) ?? []).filter((e) => e.date <= periodEnd(period))
-      if (row.rank === 1 && !row.placing) list.push({ code: 'crown', label: 'Platz 1 der Wertung' })
+      if (row.rank === 1 && !row.placing && !row.inactive) list.push({ code: 'crown', label: 'Platz 1 der Wertung' })
       if (d && d.streak >= 2) list.push({ code: 'flame', value: d.streak, label: `${d.streak} Siege in Folge` })
       if (lastDay) {
         const tRec = recordTimeline.find((t) => t.kind === 'track' && t.entry.date === lastDay && t.entry.driver === row.name)
@@ -749,7 +767,7 @@ export function buildModel(input: Session[]): Model {
     const out: Goal[] = []
     const rows = ranking('all')
     const me = rows.find((r) => r.name === driver)
-    const above = me && !me.placing ? rows.find((r) => r.rank === me.rank - 1) : null
+    const above = me && !me.placing && !me.inactive ? rows.find((r) => r.rank === me.rank - 1) : null
     if (me && above) {
       const gap = Math.ceil(above.elo - me.elo)
       out.push({ label: `${gap} Punkte bis Platz ${above.rank}`, detail: `vor ${above.name}`, progress: Math.max(0, Math.min(1, 1 - gap / 30)) })

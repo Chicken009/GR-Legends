@@ -31,7 +31,7 @@ export function Drivers() {
   const seasonOrder = new Map(seasonRows.map((r, i) => [r.name, i]))
   const seasonRank = new Map(seasonRows.map((r) => [r.name, r.rank]))
   const rows = p === 'all' ? all : [...all].sort((a, b) => (seasonOrder.get(a.name) ?? 999) - (seasonOrder.get(b.name) ?? 999))
-  const rankOf = (r: RankRow) => (p === 'all' ? (r.placing ? null : r.rank) : (seasonRank.get(r.name) ?? null))
+  const rankOf = (r: RankRow) => (p === 'all' ? (r.placing || r.inactive ? null : r.rank) : (seasonRank.get(r.name) ?? null))
   const medalCount = (name: string) => (model.medals.get(name) ?? []).filter((m) => !m.former).length
   const columns: Column<RankRow>[] = [
     {
@@ -40,6 +40,7 @@ export function Drivers() {
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, color: 'var(--text)', fontWeight: 600 }}>
           {r.name}
           <StatusIcons list={statuses.get(r.name)} />
+          {r.inactive && <Inactive />}
         </span>
       ),
     },
@@ -135,6 +136,7 @@ export function Drivers() {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
                   <span style={{ fontSize: 16, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.name}</span>
+                  {r.inactive && <Inactive />}
                   <span style={{ fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{d?.favoriteCar ?? '–'}</span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -181,6 +183,7 @@ export function Drivers() {
           <span>Streuung = Schwankung sauberer Runden (kleiner = präziser)</span>
           <span>Abflüge nur aus Rennen ohne Tankfunktion</span>
           {p !== 'all' && <span>Sortiert nach Saisonwertung {p} (Punkte, beste {SEASON_POINTS.countedDays} Renntage)</span>}
+          <span>Inaktiv = seit über 12 Monaten kein Rennen – ohne Platz am Ende, bis zum nächsten Rennen</span>
           <span>Einstufung = neue Fahrer, die ersten {PLACEMENT_RUNS} Läufe pendeln die Wertung ein (wer vor dem {formatDate(RATING.v2From)} angefangen hat: {RATING.provisionalRacesLegacy})</span>
         </div>
       )}
@@ -202,5 +205,14 @@ function Mini({ v, l }: { v: string | number; l: string }) {
       <span style={{ fontSize: 14, fontWeight: 700 }}>{v}</span>
       <span style={{ fontSize: 10, color: 'var(--muted)' }}>{l}</span>
     </div>
+  )
+}
+
+/** Länger als INACTIVE_DAYS kein Rennen: ohne Platz am Ende der Rangliste */
+function Inactive() {
+  return (
+    <span title="Seit über 12 Monaten kein Rennen – ohne Platz, bis zum nächsten Rennen" style={{ fontSize: 10, fontWeight: 600, color: 'var(--muted)', letterSpacing: 0.5 }}>
+      inaktiv
+    </span>
   )
 }

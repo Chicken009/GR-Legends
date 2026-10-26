@@ -174,6 +174,20 @@ describe('Boxenstopp oder Abflug', () => {
   })
 })
 
+describe('Inaktive Fahrer', () => {
+  it('stehen nach über 12 Monaten ohne Rennen ohne Platz am Ende', () => {
+    const early = Array.from({ length: 6 }, (_, i) => race(`a${i}`, `2024-03-0${i + 1}`, [['Ben', 'X', 10], ['Anna', 'X', 9], ['Mika', 'X', 8]]))
+    const later = Array.from({ length: 6 }, (_, i) => race(`b${i}`, `2026-03-0${i + 1}`, [['Anna', 'X', 10], ['Mika', 'X', 9]]))
+    const m = buildModel([...early, ...later])
+    const rows = m.ranking('all')
+    expect(rows.map((r) => r.name)).toEqual(['Anna', 'Mika', 'Ben'])
+    expect(rows[2].inactive).toBe(true)
+    expect(rows.slice(0, 2).every((r) => !r.inactive)).toBe(true)
+    // im Jahr 2024 war Ben aktiv
+    expect(m.ranking('2024').find((r) => r.name === 'Ben')?.inactive).toBe(false)
+  })
+})
+
 describe('Kennzahlen', () => {
   const { model } = prepare(fixtureSessions(), EMPTY_SETTINGS)
 
@@ -181,10 +195,13 @@ describe('Kennzahlen', () => {
     const rows = model.ranking('all')
     expect(rows[0].rank).toBe(1)
     // Eingestufte nach Elo, Fahrer in der Einstufung ohne Platz dahinter
-    const ranked = rows.filter((r) => !r.placing)
+    const ranked = rows.filter((r) => !r.placing && !r.inactive)
     expect(ranked.every((r, i) => i === 0 || r.elo <= ranked[i - 1].elo)).toBe(true)
-    expect(rows.findIndex((r) => r.placing)).toBe(rows.some((r) => r.placing) ? ranked.length : -1)
-    for (const r of rows) expect(r.placing).toBe(model.placement(r.name) != null)
+    // Einstufung und inaktive ohne Platz dahinter, inaktive ganz am Ende
+    expect(rows.slice(0, ranked.length)).toEqual(ranked)
+    const firstInactive = rows.findIndex((r) => r.inactive)
+    if (firstInactive >= 0) expect(rows.slice(firstInactive).every((r) => r.inactive)).toBe(true)
+    for (const r of rows) if (!r.inactive) expect(r.placing).toBe(model.placement(r.name) != null)
     expect(model.statuses('all').get(rows[0].name)?.[0].code).toBe('crown')
     for (const r of rows) expect(model.medals.get(r.name)?.length ?? 0, r.name).toBeGreaterThan(0)
   })
