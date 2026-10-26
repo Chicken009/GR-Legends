@@ -1,4 +1,4 @@
-import type { Result, Session } from '../types'
+import type { Lap, Result, Session } from '../types'
 import { isGuest } from './drivers'
 
 /**
@@ -162,7 +162,34 @@ export function crashObservations(sessions: Session[], carKey: (track: string, c
   return out
 }
 
-/** Was ein Abflug kostet, als Anteil einer sauberen Runde (Median je Strecke) */
+/** Ein Zwischenfall zählt höchstens so viele saubere Runden – längere Stillstände sind meist Rennpausen */
+export const MAX_LOSS_LAPS = 5
+
+/** Verlorene Zeit durch Abflüge und Defekte, je Zwischenfall höchstens MAX_LOSS_LAPS saubere Runden */
+export function lostMs(laps: Lap[], cleanLapMs: number): number {
+  return laps.filter((l) => l.status === 'crash').reduce((a, l) => a + Math.min(l.lossMs ?? 0, MAX_LOSS_LAPS * cleanLapMs), 0)
+}
+
+/**
+ * Beobachtungen für Zwischenfälle: verlorene Zeit durch Abflüge und Defekte (langsame Runden) als
+ * Anteil der sauberen Fahrzeit – ein Auto, das minutenlang steht, kostet so viel mehr als ein kurzer
+ * Abflug. Nur Rennen ohne Tankfunktion (dort sind langsame Runden meist Boxenstopps).
+ */
+export function lossObservations(sessions: Session[], carKey: (track: string, car: string) => string, isQuali: (s: Session) => boolean): CarObs[] {
+  const out: CarObs[] = []
+  for (const s of sessions) {
+    if (isQuali(s) || s.tank) continue
+    for (const r of s.results) {
+      const nl = normal(r)
+      if (isGuest(r.driver) || r.laps < 5 || nl.length < 3) continue
+      const lost = lostMs(r.lapTimes, median(nl))
+      out.push({ session: s.fileId, date: s.date, driver: r.driver, car: carKey(s.track, r.car), y: lost / (median(nl) * r.laps), w: 1 })
+    }
+  }
+  return out
+}
+
+/** Was ein Abflug kostet, als Anteil einer sauberen Runde (Median je Strecke) – für die Autowertung vor RATING.v2From */
 export function crashCost(sessions: Session[]): Map<string, number> {
   const loss = new Map<string, number[]>()
   const laps = new Map<string, number[]>()
@@ -182,32 +209,46 @@ export function crashCost(sessions: Session[]): Map<string, number> {
   return out
 }
 
-export interface CarEstimate {
-  /** Tempo-Effekt (log, ≈ Anteil der Rundenzeit; minus = schneller) je carKey */
-  pace: CarFit
-  /** Abflüge pro Runde gegenüber dem Ø Auto je carKey */
-  crash: CarFit
-  /** Gesamteffekt: Tempo + Abflüge × Kosten eines Abflugs (≈ Anteil der Rundenzeit) */
-  total: Map<string, number>
-}
-
-export interface EstimateOptions {
-  asOf: string
-  halfLifeDays: number
-  prior: { pace: number; crash: number }
-  trendPrior: { pace: number; crash: number }
-  /** Konsistente Fahrer zählen mehr (ihre Abweichungen sind eher echte Autounterschiede) */
-  consistency: Consistency
-}
-
-export function estimateCars(pace: CarObs[], crash: CarObs[], cost: Map<string, number>, opt: EstimateOptions): CarEstimate {
+/**
+ * Autowertung bis RATING.v2From (unverändert, damit ältere Wertungen gleich bleiben): Tempo plus
+ * Abflüge pro Runde × typische Kosten eines Abflugs.
+ */
+export function estimateCarsLegacy(pace: CarObs[], crash: CarObs[], cost: Map<string, number>, opt: Omit<EstimateOptions, 'prior' | 'trendPrior'> & { prior: { pace: number; crash: number }; trendPrior: { pace: number; crash: number } }): Map<string, number> {
   const p = fitCars(pace, opt.asOf, opt.halfLifeDays, opt.prior.pace, opt.trendPrior.pace, opt.consistency)
-  // Abflüge streuen stark und hängen kaum am Auto – deshalb deutlich stärker zum Schnitt gezogen
   const c = fitCars(crash, opt.asOf, opt.halfLifeDays, opt.prior.crash, opt.trendPrior.crash, opt.consistency)
   const total = new Map<string, number>()
   for (const key of new Set([...p.effect.keys(), ...c.effect.keys()])) {
     const k = cost.get(key.split('\u0000')[0]) ?? 0
     total.set(key, (p.effect.get(key) ?? 0) + (c.effect.get(key) ?? 0) * k)
   }
-  return { pace: p, crash: c, total }
+  return total
+}
+
+export interface CarEstimate {
+  /** Tempo-Effekt (log, ≈ Anteil der Rundenzeit; minus = schneller) je carKey */
+  pace: CarFit
+  /** Zeitverlust durch Abflüge und Defekte (Anteil der Fahrzeit) gegenüber dem Ø Auto je carKey */
+  loss: CarFit
+  /** Gesamteffekt: Tempo + Zeitverlust (≈ Anteil der Rundenzeit) */
+  total: Map<string, number>
+}
+
+export interface EstimateOptions {
+  asOf: string
+  halfLifeDays: number
+  prior: { pace: number; loss: number }
+  trendPrior: { pace: number; loss: number }
+  /** Konsistente Fahrer zählen mehr (ihre Abweichungen sind eher echte Autounterschiede) */
+  consistency: Consistency
+  /** Rechenschritte je Schätzung (weniger = schneller; 20 reichen für dieselbe Genauigkeit) */
+  iterations?: number
+}
+
+export function estimateCars(pace: CarObs[], loss: CarObs[], opt: EstimateOptions): CarEstimate {
+  const p = fitCars(pace, opt.asOf, opt.halfLifeDays, opt.prior.pace, opt.trendPrior.pace, opt.consistency, opt.iterations)
+  // Zwischenfälle streuen stark und hängen viel am Fahrer – deshalb stärker zum Schnitt gezogen
+  const l = fitCars(loss, opt.asOf, opt.halfLifeDays, opt.prior.loss, opt.trendPrior.loss, opt.consistency, opt.iterations)
+  const total = new Map<string, number>()
+  for (const key of new Set([...p.effect.keys(), ...l.effect.keys()])) total.set(key, (p.effect.get(key) ?? 0) + (l.effect.get(key) ?? 0))
+  return { pace: p, loss: l, total }
 }

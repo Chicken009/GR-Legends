@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import type { Result, Session } from '../../types'
-import { buildTeams, chunkEven, computeEvent, ladderAuto, ladderPlan, ladderSizes, snake, type EventContext } from './engine'
+import { balanceAverages, buildTeams, chunkEven, computeEvent, ladderAuto, ladderPlan, ladderSizes, snake, type EventContext } from './engine'
 import { driverInsight, eventPhase, planVisible, storylines } from './insights'
 import { normalizeEvent, serializeEvent } from './normalize'
-import { playThrough, simulate } from './simulate'
+import { changeoverMinutes, playThrough, simulate } from './simulate'
+import { eventContext } from './context'
+import { computeRatings } from '../rating'
 import { newSection } from './templates'
 import type { EventDef } from './types'
 
@@ -47,6 +49,19 @@ function def(partial: Partial<EventDef> & { sections: EventDef['sections'] }): E
 }
 
 describe('Hilfen', () => {
+  it('gleicht Teams nach Elo-Schnitt aus, auch bei ungleicher Größe', () => {
+    const elo: Record<string, number> = { a: 610, b: 590, c: 570, d: 565, e: 535, f: 525, g: 520, h: 500, i: 500, j: 480, k: 435 }
+    const names = Object.keys(elo)
+    const avg = (t: string[]) => t.reduce((s, n) => s + elo[n], 0) / t.length
+    const spread = (ts: string[][]) => Math.max(...ts.map(avg)) - Math.min(...ts.map(avg))
+    const before = snake(names, 5)
+    const after = balanceAverages(before, (n) => elo[n])
+    expect(after.map((t) => t.length).sort()).toEqual(before.map((t) => t.length).sort())
+    expect(after.flat().sort()).toEqual(names)
+    expect(spread(before)).toBeGreaterThan(30)
+    expect(spread(after)).toBeLessThan(15)
+  })
+
   it('verteilt in Schlangenreihenfolge', () => {
     expect(snake([1, 2, 3, 4, 5, 6], 2)).toEqual([[1, 4, 5], [2, 3, 6]])
   })
@@ -446,6 +461,71 @@ describe('Wertung und Autos', () => {
     expect(r.heats[1].cars.A).not.toBe(r.heats[0].cars.A)
   })
 
+  it('verteilt zufällige Autos gleichmäßig, auch nach einem Qualifying mit nur einem Auto', () => {
+    const pool = ['W', 'X', 'Y', 'Z']
+    const d = normalizeEvent({
+      name: 'Test-Cup', start: '2026-11-01', drivers: ['A', 'B', 'C', 'D', 'E', 'F'], maxPerHeat: 3,
+      cars: { scale: '1:32', mode: 'random', pool, fixed: {} },
+      sections: [
+        newSection('quali', { id: 'q', maxPerHeat: 1, cars: { scale: '1:32', mode: 'random', pool: ['W'], fixed: {} } }),
+        newSection('races', { id: 'r', rounds: 4, seeding: 'elo' }),
+      ],
+    })
+    const heats = computeEvent(d, ctx()).heats.filter((h) => h.sectionId === 'r')
+    const perCar = pool.map((c) => heats.filter((h) => Object.values(h.cars).includes(c)).length)
+    expect(perCar.reduce((a, b) => a + b, 0)).toBe(24)
+    expect(Math.max(...perCar) - Math.min(...perCar)).toBeLessThanOrEqual(1)
+    for (const n of d.drivers) {
+      const own = heats.filter((h) => h.cars[n]).map((h) => h.cars[n])
+      expect(new Set(own).size).toBe(Math.min(own.length, pool.length))
+    }
+  })
+
+  it('vergleicht die persönliche Bestzeit nur im selben Maßstab', () => {
+    const before = { ...run('race', ['A', 'B'], { best: [9000, 9500], car: 'Klein' }), track: 'T', date: '2026-10-01' }
+    const scaleOf = (c: string) => (c === 'Groß' ? 24 : 32)
+    const make = (start: string) => eventContext(def({ start, sections: [] }), computeRatings([before]), [before], [], 'T', scaleOf)
+    expect(make('2026-11-01').previousBest('A', 'Groß')).toBeNull()
+    expect(make('2026-11-01').previousBest('A', 'Klein')).toBe(9000)
+    // Ältere Wettkämpfe behalten den Vergleich über alle Autos
+    expect(make('2026-10-25').previousBest('A', 'Groß')).toBe(9000)
+  })
+
+  it('neue Wettkämpfe: Fahrer in der Einstufung zählen mit ihrer Elo vor dem Lauf', () => {
+    const at = (r: Session, date: string, time: string) => ({ ...r, track: 'T', date, createdTime: time })
+    const races = [at(run('race', ['Neu', 'B']), '2026-11-01', '2026-11-01T10'), at(run('race', ['Neu', 'B']), '2026-11-01', '2026-11-01T11')]
+    const rating = computeRatings(races)
+    const c = eventContext(def({ start: '2026-11-01', drivers: ['Neu', 'B'], sections: [] }), rating, races, races, 'T')
+    const h = rating.history.get('Neu')!
+    expect(c.elo('Neu')).toBe(500)
+    expect(c.elo('Neu', races[1])).toBeCloseTo(h[1].before)
+    expect(h[1].before).toBeGreaterThan(500)
+    // ältere Wettkämpfe: Elo zu Beginn
+    const old = eventContext(def({ start: '2026-10-01', drivers: ['Neu', 'B'], sections: [] }), rating, races, races, 'T')
+    expect(old.elo('Neu', races[1])).toBe(500)
+  })
+
+  it('Fahrer des Tages ab RATING.v2From: je Gegner, bei Gleichstand geteilt', () => {
+    const races = [run('race', ['A', 'B', 'C']), run('race', ['B', 'A', 'C'])]
+    const even = { ...ctx(races), elo: () => 500 }
+    const make = (start: string) => def({ start, drivers: ['A', 'B', 'C'], scoring: { driverOfDay: 2 }, sections: [newSection('races', { id: 'r', rounds: 2 })] } as never)
+    const bonus = (st: ReturnType<typeof computeEvent>) => st.standings.flatMap((x) => x.bonuses.filter((b) => b.kind === 'driverOfDay').map((b) => [x.name, b.points]))
+    expect(bonus(computeEvent(make('2026-11-01'), even)).sort()).toEqual([['A', 1], ['B', 1]])
+    // ältere Wettkämpfe: wie bisher an einen
+    expect(bonus(computeEvent(make('2026-06-01'), even))).toHaveLength(1)
+  })
+
+  it('„Fair“ ab RATING.v2From: schnellste Runde gemessen an der typischen Runde des Autos', () => {
+    const race = run('race', ['A', 'B'], { best: [8900, 10500] })
+    race.results[0].car = 'Schnell'
+    race.results[1].car = 'Langsam'
+    const c = { ...ctx([race]), carLapMs: (car: string) => (car === 'Schnell' ? 9000 : 11000) }
+    const make = (start: string) => def({ start, drivers: ['A', 'B'], scoring: { method: 'fair', fastestLap: 2 }, sections: [newSection('races', { id: 'r', rounds: 1 })] } as never)
+    const fl = (st: ReturnType<typeof computeEvent>) => st.standings.find((x) => x.bonuses.some((b) => b.kind === 'fastestLap'))?.name
+    expect(fl(computeEvent(make('2026-11-01'), c))).toBe('B')
+    expect(fl(computeEvent(make('2026-06-01'), c))).toBe('A')
+  })
+
   it('übernimmt manuelle Änderungen an einem Lauf', () => {
     const d = def({ drivers: ['A', 'B', 'C'], sections: [newSection('races', { id: 'r', rounds: 1 })], overrides: { 'r-r1-1': { drivers: ['A', 'C'], cars: { A: 'Ferrari' } } } })
     const s = computeEvent(d, ctx())
@@ -503,19 +583,37 @@ describe('Ansicht', () => {
     expect(sum).toBeCloseTo(1)
     expect(sim.winChance.get('A') ?? 0).toBeGreaterThan(sim.winChance.get('F') ?? 0)
   })
+
+  it('Wechselzeit hängt davon ab, wie viele Fahrer und Autos wechseln', () => {
+    type Plan = { order: string[]; cars: Record<string, string> }[]
+    const same: Plan = [{ order: ['A', 'B'], cars: { A: 'X', B: 'Y' } }, { order: ['A', 'B'], cars: { A: 'X', B: 'Y' } }]
+    const swap: Plan = [{ order: ['A', 'B'], cars: { A: 'X', B: 'Y' } }, { order: ['C', 'D'], cars: { C: 'Z', D: 'Y' } }]
+    expect(changeoverMinutes(same)).toBe(1)
+    expect(changeoverMinutes(swap)).toBe(1 + 2 + 0.5)
+    // ohne geplante Autos bringt jeder neue Fahrer sein Auto mit
+    expect(changeoverMinutes([{ order: ['A'], cars: {} }, { order: ['B'], cars: {} }])).toBe(1 + 1 + 0.5)
+  })
+
+  it('Probelauf begründet deutlich geringere Chancen', () => {
+    const weak = def({ drivers: ['A', 'B', 'G'], scoring: { method: 'absolute' }, sections: [newSection('races', { id: 'r', rounds: 3 })] } as never)
+    const sim = simulate(weak, ctx(), 10000, 60)
+    const g = sim.underdogs.find((u) => u.name === 'G')
+    expect(g?.reasons.join(' ')).toMatch(/Elo unter dem Schnitt/)
+    expect(sim.underdogs.some((u) => u.name === 'A')).toBe(false)
+  })
 })
 
 describe('Namen im Wettkampf', () => {
   it('Initialen im Wettkampf passen auch, wenn später ein Anzeigename dazukommt', async () => {
     const { renameEventDrivers } = await import('../../data/events')
-    const d = def({ drivers: ['T. J.', 'S. A.'], teams: { mode: 'manual', size: 1, teams: [{ name: 'Rot', drivers: ['T. J.'] }, { name: 'Blau', drivers: ['S. A.'] }] }, cars: { scale: '1:32', mode: 'fixed', pool: [], fixed: { 'T. J.': 'Corvette' } }, sections: [newSection('races', { id: 'r', rounds: 1 })] })
-    const aliases: Record<string, string> = { 't. j.': 'Till' }
+    const d = def({ drivers: ['A. B.', 'K. L.'], teams: { mode: 'manual', size: 1, teams: [{ name: 'Rot', drivers: ['A. B.'] }, { name: 'Blau', drivers: ['K. L.'] }] }, cars: { scale: '1:32', mode: 'fixed', pool: [], fixed: { 'A. B.': 'Corvette' } }, sections: [newSection('races', { id: 'r', rounds: 1 })] })
+    const aliases: Record<string, string> = { 'a. b.': 'Anton' }
     const renamed = renameEventDrivers(d, (n) => aliases[n.toLowerCase()] ?? n)
-    expect(renamed.drivers).toEqual(['Till', 'S. A.'])
-    expect(renamed.teams!.teams[0].drivers).toEqual(['Till'])
-    expect(renamed.cars.fixed).toEqual({ Till: 'Corvette' })
-    // Läufe tragen nach dem Sheet ebenfalls „Till“ – der Lauf wird zugeordnet
-    const s = computeEvent(renamed, ctx([run('race', ['Till', 'S. A.'])]))
+    expect(renamed.drivers).toEqual(['Anton', 'K. L.'])
+    expect(renamed.teams!.teams[0].drivers).toEqual(['Anton'])
+    expect(renamed.cars.fixed).toEqual({ Anton: 'Corvette' })
+    // Läufe tragen nach dem Sheet ebenfalls „Anton“ – der Lauf wird zugeordnet
+    const s = computeEvent(renamed, ctx([run('race', ['Anton', 'K. L.'])]))
     expect(s.heats[0].status).toBe('done')
   })
 })

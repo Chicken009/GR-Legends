@@ -60,7 +60,7 @@ export function Celebration() {
   const t = TIERS[medal.tier]
   const hist = model.rating.history.get(me) ?? []
   const last = hist[hist.length - 1]
-  const rank = model.ranking('all').find((r) => r.name === me)?.rank
+  const rank = model.ranking('all').find((r) => r.name === me && !r.placing)?.rank
   const placing = model.placement(me)
   const next = () => {
     const seen = readSeen(me) ?? new Set<string>()
@@ -99,7 +99,7 @@ export function Celebration() {
       {last && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--nav)', border: '1px solid #262B33', borderRadius: 16, padding: '10px 14px', boxShadow: 'var(--sh1)' }}>
           {placing != null ? (
-            <Placement n={placing} size={14} />
+            <Placement n={placing} driver={me} size={14} />
           ) : (
             <>
               <span style={{ fontSize: 13, color: 'var(--muted)' }}>Elo</span>

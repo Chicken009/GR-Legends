@@ -1,6 +1,6 @@
 import type { Result, Session } from '../types'
 import { isGuest } from './drivers'
-import { crashCost, crashObservations, estimateCars, paceObservations, type CarObs } from './carModel'
+import { crashCost, crashObservations, estimateCars, estimateCarsLegacy, lossObservations, paceObservations, type CarObs } from './carModel'
 import { cleanReference, quantile } from './laps'
 
 export const RATING = {
@@ -15,30 +15,45 @@ export const RATING = {
   k: 24,
   /** Höhere Bewegung in den ersten Läufen, damit sich neue Fahrer schnell einpendeln */
   kProvisional: 48,
-  provisionalRaces: 5,
   /**
-   * Autowertung aus den Runden (pro Strecke): fahrer- und laufbereinigtes Tempo plus Abflugneigung
-   * (über den typischen Zeitverlust eines Abflugs), umgerechnet in Elo-Punkte. 1 % schnellere
-   * Runden ≈ so viele Punkte – abgeleitet aus dem Zusammenhang von Tempo und Wertung bei den Fahrern.
+   * Einstufung: so viele Läufe zählen doppelt. 8 sagen Ergebnisse besser voraus als 5 (abgeglichen an
+   * allen Läufen) – für Fahrer, deren erstes Rennen ab `v2From` ist; wer vorher begann, behält 5.
+   */
+  provisionalRaces: 8,
+  provisionalRacesLegacy: 5,
+  /**
+   * Ab diesem Tag gelten die neue Autowertung (Zeitverlust, Schätzung vor jedem Lauf) und die längere
+   * Einstufung. Ältere Läufe werden weiter wie bisher gerechnet – nichts ändert sich rückwirkend.
+   */
+  v2From: '2026-10-26',
+  /** Autowertung vor `v2From`: Abflüge × typische Kosten, Glättung und Rechenschritte wie bisher */
+  legacyCar: { prior: { pace: 2, crash: 15 }, trendPrior: { pace: 4, crash: 30 }, rounds: 3, iterations: 40 },
+  /** Rechenschritte je Schätzung der Autowertung (genauso genau wie 40, aber schnell genug für jeden Lauf) */
+  carIterations: 20,
+  /**
+   * Autowertung aus den Runden (pro Strecke): fahrer- und laufbereinigtes Tempo plus Zeitverlust durch
+   * Abflüge und Defekte, umgerechnet in Elo-Punkte. 1 % schnellere Runden ≈ so viele Punkte –
+   * abgeleitet aus dem Zusammenhang von Tempo und Wertung bei den Fahrern.
    */
   carEloPerPct: 8,
   /**
-   * Wie stark Autos mit wenig Daten zum Durchschnitt gezogen werden (in Läufen). Abflüge sind pro
-   * Auto kaum verlässlich messbar (viel Zufall), deshalb zählen sie erst mit vielen Läufen.
+   * Wie stark Autos mit wenig Daten zum Durchschnitt gezogen werden (in Läufen). Abgestimmt daran, wie
+   * gut die Autowertung Rennen vorhersagt, die bei der Schätzung weggelassen wurden: Das Tempo braucht
+   * etwa 10 Läufe für die halbe Wirkung, Zwischenfälle (viel Zufall und Fahrer) etwa 15.
    */
-  carPrior: { pace: 2, crash: 15 },
+  carPrior: { pace: 10, loss: 15 },
   /**
    * Trend der Autowertung: Neuere Läufe können den Grundwert (aus allen Läufen) verschieben, aber
    * erst, wenn die Entwicklung über mehrere Rennen gleich bleibt – so viele Läufe braucht ein Trend
    * für die halbe Wirkung.
    */
-  carTrendPrior: { pace: 4, crash: 30 },
+  carTrendPrior: { pace: 20, loss: 30 },
   /**
    * Konsistente Fahrer zählen für die Autowertung mehr: Gewicht = 1 / eigene Rest-Streuung im Modell
    * (relativ zum Schnitt, zwischen `min` und `max`). Wer gleichmäßig fährt, bei dem sind
    * Abweichungen eher echte Autounterschiede. Bei wenigen Läufen wird zum Schnitt geglättet (`prior`).
    */
-  carConsistency: { prior: 5, min: 0.25, max: 3, rounds: 3 },
+  carConsistency: { prior: 5, min: 0.25, max: 3, rounds: 1 },
   /**
    * Halbwertszeit (Tage) für den Trend der Autowertung: So zeigen sich mechanische Verbesserungen
    * oder Verschleiß, ohne dass alte Läufe verloren gehen.
@@ -81,7 +96,17 @@ export interface RatingEvent {
 
 export interface RatingResult {
   drivers: Map<string, number>
+  /** Autowertung je carKey, Stand nach allen Läufen (für Anzeige und künftige Läufe) */
   cars: Map<string, number>
+  /** Autowertung nach der alten Rechnung, Stand vor `v2From` – für Wettkämpfe, die vorher begonnen haben */
+  legacyCars: Map<string, number>
+  /** Zahl der Einstufungsläufe eines Fahrers (8, wer vor `v2From` begann: 5) */
+  placementRuns: (driver: string) => number
+  /**
+   * Autowertung, wie sie vor einem Lauf feststand (aus allen früheren Läufen). Festgeschrieben: neue
+   * Läufe ändern sie nicht mehr. Für Läufe nach dem letzten gewerteten Lauf gilt der aktuelle Stand.
+   */
+  carsBefore: (s: { date: string; createdTime: string }) => Map<string, number>
   /** Verlauf pro Fahrer (chronologisch) */
   history: Map<string, RatingEvent[]>
   /** Verlauf aller Läufe, für Rangverläufe */
@@ -89,6 +114,14 @@ export interface RatingResult {
 }
 
 export const carKey = (track: string, car: string) => `${track}\u0000${car}`
+
+/** Autowertung aus einer Tabelle; neu auf dieser Strecke: Schnitt desselben Autos auf anderen Strecken */
+export function carValue(cars: Map<string, number>, track: string, car: string): number {
+  const own = cars.get(carKey(track, car))
+  if (own != null) return own
+  const others = [...cars].filter(([k]) => k.endsWith(`\u0000${car}`)).map(([, v]) => v)
+  return others.length ? others.reduce((a, b) => a + b, 0) / others.length : 0
+}
 
 
 export function isQuali(s: Session) {
@@ -148,46 +181,72 @@ export function computeRatings(sessions: Session[], cfg = RATING): RatingResult 
   const history = new Map<string, RatingEvent[]>()
   const events: RatingEvent[] = []
 
-  // Autowertung: vor jedem Renntag aus allen früheren Läufen geschätzt (nie aus dem Ergebnis selbst)
+  // Autowertung: immer nur aus früheren Läufen geschätzt (nie aus dem Ergebnis selbst)
+  const ordered = sortSessions(sessions)
+  const order = new Map(ordered.map((s, i) => [s.fileId, i]))
   const paceObs = paceObservations(sessions, carKey, isQuali, cfg.qualiWeight)
-  const crashObs = crashObservations(sessions, carKey, isQuali)
-  const cost = crashCost(sessions)
-  const refit = (asOf: string, inclusive: boolean) => {
-    const before = (o: CarObs) => (inclusive ? o.date <= asOf : o.date < asOf)
-    cars.clear()
-    const est = estimateCars(paceObs.filter(before), crashObs.filter(before), cost, {
-      asOf, halfLifeDays: cfg.carHalfLifeDays, prior: cfg.carPrior, trendPrior: cfg.carTrendPrior,
-      consistency: cfg.carConsistency,
-    })
-    for (const [k, e] of est.total) cars.set(k, -e * 100 * cfg.carEloPerPct)
+  const lossObs = lossObservations(sessions, carKey, isQuali)
+  // Bis v2From die alte Rechnung (Abflüge × Kosten aus den Läufen vor v2From), danach die neue
+  const v2 = ordered.findIndex((x) => x.date >= cfg.v2From)
+  const legacyEnd = v2 < 0 ? ordered.length : v2
+  const crashObs = crashObservations(ordered.slice(0, legacyEnd), carKey, isQuali)
+  const cost = crashCost(ordered.slice(0, legacyEnd))
+  const fit = (asOf: string, upTo: number) => {
+    const before = (o: CarObs) => (order.get(o.session) ?? Infinity) < upTo
+    const opt = { asOf, halfLifeDays: cfg.carHalfLifeDays }
+    const total = asOf < cfg.v2From
+      ? estimateCarsLegacy(paceObs.filter(before), crashObs.filter(before), cost, {
+        ...opt, prior: cfg.legacyCar.prior, trendPrior: cfg.legacyCar.trendPrior, consistency: { ...cfg.carConsistency, rounds: cfg.legacyCar.rounds }, iterations: cfg.legacyCar.iterations,
+      })
+      : estimateCars(paceObs.filter(before), lossObs.filter(before), { ...opt, prior: cfg.carPrior, trendPrior: cfg.carTrendPrior, consistency: cfg.carConsistency, iterations: cfg.carIterations }).total
+    return new Map([...total].map(([k, e]) => [k, -e * 100 * cfg.carEloPerPct]))
   }
-  let fittedFor = ''
-  const carRating = (track: string, car: string) => {
-    const own = cars.get(carKey(track, car))
-    if (own != null) return own
-    // Neu auf dieser Strecke: Schnitt desselben Autos auf anderen Strecken
-    const others = [...cars].filter(([k]) => k.endsWith(`\u0000${car}`)).map(([, v]) => v)
-    return others.length ? others.reduce((a, b) => a + b, 0) / others.length : 0
-  }
+  // Einstufung: Wer vor v2From begonnen hat, behält die alte Länge
+  const firstDate = new Map<string, string>()
+  const placementRuns = (driver: string) => ((firstDate.get(driver) ?? cfg.v2From) < cfg.v2From ? cfg.provisionalRacesLegacy : cfg.provisionalRaces)
+  const carRating = (track: string, car: string) => carValue(cars, track, car)
 
-  // Typische saubere Runde je Auto und Strecke über alle Läufe (fester Maßstab für das Duell gegen die Bahn)
+  // Typische saubere Runde je Auto und Strecke (Maßstab für das Duell gegen die Bahn): für Läufe vor
+  // v2From aus allen Läufen vor v2From, danach aus allen Läufen bis einschließlich des aktuellen –
+  // spätere Läufe ändern ihn so nicht mehr
   const lapPools = new Map<string, number[]>()
-  for (const s of sessions) {
+  const addLaps = (s: Session) => {
     for (const r of s.results) {
       const nl = r.lapTimes.filter((l) => l.status === 'normal').map((l) => l.ms)
       for (const key of [carKey(s.track, r.car), s.track]) lapPools.set(key, [...(lapPools.get(key) ?? []), ...nl])
     }
   }
-  const typical = new Map([...lapPools].map(([k, xs]) => [k, xs.length >= 30 ? quantile([...xs].sort((a, b) => a - b), 0.5) : null]))
-  const benchRef = (track: string, car: string) => typical.get(carKey(track, car)) ?? typical.get(track) ?? null
+  for (const s of ordered.slice(0, legacyEnd)) addLaps(s)
+  const typicalCache = new Map<string, number | null>()
+  const typical = (key: string) => {
+    if (!typicalCache.has(key)) {
+      const xs = lapPools.get(key) ?? []
+      typicalCache.set(key, xs.length >= 30 ? quantile([...xs].sort((a, b) => a - b), 0.5) : null)
+    }
+    return typicalCache.get(key)!
+  }
+  const benchRef = (track: string, car: string) => typical(carKey(track, car)) ?? typical(track)
 
-  for (const s of sortSessions(sessions)) {
-    if (s.date !== fittedFor) {
-      refit(s.date, false)
+  let fittedFor = ''
+  let fittedAt = -1
+  const hasObs = new Set([...paceObs, ...lossObs].map((o) => order.get(o.session)))
+  for (const [i, s] of ordered.entries()) {
+    // Für die Elo: bis v2From vor jedem Renntag aus allen früheren Tagen, danach vor jedem Lauf
+    // (so ist ein neues Auto schon am ersten Abend eingeschätzt) – neu nur, wenn Runden dazukamen
+    const perRun = s.date >= cfg.v2From && s.date === fittedFor && [...Array(i - fittedAt).keys()].some((k) => hasObs.has(fittedAt + k))
+    if (s.date !== fittedFor || perRun) {
+      cars.clear()
+      for (const [k, v] of fit(s.date, i)) cars.set(k, v)
       fittedFor = s.date
+      fittedAt = i
+    }
+    if (i >= legacyEnd) {
+      addLaps(s)
+      typicalCache.clear()
     }
     const players = s.results.filter((r) => !isGuest(r.driver))
     if (players.length < 2) continue
+    for (const p of players) if (!firstDate.has(p.driver)) firstDate.set(p.driver, s.date)
     const quali = isQuali(s)
     const w = quali ? cfg.qualiWeight : 1
     const ref = cleanReference(s.results.flatMap((r) => r.lapTimes.filter((l) => l.status !== 'invalid').map((l) => l.ms))) ?? 10000
@@ -212,7 +271,7 @@ export function computeRatings(sessions: Session[], cfg = RATING): RatingResult 
     const snapshot = new Map(drivers)
     for (const a of players) {
       const n = counts.get(a.driver) ?? 0
-      const k = (n < cfg.provisionalRaces ? cfg.kProvisional : cfg.k) * w
+      const k = (n < placementRuns(a.driver) ? cfg.kProvisional : cfg.k) * w
       const before = drivers.get(a.driver) ?? cfg.start
       // Duell gegen die Bahn: eigene typische saubere Runde gegen die typische Runde des Autos
       const own = a.lapTimes.filter((l) => l.status === 'normal').map((l) => l.ms).sort((x, y) => x - y)
@@ -238,7 +297,7 @@ export function computeRatings(sessions: Session[], cfg = RATING): RatingResult 
       if (!key) reason = ''
       else if (up) {
         // „Nr. 1“ erst, wenn die Wertung des Gegners eingependelt ist
-        const settled = (counts.get(key.opp.driver) ?? 0) >= cfg.provisionalRaces
+        const settled = (counts.get(key.opp.driver) ?? 0) >= placementRuns(key.opp.driver)
         const oppRank = settled && snapshot.has(key.opp.driver) ? rankOf(snapshot, key.opp.driver) : null
         const who = oppRank === 1 ? `${key.opp.driver}, der Nr. 1 der Wertung` : key.opp.driver
         const head = a.position === 1 ? `Sieg vor ${who}` : `Platz ${a.position} von ${field}, vor ${who}`
@@ -258,10 +317,21 @@ export function computeRatings(sessions: Session[], cfg = RATING): RatingResult 
       history.set(a.driver, h)
     }
   }
-  // Stand am letzten Renntag, inklusive dieses Tages
-  const last = sessions.reduce((m, s) => (s.date > m ? s.date : m), '')
-  if (last) refit(last, true)
-  return { drivers, cars, history, events }
+  // Aktueller Stand: aus allen Läufen (neue Rechnung); alter Stand vor v2From für ältere Wettkämpfe
+  const last = ordered[ordered.length - 1]
+  cars.clear()
+  if (last) for (const [k, v] of fit(last.date < cfg.v2From ? cfg.v2From : last.date, ordered.length)) cars.set(k, v)
+  const latest = new Map(cars)
+  const lastLegacy = ordered[legacyEnd - 1]
+  const legacyCars = lastLegacy ? fit(lastLegacy.date, legacyEnd) : new Map<string, number>()
+  // Stand vor einem Lauf: erst bei Bedarf geschätzt (Wettkämpfe), dann zwischengespeichert
+  const snapshots = new Map<number, Map<string, number>>()
+  const carsBefore = (x: { date: string; createdTime: string }) => {
+    const i = ordered.findIndex((p) => p.date > x.date || (p.date === x.date && p.createdTime >= x.createdTime))
+    if (i < 0) return latest
+    return snapshots.get(i) ?? snapshots.set(i, fit(ordered[i].date, i)).get(i)!
+  }
+  return { drivers, cars, legacyCars, placementRuns, carsBefore, history, events }
 }
 
 /**

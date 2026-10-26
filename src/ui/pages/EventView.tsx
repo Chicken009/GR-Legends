@@ -23,6 +23,7 @@ import {
   ProgressChart,
   rulesText,
   StandingsList,
+  uncertainty,
   Stories,
   teamColor,
   TeamList,
@@ -35,9 +36,9 @@ import {
 
 type Tab = 'stand' | 'ablauf' | 'punkte' | 'rueckblick'
 
-/** „ca. 25 Min.“ bzw. „ca. 1 Std. 10 Min.“ */
+/** „ca. 8 Min.“, „ca. 25 Min.“ bzw. „ca. 1 Std. 10 Min.“ – unter 15 Minuten minutengenau, sonst auf 5 gerundet */
 const fmtMinutes = (m: number) => {
-  const r = Math.max(5, Math.round(m / 5) * 5)
+  const r = m < 15 ? Math.max(1, Math.round(m)) : Math.round(m / 5) * 5
   return r < 60 ? `ca. ${r} Min.` : `ca. ${Math.floor(r / 60)} Std.${r % 60 ? ` ${r % 60} Min.` : ''}`
 }
 
@@ -174,7 +175,7 @@ export function EventView() {
           </section>
         ))}
 
-      {tab === 'punkte' && <PointsRules state={state} />}
+      {tab === 'punkte' && <PointsRules state={state} note={state.complete ? null : uncertainty(data, def)} />}
       {tab === 'punkte' && <CarsCard def={def} />}
 
       {tab === 'rueckblick' && <Recap state={state} steps={steps} me={me} />}
@@ -214,8 +215,11 @@ function MyEvent({ state, me, insight, showPlan, lapMs }: { state: EventState; m
       )}
       {showPlan && heat && wait && (
         <div className={`heat-wait${wait.ahead === 0 ? ' now' : ''}`}>
-          <span className="kicker" style={{ color: wait.ahead === 0 ? EVENT_ACCENT : 'var(--muted)' }}>
-            {wait.ahead === 0 ? (heat.status === 'next' ? 'Du bist jetzt dran' : 'Dein nächster Lauf') : `Du bist in ${wait.ahead} ${wait.ahead === 1 ? 'Lauf' : 'Läufen'} dran · ${fmtMinutes(wait.minutes)}`}
+          <span style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+            <b style={{ fontSize: 18, color: wait.ahead === 0 ? EVENT_ACCENT : 'var(--text)' }}>
+              {wait.ahead === 0 ? (heat.status === 'next' ? 'Du bist jetzt dran' : 'Du bist als Nächstes dran') : `Du bist in ${wait.ahead} ${wait.ahead === 1 ? 'Lauf' : 'Läufen'} dran`}
+            </b>
+            {wait.ahead > 0 && <span style={{ fontSize: 12, color: 'var(--muted)' }}>{fmtMinutes(wait.minutes)} mit Wechseln</span>}
           </span>
           <span style={{ fontSize: 14 }}>
             <b>{heat.label}</b>
@@ -338,7 +342,7 @@ const BONUS_TEXT = {
 } as const
 
 /** Wofür gibt es Punkte? Kurz und mit Beispiel, darunter alle Regeln */
-function PointsRules({ state }: { state: EventState }) {
+function PointsRules({ state, note }: { state: EventState; note: string | null }) {
   const def = state.def
   const sc = def.scoring
   const raceSizes = state.heats.filter((h) => h.kind === 'race').map((h) => h.entrants.length)
@@ -415,6 +419,7 @@ function PointsRules({ state }: { state: EventState }) {
             <li key={t}>{t}</li>
           ))}
         </ul>
+        {note && <span style={{ display: 'block', marginTop: 8, fontSize: 12, color: 'var(--muted)', lineHeight: 1.45 }}>{note}</span>}
       </details>
     </>
   )

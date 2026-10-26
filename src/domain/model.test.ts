@@ -8,7 +8,7 @@ import { CHALLENGE_POOL, CHALLENGES_PER_SEASON, NEW_PER_SEASON, seasonChallengeI
 import { constructorStandings, seasonStandings } from './season'
 import { classifyIncidents, hasTankFunction, splitTime } from './laps'
 import { buildSplits, fmtMark, markNext, markReached, markStep, splitKey } from './splits'
-import { buildModel, PLACEMENT_RUNS, positionTrace } from './model'
+import { buildModel, positionTrace } from './model'
 import { computeRatings, RATING, winChances } from './rating'
 import { buildSession } from './sessions'
 
@@ -36,6 +36,40 @@ function race(id: string, date: string, order: [string, string, number][]): Sess
 }
 
 describe('Wertung', () => {
+  it('neue Fahrer ab RATING.v2From: 8 Einstufungsläufe, ältere behalten 5', () => {
+    const old = race('o', '2026-01-01', [['Anna', 'X', 10], ['Ben', 'X', 9]])
+    const fresh = race('n', '2026-11-01', [['Anna', 'X', 10], ['Mika', 'X', 9]])
+    const r = computeRatings([old, fresh])
+    expect(r.placementRuns('Anna')).toBe(RATING.provisionalRacesLegacy)
+    expect(r.placementRuns('Mika')).toBe(RATING.provisionalRaces)
+    expect(RATING.provisionalRaces).toBe(8)
+  })
+
+  it('ändert ältere Elo-Werte nicht, wenn Läufe ab RATING.v2From dazukommen', () => {
+    const early = [race('a', '2026-10-01', [['Anna', 'X', 10], ['Ben', 'Y', 9]]), race('b', '2026-10-02', [['Ben', 'X', 10], ['Anna', 'Y', 9]])]
+    const later = [...early, race('c', '2026-11-01', [['Anna', 'Y', 10], ['Ben', 'X', 8]])]
+    const before = computeRatings(early).history.get('Anna')!
+    expect(computeRatings(later).history.get('Anna')!.slice(0, before.length)).toEqual(before)
+    expect(computeRatings(later).legacyCars).toEqual(computeRatings(early).legacyCars)
+  })
+
+  it('schreibt die Autowertung vor jedem Lauf fest: spätere Läufe ändern sie nicht', () => {
+    // A und B tauschen die Autos; mit Auto „Schnell“ ist jeder eine Runde vorne
+    const day = (n: number, date: string) => [
+      race(`${date}a`, date, [['Anna', 'Schnell', 10 + n], ['Ben', 'Langsam', 9 + n]]),
+      race(`${date}b`, date, [['Ben', 'Schnell', 10 + n], ['Anna', 'Langsam', 9 + n]]),
+    ]
+    const early = [...day(0, '2026-01-01'), ...day(0, '2026-01-02')]
+    const later = [...early, ...day(1, '2026-01-03'), ...day(2, '2026-01-04')]
+    const at = { date: '2026-01-02', createdTime: '2026-01-02T00:00:00Z' }
+    const a = computeRatings(early).carsBefore(at)
+    const b = computeRatings(later).carsBefore(at)
+    expect(b).toEqual(a)
+    expect(a.get('X\u0000Schnell')!).toBeGreaterThan(a.get('X\u0000Langsam')!)
+    // Der aktuelle Stand nimmt die neuen Läufe auf
+    expect(computeRatings(later).cars).not.toEqual(computeRatings(early).cars)
+  })
+
   it('startet bei 500 und bleibt dreistellig', () => {
     const { model } = prepare(fixtureSessions(), EMPTY_SETTINGS)
     for (const v of model.rating.drivers.values()) {
@@ -146,7 +180,11 @@ describe('Kennzahlen', () => {
   it('liefert Rangliste, Status und mindestens eine Medaille pro Fahrer', () => {
     const rows = model.ranking('all')
     expect(rows[0].rank).toBe(1)
-    expect(rows.every((r, i) => i === 0 || r.elo <= rows[i - 1].elo)).toBe(true)
+    // Eingestufte nach Elo, Fahrer in der Einstufung ohne Platz dahinter
+    const ranked = rows.filter((r) => !r.placing)
+    expect(ranked.every((r, i) => i === 0 || r.elo <= ranked[i - 1].elo)).toBe(true)
+    expect(rows.findIndex((r) => r.placing)).toBe(rows.some((r) => r.placing) ? ranked.length : -1)
+    for (const r of rows) expect(r.placing).toBe(model.placement(r.name) != null)
     expect(model.statuses('all').get(rows[0].name)?.[0].code).toBe('crown')
     for (const r of rows) expect(model.medals.get(r.name)?.length ?? 0, r.name).toBeGreaterThan(0)
   })
@@ -232,9 +270,12 @@ describe('Einstufung und Pace', () => {
 
   it('meldet die Einstufung nur für die ersten Läufe', () => {
     for (const [name, h] of model.rating.history) {
-      expect(model.placement(name)).toBe(h.length < PLACEMENT_RUNS ? h.length : null)
+      const runs = model.placementRuns(name)
+      // Testdaten sind älter: wer vor RATING.v2From begann, hat 5 Einstufungsläufe
+      expect(runs).toBe(RATING.provisionalRacesLegacy)
+      expect(model.placement(name)).toBe(h.length < runs ? h.length : null)
       expect(model.placement(name, h[0].fileId)).toBe(1)
-      if (h.length > PLACEMENT_RUNS) expect(model.placement(name, h[h.length - 1].fileId)).toBeNull()
+      if (h.length > runs) expect(model.placement(name, h[h.length - 1].fileId)).toBeNull()
     }
   })
 
@@ -313,10 +354,10 @@ describe('Autowertung gewichtet konsistente Fahrer', () => {
       obs.push({ session: `w${i}`, date, driver: 'Ref', car: 'X\u0000C', y: 0, w: 1 })
     }
     const opt = { asOf: '2026-02-01', halfLifeDays: RATING.carHalfLifeDays, prior: RATING.carPrior, trendPrior: RATING.carTrendPrior }
-    const est = estimateCars(obs, [], new Map(), { ...opt, consistency: RATING.carConsistency })
+    const est = estimateCars(obs, [], { ...opt, consistency: RATING.carConsistency })
     expect(est.total.get('X\u0000A')!).toBeLessThan(est.total.get('X\u0000B')!)
     // ohne Gewichtung nach Konsistenz zieht der Wechselhafte das Ergebnis Richtung B
-    const flat = estimateCars(obs, [], new Map(), { ...opt, consistency: { ...RATING.carConsistency, rounds: 0 } })
+    const flat = estimateCars(obs, [], { ...opt, consistency: { ...RATING.carConsistency, rounds: 0 } })
     expect(flat.total.get('X\u0000A')! - flat.total.get('X\u0000B')!).toBeGreaterThan(est.total.get('X\u0000A')! - est.total.get('X\u0000B')!)
   })
 })

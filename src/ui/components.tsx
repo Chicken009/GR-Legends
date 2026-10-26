@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom'
 import { useLocation, useNavigate } from 'react-router-dom'
 import type { AppData } from '../data/useRaceDays'
 import { nameKey } from '../data/settings'
-import { PLACEMENT_RUNS } from '../domain/model'
 import { StrokeIcon } from './icons'
 import { initials } from './format'
 import { useMe } from './me'
@@ -288,10 +287,11 @@ export function Sheet({ onClose, children, actions, label }: { onClose: () => vo
 export const sheetStack: string[] = []
 
 /** Neue Fahrer: statt Elo-Zahl und Veränderung nur der Fortschritt der Einstufung */
-export function Placement({ n, size = 12, short }: { n: number; size?: number; short?: boolean }) {
+export function Placement({ n, driver, size = 12, short }: { n: number; driver: string; size?: number; short?: boolean }) {
+  const { model } = useData()
   return (
     <span title="Die ersten Läufe dienen der Einstufung – die Wertung pendelt sich erst ein" style={{ fontSize: size, fontWeight: 600, color: 'var(--muted)', whiteSpace: 'nowrap' }}>
-      {short ? 'Einst.' : 'Einstufung'} {n}/{PLACEMENT_RUNS}
+      {short ? 'Einst.' : 'Einstufung'} {n}/{model.placementRuns(driver)}
     </span>
   )
 }

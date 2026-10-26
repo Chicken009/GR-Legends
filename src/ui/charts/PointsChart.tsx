@@ -10,7 +10,8 @@ export function PointsChart({ dates, series, label, axis, tips }: { dates: strin
   const [ref, width] = useWidth<HTMLDivElement>()
   const [open, setOpen] = useTipState<{ s: number; i: number }>(ref)
   if (dates.length < 2 || !series.length) return null
-  const h = 210
+  // Viele Linien: höher, damit die Namen rechts nicht gedrängt stehen
+  const h = Math.max(210, series.length * 15 + 40)
   const left = 28
   const right = 78
   const top = 10

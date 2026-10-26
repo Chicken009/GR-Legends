@@ -1,6 +1,7 @@
 import { isGuest } from '../drivers'
 import { computeEvent, type EventContext, type EventState, type Heat } from './engine'
 import type { Story } from './insights'
+import { changeoverMinutes, heatDriveMs } from './simulate'
 import type { EventDef } from './types'
 
 const fmt1 = (v: number) => v.toLocaleString('de-DE', { maximumFractionDigits: 1 })
@@ -58,17 +59,28 @@ export function pointsHistory(def: EventDef, ctx: EventContext): ProgressStep[] 
 
 // ---- Wann bin ich dran? ----------------------------------------------------------------------
 
-/** Geschätzte Dauer eines Laufs: Runden × typische Rundenzeit (+10 % für Abflüge) bzw. feste Zeit, plus 2 Minuten Wechsel */
-export const heatMs = (h: Pick<Heat, 'minutes' | 'laps' | 'kind'>, lapMs: number) =>
-  (h.minutes ? h.minutes * 60_000 : (h.laps ?? (h.kind === 'quali' ? 4 : 10)) * lapMs * 1.1) + 120_000
+/** Läufe für die Wechselzeit: noch nicht gefahrene mit ihrer geplanten Besetzung (Platzhalter zählen als neue Fahrer) */
+const lineup = (h: Heat) => ({ order: h.status === 'done' ? h.order : h.entrants.map((e) => e.name ?? `\u0000${e.label}`), cars: h.cars })
+
+/**
+ * Minuten für eine Folge von Läufen: Fahrzeit plus Wechsel vor jedem Lauf (wie im Probelauf).
+ * `before` = zuletzt gefahrener Lauf – der Wechsel von dort zum ersten Lauf zählt mit.
+ */
+function sequenceMinutes(heats: Heat[], before: Heat | null, lapMs: number): number {
+  if (!heats.length) return 0
+  const drive = heats.reduce((a, h) => a + heatDriveMs(h, lapMs), 0)
+  return Math.round(drive / 60_000 + changeoverMinutes([...(before ? [before] : []), ...heats].map(lineup)))
+}
 
 export interface Wait {
   heat: Heat
   /** So viele Läufe sind vorher noch dran */
   ahead: number
-  /** Geschätzte Wartezeit in Minuten */
+  /** Geschätzte Wartezeit bis zum Start des eigenen Laufs in Minuten (Fahrzeit und Wechsel) */
   minutes: number
 }
+
+const lastDone = (state: EventState) => [...state.heats].reverse().find((h) => h.status === 'done') ?? null
 
 /** Nächster Lauf eines Fahrers, wie viele Läufe vorher kommen und wie lange das etwa dauert */
 export function waitFor(state: EventState, driver: string, lapMs: number): Wait | null {
@@ -76,14 +88,18 @@ export function waitFor(state: EventState, driver: string, lapMs: number): Wait 
   const idx = open.findIndex((h) => h.entrants.some((e) => e.name === driver))
   if (idx < 0) return null
   const before = open.slice(0, idx)
-  return { heat: open[idx], ahead: before.length, minutes: Math.round(before.reduce((a, h) => a + heatMs(h, lapMs), 0) / 60_000) }
+  // Fahrzeit der Läufe davor plus alle Wechsel bis einschließlich dem vor dem eigenen Lauf
+  const prev = lastDone(state)
+  const drive = before.reduce((a, h) => a + heatDriveMs(h, lapMs), 0)
+  const seq = [...(prev ? [prev] : []), ...open.slice(0, idx + 1)]
+  return { heat: open[idx], ahead: before.length, minutes: Math.round(drive / 60_000 + changeoverMinutes(seq.map(lineup))) }
 }
 
 /** Gefahrene und geplante Läufe (ohne „Wie gefahren“) und geschätzte Restzeit in Minuten */
 export function eventProgress(state: EventState, lapMs: number) {
   const planned = state.heats.filter((h) => state.def.sections.find((s) => s.id === h.sectionId)?.format !== 'free')
   const open = planned.filter((h) => h.status !== 'done')
-  return { done: planned.length - open.length, total: planned.length, minutesLeft: Math.round(open.reduce((a, h) => a + heatMs(h, lapMs), 0) / 60_000) }
+  return { done: planned.length - open.length, total: planned.length, minutesLeft: sequenceMinutes(open, lastDone(state), lapMs) }
 }
 
 // ---- Woher kommen die Punkte eines Laufs? ----------------------------------------------------

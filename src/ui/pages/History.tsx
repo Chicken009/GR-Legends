@@ -337,7 +337,7 @@ export function RaceView() {
                   {isQuali(session) ? formatTime(r.validBestLapMs) : gapOf(session, r)}
                 </span>
                 <span className="num" style={{ fontSize: 11, fontWeight: 600, color: d != null && d > 0.5 ? '#7BDB8A' : 'var(--muted)' }}>
-                  {placing != null ? <Placement n={placing} size={11} /> : d != null ? `${fmtDelta(d)} Elo` : guest ? 'Gast' : ''}
+                  {placing != null ? <Placement n={placing} driver={r.driver} size={11} /> : d != null ? `${fmtDelta(d)} Elo` : guest ? 'Gast' : ''}
                   {!isQuali(session) && r.validBestLapMs === best ? (d != null || placing != null ? ' · ' : '') : ''}
                   {!isQuali(session) && r.validBestLapMs === best && <span style={{ color: 'var(--best)' }}>Bestzeit</span>}
                 </span>

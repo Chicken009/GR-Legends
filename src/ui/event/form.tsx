@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { carScale } from '../../data/settings'
 import { CAR_MODE_LABEL, type CarMode, type CarRule } from '../../domain/event/types'
+import { CAR_PROVISIONAL_RACES } from '../../domain/model'
 import { Segment, useData } from '../components'
 
 export function Field({ label, help, children }: { label: string; help?: ReactNode; children: ReactNode }) {
@@ -63,6 +64,9 @@ export function CarRuleEditor({ rule, onChange, drivers }: { rule: CarRule; onCh
   const extra = rule.pool.filter((c) => !options.includes(c))
   const togglePool = (car: string) => onChange({ ...rule, pool: rule.pool.includes(car) ? rule.pool.filter((c) => c !== car) : [...rule.pool, car] })
   const needsPool = rule.mode === 'list' || rule.mode === 'skill' || rule.mode === 'random'
+  const { model } = useData()
+  // Nach Können: Mit vorläufiger Autowertung bekäme der Schwächste womöglich ein Auto, das nur auf dem Papier stark ist
+  const unsure = rule.mode === 'skill' ? rule.pool.filter((c) => model.stats('all').cars.get(c)?.provisional ?? true) : []
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div className="form-grid">
@@ -95,7 +99,7 @@ export function CarRuleEditor({ rule, onChange, drivers }: { rule: CarRule; onCh
             rule.mode === 'skill'
               ? 'Der schwächste Fahrer im Lauf bekommt das stärkste Auto (Autowertung auf der Strecke).'
               : rule.mode === 'random'
-                ? 'Jeder startet mit einem ausgelosten Auto und bekommt mit jedem Lauf das nächste aus der Liste – so fährt jeder möglichst jedes Auto.'
+                ? 'Jeder bekommt das freie Auto, das er am seltensten hatte – so fährt jeder möglichst jedes Auto und alle Autos kommen etwa gleich oft dran.'
                 : 'Jeder sucht sich vor dem Lauf ein Auto aus der Liste aus.'
           }
         >
@@ -113,6 +117,11 @@ export function CarRuleEditor({ rule, onChange, drivers }: { rule: CarRule; onCh
             {!options.length && !extra.length && <span style={{ fontSize: 12, color: 'var(--muted)' }}>Keine Autos im Maßstab {rule.scale} bekannt (Maßstab im Einstellungen-Sheet).</span>}
           </div>
         </Group>
+      )}
+      {unsure.length > 0 && (
+        <span style={{ fontSize: 12, color: 'var(--history)', lineHeight: 1.45 }}>
+          Vorsicht: Für {unsure.join(', ')} ist die Autowertung noch vorläufig (weniger als {CAR_PROVISIONAL_RACES} Rennen). „Nach Können“ könnte dem Schwächsten ein Auto geben, das nur auf dem Papier stark ist – „Zufällig“ ist bis dahin fairer.
+        </span>
       )}
       {rule.mode === 'fixed' && (
         <Group label="Auto je Fahrer">

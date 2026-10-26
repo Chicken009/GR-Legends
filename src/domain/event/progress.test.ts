@@ -70,9 +70,13 @@ describe('Punkteverlauf und Rückblick', () => {
     expect(waitFor(state, first[0], 10000)?.ahead).toBe(0)
     const w = waitFor(state, later, 10000)!
     expect(w.ahead).toBe(1)
-    // 10 Runden × 10 s × 1,1 + 2 Minuten Wechsel ≈ 4 Minuten
-    expect(w.minutes).toBe(4)
-    expect(eventProgress(state, 10000)).toEqual({ done: 0, total: 4, minutesLeft: 15 })
+    // Lauf davor: 10 Runden × 10 s × 1,1 ≈ 1,8 Min.; Wechsel: 1 + 2 neue Fahrer × 1 + 2 neue Autos × 0,5 = 4 Min.
+    expect(w.minutes).toBe(6)
+    // Läufe: A–D, B–C, B–C, D–A. 4 × 1,8 Min. + Wechsel 4 + 1 (gleiches Paar bleibt sitzen) + 4 Min.
+    expect(eventProgress(state, 10000)).toEqual({ done: 0, total: 4, minutesLeft: 16 })
+    // Nach dem ersten Lauf zählt der Wechsel vom gefahrenen Lauf zum nächsten mit
+    const after = computeEvent(def, ctx(play(['D', 'C', 'B', 'A'], 1)))
+    expect(waitFor(after, after.next!.entrants[0].name!, 10000)?.minutes).toBe(4)
   })
 
   it('erklärt die Punkte eines Laufs', () => {

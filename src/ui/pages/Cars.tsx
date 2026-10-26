@@ -1,5 +1,5 @@
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import type { CarStats } from '../../domain/model'
+import { CAR_PROVISIONAL_RACES, type CarStats } from '../../domain/model'
 import { carScale } from '../../data/settings'
 import { quantile } from '../../domain/laps'
 import { AREA } from '../colors'
@@ -24,6 +24,18 @@ function rankedCars(cars: Map<string, CarStats>) {
   const rated = list.filter((c) => c.races >= 3).sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))
   const rest = list.filter((c) => c.races < 3).sort((a, b) => b.races - a.races || b.qualis - a.qualis)
   return { rated, rest }
+}
+
+const fmtRating = (r: number) => `${r >= 0 ? '+' : '−'}${Math.abs(Math.round(r))}`
+
+/** Autowertung mit wenigen Rennen: noch unsicher */
+function Provisional() {
+  const label = `Vorläufig: weniger als ${CAR_PROVISIONAL_RACES} Rennen – die Wertung kann sich noch deutlich ändern`
+  return (
+    <span title={label} aria-label={label} style={{ marginLeft: 4, fontSize: 10, fontWeight: 600, color: 'var(--muted)' }}>
+      vorl.
+    </span>
+  )
 }
 
 export function UnderdogBonus({ bonus, compact }: { bonus: number; compact?: boolean }) {
@@ -61,7 +73,7 @@ export function Cars() {
     .sort((a, b) => a.q[2] - b.q[2])
   const columns: Column<CarStats>[] = [
     { key: 'name', label: 'Fahrzeug', left: true, value: (c) => c.name, render: (c) => <CarName car={c} /> },
-    { key: 'rating', label: 'Wertung', title: 'Autowertung in Elo-Punkten: fahrerbereinigtes Tempo und Abflüge aus allen Rennen, gleichbleibende neue Entwicklungen zählen zusätzlich', strong: true, value: (c) => c.rating, render: (c) => (c.rating == null ? '–' : `${c.rating >= 0 ? '+' : '−'}${Math.abs(Math.round(c.rating))}`) },
+    { key: 'rating', label: 'Wertung', title: 'Autowertung in Elo-Punkten: fahrerbereinigtes Tempo und Abflüge aus allen Rennen, gleichbleibende neue Entwicklungen zählen zusätzlich', strong: true, value: (c) => c.rating, render: (c) => (c.rating == null ? '–' : <>{fmtRating(c.rating)}{c.provisional && <Provisional />}</>) },
     { key: 'races', label: 'Rennen', value: (c) => c.races },
     { key: 'qualis', label: 'Qualis', value: (c) => c.qualis },
     { key: 'wins', label: 'Siege', value: (c) => c.wins },
@@ -72,6 +84,7 @@ export function Cars() {
     { key: 'best', label: 'Bestzeit', asc: true, value: (c) => c.bestLapMs, render: (c) => formatTime(c.bestLapMs) },
     { key: 'bestBy', label: 'von', left: true, value: (c) => c.bestBy },
     { key: 'tempo', label: 'Tempo', title: 'Saubere Runde gegenüber dem Ø Auto, fahrer- und laufbereinigt (minus = schneller)', asc: true, value: (c) => c.tempo, render: (c) => fmtGapSec(c.tempo) },
+    { key: 'loss', label: 'Verlust/10 Rd', title: 'Verlorene Zeit durch Abflüge und Defekte in Sekunden je 10 Runden – neutral, nicht um Fahrer bereinigt (nur Rennen ohne Tankfunktion)', asc: true, value: (c) => c.lossPer10, render: (c) => (c.lossPer10 == null ? '–' : `${fmtNum(c.lossPer10)} s`) },
     { key: 'crash', label: 'Abflüge/100', title: 'Abflüge pro 100 Runden, fahrer- und laufbereinigt (nur Rennen ohne Tankfunktion)', asc: true, value: (c) => c.crashRate, render: (c) => fmtNum(c.crashRate) },
     { key: 'spread', label: 'Streuung', title: 'Ø Schwankung der Fahrer mit diesem Auto', asc: true, value: (c) => c.spread, render: (c) => fmtPct(c.spread, 1) },
     { key: 'drivers', label: 'Fahrer', title: 'Verschiedene Fahrer mit diesem Auto', value: (c) => [...c.drivers.keys()].filter((n) => !isGuest(n)).length },
@@ -324,7 +337,7 @@ export function CarProfile({ onClose }: { onClose: () => void }) {
           <section className="inner" style={{ padding: 14, gap: 8 }}>
             <div className="card-head">
               <span className="card-title">Eigenschaften</span>
-              <span className="hint">Autowertung {c.rating == null ? '–' : `${c.rating >= 0 ? '+' : '−'}${Math.abs(Math.round(c.rating))}`}</span>
+              <span className="hint">Autowertung {c.rating == null ? '–' : fmtRating(c.rating)}{c.rating != null && c.provisional && ' (vorläufig)'}</span>
             </div>
             <RadarChart series={[{ name: car, color: ACCENT, axes: c.radar }]} label={`Eigenschaften ${car}: ${c.radar.map((a) => `${a.label} ${Math.round(a.score * 100)}`).join(', ')}`} />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>

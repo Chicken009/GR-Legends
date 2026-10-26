@@ -3,11 +3,13 @@ import { Link, useLocation } from 'react-router-dom'
 import type { AppData } from '../../data/useRaceDays'
 import { eventSessions } from '../../data/useRaceDays'
 import type { EventFolder } from '../../data/events'
-import { eventContext, typicalLapMs } from '../../domain/event/context'
+import { carScale } from '../../data/settings'
+import { eventCars, eventContext, typicalLapMs } from '../../domain/event/context'
 import { computeEvent, type EventState, type Heat, type Standing } from '../../domain/event/engine'
 import { eventPhase, lastDay, todayIso, type EventPhase, type Story } from '../../domain/event/insights'
 import { heatPointsExplained, pointsHistory, type ProgressStep } from '../../domain/event/progress'
 import { FORMAT_LABEL, type EventDef } from '../../domain/event/types'
+import { RATING } from '../../domain/rating'
 import { AREA, ME, SERIES } from '../colors'
 import { PointsChart } from '../charts/PointsChart'
 import { Avatar, driverPath, Segment, useData } from '../components'
@@ -49,7 +51,7 @@ export function TeamTag({ id, name, size }: { id: string | null | undefined; nam
 }
 
 const contextFor = (data: AppData, def: EventDef, folderId: string | null) =>
-  eventContext(def, data.model.rating, data.allSessions, folderId ? eventSessions(data.allSessions, folderId) : [], def.track ?? null)
+  eventContext(def, data.model.rating, data.allSessions, folderId ? eventSessions(data.allSessions, folderId) : [], def.track ?? null, (c) => carScale(data.settings, c))
 
 export function computeFor(data: AppData, def: EventDef, folderId: string | null): EventState {
   return computeEvent(def, contextFor(data, def, folderId))
@@ -71,8 +73,9 @@ export function useEventHistory(folder: EventFolder | undefined): ProgressStep[]
 /** Typische Rundenzeit auf der Strecke des Wettkampfs (für die Zeitschätzung) */
 export function useLapMs(folder: EventFolder | undefined): number {
   const data = useData()
-  const track = folder?.def.track ?? folder?.tracks[0] ?? null
-  return useMemo(() => typicalLapMs(data.allSessions, track), [data, track])
+  const def = folder?.def
+  const track = def?.track ?? folder?.tracks[0] ?? null
+  return useMemo(() => typicalLapMs(data.allSessions, track, def ? eventCars(def) : []), [data, track, def])
 }
 
 export const PHASE_LABEL: Record<EventPhase, string> = { planned: 'geplant', running: 'läuft', done: 'beendet' }
@@ -271,14 +274,13 @@ export function TeamStandings({ state, me }: { state: EventState; me?: string | 
   )
 }
 
-/** Punkteverlauf: Stand nach jedem Lauf – Fahrer (die besten sechs und du) oder Teams in Teamfarben */
+/** Punkteverlauf: Stand nach jedem Lauf – alle Fahrer (du in Grün) oder Teams in Teamfarben */
 export function ProgressChart({ state, steps, me }: { state: EventState; steps: ProgressStep[]; me: string | null }) {
   const [view, setView] = useState<'fahrer' | 'teams'>('fahrer')
   if (steps.length < 3) return null
   const teams = state.teamStandings.length > 0
   const shown = view === 'teams' && teams ? 'teams' : 'fahrer'
-  const top = state.standings.slice(0, 6).map((s) => s.name)
-  const names = me && state.standings.some((s) => s.name === me) && !top.includes(me) ? [...top, me] : top
+  const names = state.standings.map((s) => s.name)
   let i = 0
   const series =
     shown === 'teams'
@@ -288,7 +290,7 @@ export function ProgressChart({ state, steps, me }: { state: EventState; steps: 
     <section className="card" style={{ gap: 8 }}>
       <div className="card-head">
         <span className="card-title">Punkteverlauf</span>
-        <span className="hint">{shown === 'teams' ? 'Teams' : state.standings.length > names.length ? 'die besten sechs' : 'alle Fahrer'} · nach jedem Lauf</span>
+        <span className="hint">{shown === 'teams' ? 'Teams' : 'alle Fahrer'} · nach jedem Lauf</span>
       </div>
       {teams && (
         <Segment
@@ -340,11 +342,14 @@ export function HeatCard({ heat, state, me, children }: { heat: Heat; state: Eve
   const results = heat.session ? new Map(heat.session.results.map((r) => [r.driver, r])) : null
   const mine = !!me && (heat.status === 'done' ? heat.order.includes(me) : heat.entrants.some((e) => e.name === me))
   const [why, setWhy] = useState<string | null>(null)
+  // So viele offene Läufe kommen vorher noch dran
+  const ahead = heat.status === 'done' ? 0 : state.heats.filter((h) => h.status !== 'done').indexOf(heat)
   return (
     <div className={`heat${heat.status === 'next' ? ' next' : ''}${mine ? ' mine' : ''}`}>
       <div className="heat-head">
         <b>{heat.label}</b>
         <span className={`status-chip ${heat.status}`}>{STATUS_TEXT[heat.status]}</span>
+        {ahead > 0 && <span style={{ fontSize: 11, color: mine ? 'var(--me)' : 'var(--muted)' }}>in {ahead} {ahead === 1 ? 'Lauf' : 'Läufen'}</span>}
         {heat.manual && <span className="status-chip">per Hand zugeordnet</span>}
         {heat.note && <span style={{ fontSize: 11, color: 'var(--muted)' }}>{heat.note}</span>}
         {heat.status !== 'done' && heat.grid && <span style={{ fontSize: 11, color: EVENT_ACCENT }}>Startaufstellung nach {heat.gridFrom}</span>}
@@ -458,6 +463,20 @@ export function Podium({ state }: { state: EventState }) {
   )
 }
 
+/**
+ * Hinweis, wenn Siegchancen und faire Gewichtung noch unsicher sind: Fahrer in der Einstufung oder ohne
+ * Rennen, Autos mit vorläufiger Wertung. null = alles eingependelt.
+ */
+export function uncertainty(data: AppData, def: EventDef): string | null {
+  const { model } = data
+  const placing = def.drivers.filter((n) => !model.rating.history.has(n) || model.placement(n) != null)
+  const cars = eventCars(def).filter((c) => model.stats('all').cars.get(c)?.provisional ?? true)
+  const parts: string[] = []
+  if (placing.length) parts.push(`${placing.length === 1 ? `${placing[0]} ist` : `${placing.join(', ')} sind`} noch in der Einstufung`)
+  if (cars.length) parts.push(`vorläufige Autowertung für ${cars.join(', ')}`)
+  return parts.length ? `Siegchancen unsicher: ${parts.join('; ')}. Die Elo-Werte und Autowertungen pendeln sich erst mit mehr Rennen ein.` : null
+}
+
 /** Regeln als Text */
 export function rulesText(def: EventDef, state: EventState): string[] {
   const sc = def.scoring
@@ -489,14 +508,19 @@ export function rulesText(def: EventDef, state: EventState): string[] {
     const last = [...state.sections].reverse().find((s) => s.def.weight > 0 && s.def.format !== 'free')
     if (last) out.push(`Finalbonus: ${last.def.name} zählt ×${fmtPts(sc.finaleFactor)}.`)
   }
+  const newRules = def.start >= RATING.v2From
+  const byCar = newRules && sc.method === 'fair' ? ' (gemessen an der typischen Runde des eigenen Autos)' : ''
   const bonus = [
-    sc.fastestLap && `schnellste Runde +${fmtPts(sc.fastestLap)}`,
-    sc.pole && `Pole +${fmtPts(sc.pole)}`,
-    sc.driverOfDay && `Fahrer des Tages (größte Leistung über der Erwartung) +${fmtPts(sc.driverOfDay)}`,
-    sc.personalBest && `neue persönliche Bestzeit +${fmtPts(sc.personalBest)}`,
+    sc.fastestLap && `schnellste Runde${byCar} +${fmtPts(sc.fastestLap)}`,
+    sc.pole && `Pole${byCar} +${fmtPts(sc.pole)}`,
+    sc.driverOfDay && (newRules
+      ? `Fahrer des Tages (größte Leistung über der Erwartung je Gegner; fast gleichauf = geteilt) +${fmtPts(sc.driverOfDay)}`
+      : `Fahrer des Tages (größte Leistung über der Erwartung) +${fmtPts(sc.driverOfDay)}`),
+    sc.personalBest && `neue persönliche Bestzeit${newRules ? ' (im selben Maßstab)' : ''} +${fmtPts(sc.personalBest)}`,
     sc.clean && `je Rennen ohne Abflug +${fmtPts(sc.clean)}`,
   ].filter(Boolean)
   if (bonus.length) out.push(`Bonus: ${bonus.join(', ')}.`)
+  if (newRules && (sc.method === 'fair' || sc.driverOfDay)) out.push('Wer noch in der Einstufung ist, zählt mit seiner Elo vor dem jeweiligen Rennen – so zählen die Ergebnisse statt des Startwerts. Die Autowertung gilt so, wie sie vor dem jeweiligen Rennen feststand.')
   if (state.separate) out.push('Einzel- und Teamwertung sind getrennt: Einzelrennen zählen für die eigenen Punkte, Teamrennen nur für die Teamwertung (Teampunkte je Lauf: Schnitt der Mitglieder, hochgerechnet).')
   else if (def.teams) out.push('Teamwertung: Schnitt der Gesamtpunkte der Mitglieder – unterschiedlich große Teams bleiben fair.')
   out.push(def.countInStats ? 'Die Läufe zählen auch für Elo und Saison.' : 'Die Läufe zählen nicht für Elo und Saison.')

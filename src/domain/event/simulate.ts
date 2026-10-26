@@ -1,6 +1,5 @@
 import type { Result, Session } from '../../types'
 import { computeEvent, type EventContext, type EventState } from './engine'
-import { heatMs } from './progress'
 import { seededRandom } from './random'
 import type { EventDef } from './types'
 
@@ -22,7 +21,34 @@ export interface Simulation {
   reasons: string[]
   /** Anteil der Durchläufe, in denen Platz 1 und 2 höchstens 2 Punkte trennen */
   close: number
+  /** Teams (bzw. ohne Teams: Fahrer) mit deutlich geringerer Siegchance und warum */
+  underdogs: { name: string; chance: number; reasons: string[] }[]
 }
+
+/**
+ * Wechselzeit vor einem Lauf (Minuten): Grundzeit plus je Fahrer, der neu an einen Regler geht, und
+ * je Auto, das neu auf die Bahn kommt. Abgeglichen mit den Zeitstempeln eines Smartrace-Backups:
+ * etwa eine Minute je neuem Fahrer; Autos wechselten dort fast immer mit, ihr Anteil ist geschätzt.
+ */
+export const CHANGEOVER_MIN = { base: 1, perDriver: 1, perCar: 0.5 }
+
+/** Wechselzeit vor jedem Lauf (der erste Lauf hat keine); ohne geplantes Auto bringt jeder sein eigenes mit */
+export function changeoverMinutes(heats: { order: string[]; cars: Record<string, string> }[]): number {
+  let total = 0
+  for (let i = 1; i < heats.length; i++) {
+    const carsOf = (h: (typeof heats)[number]) => new Set(h.order.map((n) => h.cars[n] ?? `\u0000${n}`))
+    const before = new Set(heats[i - 1].order)
+    const beforeCars = carsOf(heats[i - 1])
+    const drivers = heats[i].order.filter((n) => !before.has(n)).length
+    const cars = [...carsOf(heats[i])].filter((c) => !beforeCars.has(c)).length
+    total += CHANGEOVER_MIN.base + drivers * CHANGEOVER_MIN.perDriver + cars * CHANGEOVER_MIN.perCar
+  }
+  return total
+}
+
+/** Fahrzeit eines Laufs: Runden × typische Rundenzeit (+10 % für Abflüge) bzw. die feste Zeit – ohne Wechsel */
+export const heatDriveMs = (h: { minutes: number | null; laps: number | null; kind: 'quali' | 'race' }, lapMs: number) =>
+  h.minutes ? h.minutes * 60_000 : (h.laps ?? (h.kind === 'quali' ? 4 : 10)) * lapMs * 1.1
 
 function fakeSession(i: number, def: EventDef, heat: EventState['heats'][number], ctx: EventContext, rnd: () => number, lapMs: number): Session {
   const names = heat.entrants.map((e) => e.name!)
@@ -101,7 +127,7 @@ export function simulate(def: EventDef, ctx: EventContext, lapMs: number, runs =
   const heats = first?.heats.filter((h) => h.status === 'done') ?? []
   const perDriver = new Map<string, number>()
   for (const h of heats) for (const n of h.order) perDriver.set(n, (perDriver.get(n) ?? 0) + 1)
-  const ms = heats.reduce((sum, h) => sum + heatMs(h, lapMs), 0)
+  const ms = heats.reduce((sum, h) => sum + heatDriveMs(h, lapMs), 0) + changeoverMinutes(heats) * 60_000
   return {
     runs,
     heats: heats.length,
@@ -111,7 +137,48 @@ export function simulate(def: EventDef, ctx: EventContext, lapMs: number, runs =
     teamChance: new Map([...teamWins].map(([n, c]) => [n, c / runs])),
     close: runs ? close / runs : 0,
     reasons: favoriteReasons(def, ctx, wins, teamWins, runs, first),
+    underdogs: underdogReasons(def, ctx, wins, teamWins, runs, first),
   }
+}
+
+/**
+ * Wer deutlich geringere Chancen hat (unter zwei Dritteln des gleichen Anteils; ohne Teams unter der Hälfte)
+ * und warum: Elo-Schnitt, Teamgröße, Autos laut Plan, Wertung. Mit Teams nur die Teams.
+ */
+function underdogReasons(def: EventDef, ctx: EventContext, wins: Map<string, number>, teamWins: Map<string, number>, runs: number, state: EventState | null): Simulation['underdogs'] {
+  if (!runs || !state) return []
+  const sc = def.scoring
+  const teams = state.teams.length > 0
+  const units = teams ? state.teams.map((t) => ({ name: t.name, drivers: t.drivers })) : state.drivers.map((d) => ({ name: d, drivers: [d] }))
+  if (units.length < 2) return []
+  const limit = (teams ? 2 / 3 : 1 / 2) / units.length
+  const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0)
+  // Autos laut Plan: Ø Autowertung der eigenen Einsätze gegenüber allen Einsätzen
+  const starts = state.heats.filter((h) => h.kind === 'race').flatMap((h) => Object.entries(h.cars).map(([d, c]) => ({ d, v: ctx.car(c) })))
+  const allCars = avg(starts.map((x) => x.v))
+  const sizes = units.map((u) => u.drivers.length)
+  const out: Simulation['underdogs'] = []
+  for (const u of units) {
+    const chance = (teams ? teamWins : wins).get(u.name) ?? 0
+    if (chance / runs >= limit) continue
+    const reasons: string[] = []
+    const own = avg(u.drivers.map((d) => ctx.elo(d)))
+    const others = avg(units.filter((x) => x !== u).map((x) => avg(x.drivers.map((d) => ctx.elo(d)))))
+    const gap = Math.round(others - own)
+    if (gap >= (teams ? 15 : 40)) reasons.push(teams ? `${u.name} ist im Schnitt ${gap} Elo schwächer als die anderen Teams.` : `${gap} Elo unter dem Schnitt des Feldes.`)
+    if (teams && u.drivers.length > Math.min(...sizes)) reasons.push(`Mit ${u.drivers.length} Fahrern wechselt ${u.name} öfter durch – die Stärksten fahren seltener als in kleineren Teams.`)
+    const carGap = Math.round(allCars - avg(starts.filter((x) => u.drivers.includes(x.d)).map((x) => x.v)))
+    if (starts.length && carGap >= 8) reasons.push(`Fährt laut Plan im Schnitt schwächere Autos (${carGap} Elo unter dem Schnitt).`)
+    if (reasons.length) {
+      if (sc.method === 'absolute') reasons.push('Absolute Wertung: Jeder geschlagene Gegner zählt gleich – „Fair“ gleicht Stärkeunterschiede aus.')
+      else {
+        if (sc.win > 0 && !sc.fairWin) reasons.push('Der Siegbonus ist nicht nach Stärke gewichtet und geht meist an die Stärkeren – Option „Siegbonus fair“.')
+        reasons.push('„Fair“ gleicht die erwarteten Punkte aus, aber nicht ganz die Siegchance: Bei wenigen Läufen setzt sich der Stärkere öfter durch.')
+      }
+    } else reasons.push('Kein klarer Grund im Aufbau – eher Zufall bei Auslosung und Paarungen.')
+    out.push({ name: u.name, chance: chance / runs, reasons })
+  }
+  return out.sort((a, b) => a.chance - b.chance)
 }
 
 /**

@@ -1,18 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { eventSessions } from '../../data/useRaceDays'
+import { carScale } from '../../data/settings'
 import { isGuest } from '../../domain/drivers'
-import { eventContext, typicalLapMs } from '../../domain/event/context'
-import { carCap, teamsAsDefs, teamSplit, type Heat, type TeamPlan, type TeamState } from '../../domain/event/engine'
+import { eventCars, eventContext, typicalLapMs } from '../../domain/event/context'
+import { carCap, TEAMS_BY_AVERAGE_FROM, teamsAsDefs, teamSplit, type Heat, type TeamPlan, type TeamState } from '../../domain/event/engine'
 import { todayIso } from '../../domain/event/insights'
 import { eventSlug, normalizeEvent, serializeEvent } from '../../domain/event/normalize'
 import { newSeed } from '../../domain/event/random'
 import { simulate, type Simulation } from '../../domain/event/simulate'
 import { newEvent, newSection, TEMPLATES } from '../../domain/event/templates'
-import { FORMAT_LABEL, type CarRule, type EventDef, type HeatOverride, type SectionDef, type SectionFormat, type Seeding } from '../../domain/event/types'
+import { DEFAULT_SCORING, FORMAT_LABEL, type CarRule, type Scoring, type EventDef, type HeatOverride, type SectionDef, type SectionFormat, type Seeding } from '../../domain/event/types'
 import { PageHead, Segment, useData } from '../components'
 import { CarRuleEditor, Field, Group, Stepper, ToggleChip, useCarOptions } from '../event/form'
-import { computeFor, EVENT_ACCENT, fmtPts, HeatCard, teamColor, teamEloText } from '../event/shared'
+import { computeFor, EVENT_ACCENT, fmtPts, HeatCard, teamColor, teamEloText, uncertainty } from '../event/shared'
 import { formatDate } from '../format'
 
 const DRAFT_KEY = 'gr-legends:event-draft'
@@ -151,8 +152,8 @@ export function EventEditor() {
     // Kurz warten, damit „läuft …“ angezeigt wird
     setTimeout(() => {
       const sessions = folder ? eventSessions(data.allSessions, folder.id) : []
-      const ctx = eventContext(current, data.model.rating, data.allSessions, sessions, track)
-      const result = simulate(current, ctx, typicalLapMs(data.allSessions, track))
+      const ctx = eventContext(current, data.model.rating, data.allSessions, sessions, track, (c) => carScale(data.settings, c))
+      const result = simulate(current, ctx, typicalLapMs(data.allSessions, track, eventCars(current)))
       setSimFor((s) => (s?.def === current ? { def: current, result } : s))
     }, 30)
   }
@@ -398,7 +399,7 @@ export function EventEditor() {
           </button>
         </div>
         <span style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.45 }}>Der Wettkampf wird 120-mal mit zufälligen Ergebnissen nach Elo durchgespielt: Wie lange dauert er, wie oft fährt jeder, wer ist Favorit, wie knapp wird es?</span>
-        {sim && sim !== 'running' && <SimResult sim={sim} />}
+        {sim && sim !== 'running' && <SimResult sim={sim} note={uncertainty(data, def)} />}
       </section>
 
       {folder && <FilesCard def={def} update={update} state={state} folderId={folder.id} />}
@@ -527,6 +528,9 @@ function DriversCard({ def, update }: { def: EventDef; update: (p: Partial<Event
   )
 }
 
+/** Wertung noch wie beim Anlegen (die Wertungsart zählt nicht) */
+const untouched = (sc: Scoring) => !sc.fairWin && (Object.keys(DEFAULT_SCORING) as (keyof Scoring)[]).every((k) => k === 'method' || sc[k] === DEFAULT_SCORING[k])
+
 function ScoringCard({ def, update }: { def: EventDef; update: (p: Partial<EventDef>) => void }) {
   const sc = def.scoring
   const set = (patch: Partial<EventDef['scoring']>) => update({ scoring: { ...sc, ...patch } })
@@ -543,7 +547,8 @@ function ScoringCard({ def, update }: { def: EventDef; update: (p: Partial<Event
       <Segment
         label="Wertungsart"
         value={sc.method}
-        onChange={(method) => set({ method })}
+        // Wer „Fair“ wählt, bekommt auch die fairen Einstellungen – solange an der Wertung noch nichts geändert wurde
+        onChange={(method) => set(method === 'fair' && untouched(sc) ? { method, fairWin: true } : { method })}
         options={[
           ['absolute', 'Absolut'],
           ['fair', 'Fair (nach Elo)'],
@@ -634,7 +639,9 @@ function TeamEditor({ def, update, teams, warnings }: { def: EventDef; update: (
         )}
       </div>
       <span style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.45 }}>
-        {rule.mode === 'elo' && 'Ausgeglichene Teams per Schlangenverteilung (1-2-3-3-2-1) nach Elo – jedes Gerät rechnet dasselbe.'}
+        {rule.mode === 'elo' && (def.start >= TEAMS_BY_AVERAGE_FROM
+          ? 'Ausgeglichene Teams nach Elo: Schlangenverteilung, dann tauschen, bis jedes Team möglichst denselben Elo-Schnitt hat – jedes Gerät rechnet dasselbe.'
+          : 'Ausgeglichene Teams per Schlangenverteilung (1-2-3-3-2-1) nach Elo – jedes Gerät rechnet dasselbe.')}
         {rule.mode === 'random' && 'Ausgelost mit festem Startwert – überall dieselbe Auslosung. „Neu losen“ ändert den Startwert.'}
         {rule.mode === 'manual' && 'Teams selbst einteilen. „Nach Elo“ oder „Ausgelost“ wählen und dann „Festschreiben“ übernimmt die Teams hierher.'}
         {uneven && ` ${def.drivers.length} Fahrer bei Teamgröße ${rule.size} gehen nicht auf: ${teamSplit(teams)}. Gewertet wird mit dem Schnitt der Mitglieder, das bleibt fair; in Positionsduellen fährt der Schwächste des kleineren Teams doppelt.`}
@@ -991,7 +998,7 @@ function ChanceBar({ name, share }: { name: string; share: number }) {
   )
 }
 
-function SimResult({ sim }: { sim: Simulation }) {
+function SimResult({ sim, note }: { sim: Simulation; note: string | null }) {
   const chances = [...sim.winChance].sort((a, b) => b[1] - a[1])
   const teamChances = [...sim.teamChance].sort((a, b) => b[1] - a[1])
   const per = [...sim.perDriver].sort((a, b) => b[1] - a[1])
@@ -1031,6 +1038,19 @@ function SimResult({ sim }: { sim: Simulation }) {
         <ChanceBar key={n} name={n} share={c} />
       ))}
       {minRaces < maxRaces && <span style={{ fontSize: 12, color: 'var(--muted)' }}>Manche fahren deutlich öfter als andere ({per.map(([n, c]) => `${n.split(' ')[0]} ${c}`).join(', ')}).</span>}
+      {note && <span style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.45 }}>{note}</span>}
+      {sim.underdogs.map((u) => (
+        <div key={u.name} className="inner" style={{ gap: 4, padding: '10px 12px' }}>
+          <b style={{ fontSize: 13 }}>
+            Warum {u.name} nur {Math.round(u.chance * 100)} % hat
+          </b>
+          {u.reasons.map((r) => (
+            <span key={r} style={{ fontSize: 12, color: 'var(--text-2)', lineHeight: 1.45 }}>
+              • {r}
+            </span>
+          ))}
+        </div>
+      ))}
       {sim.reasons.length > 0 && (
         <div className="inner" style={{ gap: 4, padding: '10px 12px' }}>
           <b style={{ fontSize: 13 }}>Warum es einen klaren Favoriten gibt</b>

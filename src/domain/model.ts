@@ -1,7 +1,7 @@
 import { formatTime } from '../data/time'
 import type { Result, Session } from '../types'
 import { isGuest } from './drivers'
-import { crashCost, crashObservations, estimateCars, paceObservations, type CarFit } from './carModel'
+import { crashObservations, estimateCars, fitCars, lossObservations, lostMs, paceObservations, type CarFit } from './carModel'
 import { carTraits, radarAxes, type RadarAxis } from './carProfile'
 export type { RadarAxis } from './carProfile'
 import { quantile, SPLIT_LAPS } from './laps'
@@ -95,6 +95,10 @@ export interface CarStats {
   /** Netzdiagramm: Tempo, Spitzenrunden, Konstanz, Reifen, Sicherheit (0,5 = Ø Auto) */
   radar: RadarAxis[]
   rating: number | null
+  /** Autowertung noch vorläufig: weniger als CAR_PROVISIONAL_RACES Rennen insgesamt */
+  provisional: boolean
+  /** Neutral, nicht bereinigt: verlorene Zeit durch Abflüge und Defekte in Sekunden je 10 Runden (Rennen ohne Tank) */
+  lossPer10: number | null
   /** 0 = kein Bonus, 1–3 = Underdog-Bonus */
   bonus: number
   /** Je Fahrer mit diesem Auto: Rennen, Siege, km (Rennen und Qualis), Bestzeit, saubere Runden */
@@ -104,9 +108,12 @@ export interface CarStats {
 export interface RankRow {
   name: string
   elo: number
+  /** Platz unter den Eingestuften; Fahrer in der Einstufung stehen dahinter (Platz nur zur Sortierung) */
   rank: number
   rankStart: number | null
   races: number
+  /** Noch in der Einstufung: kein Platz in der Rangliste */
+  placing: boolean
 }
 
 export type StatusCode =
@@ -273,10 +280,18 @@ export interface Model {
   /** Karriere-Level aus Erfahrungspunkten (steigt nur) */
   career: (driver: string) => Career | null
   /**
-   * Einstufung neuer Fahrer: Nummer des Einstufungslaufs (1–5) für einen Lauf (`fileId`) bzw.
+   * Einstufung neuer Fahrer: Nummer des Einstufungslaufs (ab 1) für einen Lauf (`fileId`) bzw.
    * ohne `fileId` die Zahl der bisher gefahrenen Läufe, solange die Einstufung läuft – sonst null.
    */
   placement: (driver: string, fileId?: string) => number | null
+  /** Zahl der Einstufungsläufe eines Fahrers (8; wer vor RATING.v2From begann: 5) */
+  placementRuns: (driver: string) => number
+  /**
+   * Eigener Fortschritt unabhängig von den anderen: Wie viel schneller (Prozent, + = schneller) die
+   * sauberen Runden in den letzten Rennen sind als in den ersten – jeweils gemessen an der typischen
+   * Runde des gefahrenen Autos auf der Strecke. null bei zu wenigen Rennen.
+   */
+  progress: (driver: string) => { pct: number; races: number } | null
   /** Gesamtzeiten über 10/20 Runden: Bestmarken, Rekorde, Zeitmarken */
   splits: Splits
   /** Strecke, auf der ein Fahrer zuletzt 10/20-Runden-Zeiten gefahren ist (bis `upTo`) */
@@ -285,6 +300,9 @@ export interface Model {
 
 /** Läufe, bis die Wertung eines neuen Fahrers eingependelt ist */
 export const PLACEMENT_RUNS = RATING.provisionalRaces
+
+/** Autowertung gilt als vorläufig, solange ein Auto weniger Rennen hat (Tempo hat nach etwa 10 Läufen die halbe Wirkung) */
+export const CAR_PROVISIONAL_RACES = 10
 
 /** Rekord-Tipps nur in Reichweite: Rückstand höchstens so viel (Anteil der Rekordzeit) */
 const RECORD_REACH = { track: 0.025, car: 0.05 }
@@ -313,6 +331,8 @@ function trackReferences(sessions: Session[]) {
 export function buildModel(input: Session[]): Model {
   const sessions = sortSessions(input)
   const rating = computeRatings(sessions)
+  const carRacesAll = new Map<string, number>()
+  for (const x of sessions) if (!isQuali(x)) for (const r of x.results) carRacesAll.set(r.car, (carRacesAll.get(r.car) ?? 0) + 1)
   const trackRef = trackReferences(sessions)
   const years = [...new Set(sessions.map((s) => s.date.slice(0, 4)))].sort().reverse()
   const tracks = [...new Set(sessions.map((s) => s.track))]
@@ -327,7 +347,7 @@ export function buildModel(input: Session[]): Model {
     const cs = new Map<string, CarStats>()
     const get = (n: string) => ds.get(n) ?? (ds.set(n, emptyDriver(n)), ds.get(n)!)
     const getCar = (n: string): CarStats =>
-      cs.get(n) ?? (cs.set(n, { name: n, races: 0, qualis: 0, wins: 0, podiums: 0, winRate: null, beatShare: null, avgPosition: null, laps: 0, km: null, bestLapMs: null, bestBy: null, pace: null, paceGap: null, spread: null, tempo: null, crashRate: null, radar: [], rating: null, bonus: 0, drivers: new Map() }), cs.get(n)!)
+      cs.get(n) ?? (cs.set(n, { name: n, races: 0, qualis: 0, wins: 0, podiums: 0, winRate: null, beatShare: null, avgPosition: null, laps: 0, km: null, bestLapMs: null, bestBy: null, pace: null, paceGap: null, spread: null, tempo: null, crashRate: null, radar: [], rating: null, provisional: true, lossPer10: null, bonus: 0, drivers: new Map() }), cs.get(n)!)
     const beat = new Map<string, number[]>()
     const carBeat = new Map<string, number[]>()
     const positions = new Map<string, number[]>()
@@ -438,12 +458,13 @@ export function buildModel(input: Session[]): Model {
     const inP = sessions.filter((x) => inPeriod(x.date, period))
     const asOf = inP.reduce((m, x) => (x.date > m ? x.date : m), '')
     const crashObs = crashObservations(inP, carKey, isQuali)
-    const est = estimateCars(paceObservations(inP, carKey, isQuali, RATING.qualiWeight), crashObs, crashCost(inP), {
+    const est = estimateCars(paceObservations(inP, carKey, isQuali, RATING.qualiWeight), lossObservations(inP, carKey, isQuali), {
       asOf, halfLifeDays: RATING.carHalfLifeDays, prior: RATING.carPrior, trendPrior: RATING.carTrendPrior,
       consistency: RATING.carConsistency,
     })
     const paceFit = est.pace
-    const crashFit = est.crash
+    // Abflüge pro 100 Runden zur Anzeige – geglättet wie der Zeitverlust
+    const crashFit = fitCars(crashObs, asOf, RATING.carHalfLifeDays, RATING.carPrior.loss, RATING.carTrendPrior.loss, RATING.carConsistency)
     const baseCrash = crashObs.length ? crashObs.reduce((a, o) => a + o.y, 0) / crashObs.length : null
     const weighted = (fit: CarFit, value: (key: string, e: number) => number | null) => {
       const acc = new Map<string, [number, number]>()
@@ -458,6 +479,19 @@ export function buildModel(input: Session[]): Model {
       return new Map([...acc].map(([car, [sum, w]]) => [car, sum / w]))
     }
     const traits = carTraits(inP, isQuali)
+    // Zeitverlust je Auto, neutral: Summe der Verluste durch Abflüge/Defekte und Zahl der Runden
+    const carLoss = new Map<string, [number, number]>()
+    for (const x of inP) {
+      if (isQuali(x) || x.tank) continue
+      for (const r of x.results) {
+        const nl = r.lapTimes.filter((l) => l.status === 'normal').map((l) => l.ms).sort((p, q) => p - q)
+        if (nl.length < 3) continue
+        const a = carLoss.get(r.car) ?? [0, 0]
+        a[0] += lostMs(r.lapTimes, quantile(nl, 0.5))
+        a[1] += r.lapTimes.length
+        carLoss.set(r.car, a)
+      }
+    }
     const carTempo = weighted(paceFit, (key, e) => {
       const ref = trackRef.get(key.split('\u0000')[0])
       return ref ? (Math.exp(e) - 1) * ref : null
@@ -474,6 +508,9 @@ export function buildModel(input: Session[]): Model {
       c.crashRate = carCrash.get(c.name) ?? null
       c.radar = radarAxes(c.tempo, c.crashRate, baseCrash != null ? baseCrash * 100 : null, traits.get(c.name))
       c.rating = carRatings.get(c.name) ?? null
+      c.provisional = (carRacesAll.get(c.name) ?? 0) < CAR_PROVISIONAL_RACES
+      const lost = carLoss.get(c.name)
+      c.lossPer10 = lost && lost[1] >= 50 ? (lost[0] / lost[1]) * 10 / 1000 : null
       // feste Schwellen: nur spürbar schwächere Autos (6 Punkte ≈ 0,75 % langsamere Runden)
       const r = c.rating ?? 0
       c.bonus = c.races < 3 ? 0 : r <= -18 ? 3 : r <= -12 ? 2 : r <= -6 ? 1 : 0
@@ -489,8 +526,17 @@ export function buildModel(input: Session[]): Model {
     for (const e of rating.history.get(driver) ?? []) if (e.date <= date) v = e.after
     return v
   }
-  const rankingAt = (date: string) => {
-    const rows = drivers.map((n) => ({ name: n, elo: eloAt(n, date) })).filter((r): r is { name: string; elo: number } => r.elo != null)
+  /** Noch in der Einstufung (zum Stand dieses Tages) */
+  const placingAt = (driver: string, date: string) => (rating.history.get(driver) ?? []).filter((e) => e.date <= date).length < rating.placementRuns(driver)
+  /**
+   * Rangfolge nach Elo an einem Tag. `rankedOnly`: ohne Fahrer in der Einstufung (für Ranglisten und
+   * Anzeigen) – Medaillen rechnen wie bisher mit allen, damit sich nichts rückwirkend ändert.
+   */
+  const rankingAt = (date: string, rankedOnly = false) => {
+    const rows = drivers
+      .filter((n) => !rankedOnly || !placingAt(n, date))
+      .map((n) => ({ name: n, elo: eloAt(n, date) }))
+      .filter((r): r is { name: string; elo: number } => r.elo != null)
     rows.sort((a, b) => b.elo - a.elo)
     return new Map(rows.map((r, i) => [r.name, i + 1]))
   }
@@ -504,13 +550,20 @@ export function buildModel(input: Session[]): Model {
   const ranking = (period: Period): RankRow[] => {
     const end = periodEnd(period)
     const start = periodStart(period)
-    const endRanks = rankingAt(end)
-    const startRanks = start ? rankingAt(start) : new Map<string, number>()
+    const endRanks = rankingAt(end, true)
+    const startRanks = start ? rankingAt(start, true) : new Map<string, number>()
     const st = stats(period).drivers
-    return [...endRanks]
-      .filter(([n]) => (st.get(n)?.races ?? 0) + (st.get(n)?.qualis ?? 0) > 0)
-      .map(([name, rank]) => ({ name, elo: eloAt(name, end)!, rank, rankStart: startRanks.get(name) ?? null, races: st.get(name)?.races ?? 0 }))
+    const active = (n: string) => (st.get(n)?.races ?? 0) + (st.get(n)?.qualis ?? 0) > 0
+    const ranked = [...endRanks]
+      .filter(([n]) => active(n))
+      .map(([name, rank]) => ({ name, elo: eloAt(name, end)!, rank, rankStart: startRanks.get(name) ?? null, races: st.get(name)?.races ?? 0, placing: false }))
       .sort((a, b) => a.rank - b.rank)
+    // Fahrer in der Einstufung: dahinter, ohne Platz (nach gefahrenen Läufen)
+    const placing = drivers
+      .filter((n) => active(n) && !endRanks.has(n) && eloAt(n, end) != null)
+      .sort((a, b) => (rating.history.get(b)?.length ?? 0) - (rating.history.get(a)?.length ?? 0) || a.localeCompare(b))
+      .map((name, i) => ({ name, elo: eloAt(name, end)!, rank: ranked.length + i + 1, rankStart: null, races: st.get(name)?.races ?? 0, placing: true }))
+    return [...ranked, ...placing]
   }
 
   // ---- Rekorde ---------------------------------------------------------------------------
@@ -565,7 +618,7 @@ export function buildModel(input: Session[]): Model {
       const d = st.get(row.name)
       const list: Status[] = []
       const hist = (rating.history.get(row.name) ?? []).filter((e) => e.date <= periodEnd(period))
-      if (row.rank === 1) list.push({ code: 'crown', label: 'Platz 1 der Wertung' })
+      if (row.rank === 1 && !row.placing) list.push({ code: 'crown', label: 'Platz 1 der Wertung' })
       if (d && d.streak >= 2) list.push({ code: 'flame', value: d.streak, label: `${d.streak} Siege in Folge` })
       if (lastDay) {
         const tRec = recordTimeline.find((t) => t.kind === 'track' && t.entry.date === lastDay && t.entry.driver === row.name)
@@ -696,7 +749,7 @@ export function buildModel(input: Session[]): Model {
     const out: Goal[] = []
     const rows = ranking('all')
     const me = rows.find((r) => r.name === driver)
-    const above = me ? rows.find((r) => r.rank === me.rank - 1) : null
+    const above = me && !me.placing ? rows.find((r) => r.rank === me.rank - 1) : null
     if (me && above) {
       const gap = Math.ceil(above.elo - me.elo)
       out.push({ label: `${gap} Punkte bis Platz ${above.rank}`, detail: `vor ${above.name}`, progress: Math.max(0, Math.min(1, 1 - gap / 30)) })
@@ -939,7 +992,7 @@ export function buildModel(input: Session[]): Model {
     if (timelineCache) return timelineCache
     const ranks = new Map<string, (number | null)[]>(drivers.map((d) => [d, []]))
     for (const date of dates) {
-      const at = rankingAt(date)
+      const at = rankingAt(date, true)
       for (const d of drivers) ranks.get(d)!.push(at.get(d) ?? null)
     }
     timelineCache = { dates, ranks }
@@ -964,8 +1017,8 @@ export function buildModel(input: Session[]): Model {
     }
     const prevDay = dates[dates.length - 2]
     if (prevDay) {
-      const before = rankingAt(prevDay)
-      const after = rankingAt(lastDay)
+      const before = rankingAt(prevDay, true)
+      const after = rankingAt(lastDay, true)
       const climbs = [...after]
         .filter(([n, r]) => before.has(n) && before.get(n)! - r >= 1 && r <= 10)
         .map(([n, r]) => ({ n, r, up: before.get(n)! - r, d: (eloAt(n, lastDay) ?? 0) - (eloAt(n, prevDay) ?? 0) }))
@@ -1129,7 +1182,7 @@ export function buildModel(input: Session[]): Model {
       })(),
       moment: (() => {
         const hist = rating.history.get(driver) ?? []
-        const top = hist.filter((e, i) => i >= PLACEMENT_RUNS && e.date.startsWith(year) && e.delta > 0).sort((a, b) => b.delta - a.delta)[0]
+        const top = hist.filter((e, i) => i >= rating.placementRuns(driver) && e.date.startsWith(year) && e.delta > 0).sort((a, b) => b.delta - a.delta)[0]
         return top ? { date: top.date, delta: top.delta, reason: top.reason, fileId: top.fileId, position: top.position, field: top.field, type: top.type, car: top.car } : null
       })(),
       prev: (() => {
@@ -1173,17 +1226,40 @@ export function buildModel(input: Session[]): Model {
     }
   }
 
+  // ---- Eigener Fortschritt -------------------------------------------------------------------
+  const carTypical = new Map<string, number>()
+  {
+    const pools = new Map<string, number[]>()
+    for (const x of sessions) for (const r of x.results) for (const l of r.lapTimes) if (l.status === 'normal') (pools.get(carKey(x.track, r.car)) ?? pools.set(carKey(x.track, r.car), []).get(carKey(x.track, r.car))!).push(l.ms)
+    for (const [k, xs] of pools) if (xs.length >= 30) carTypical.set(k, quantile([...xs].sort((a, b) => a - b), 0.5))
+  }
+  const progress = (driver: string) => {
+    const rel: number[] = []
+    for (const x of sessions) {
+      if (isQuali(x)) continue
+      const r = x.results.find((y) => y.driver === driver)
+      const ref = r && carTypical.get(carKey(x.track, r.car))
+      const nl = r?.lapTimes.filter((l) => l.status === 'normal').map((l) => l.ms).sort((a, b) => a - b) ?? []
+      if (ref && nl.length >= 5) rel.push(quantile(nl, 0.5) / ref)
+    }
+    const n = Math.min(5, Math.floor(rel.length / 2))
+    if (n < 3) return null
+    const avg = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length
+    return { pct: (avg(rel.slice(0, n)) / avg(rel.slice(-n)) - 1) * 100, races: rel.length }
+  }
+
   // ---- Einstufung ------------------------------------------------------------------------
   const placement = (driver: string, fileId?: string): number | null => {
     const h = rating.history.get(driver) ?? []
-    if (fileId == null) return h.length < PLACEMENT_RUNS ? h.length : null
+    const runs = rating.placementRuns(driver)
+    if (fileId == null) return h.length < runs ? h.length : null
     const i = h.findIndex((e) => e.fileId === fileId)
-    return i >= 0 && i < PLACEMENT_RUNS ? i + 1 : null
+    return i >= 0 && i < runs ? i + 1 : null
   }
 
   return {
     sessions, years, tracks, rating, drivers, stats, ranking, statuses, medals,
-    trackRecords, carRecords, goals, rival, tips, eloAt, rankTimeline, news, season, constructors, challenges, wrapped, driverRadar, career, placement, splits, splitTrack,
+    trackRecords, carRecords, goals, rival, tips, eloAt, rankTimeline, news, season, constructors, challenges, wrapped, driverRadar, career, placement, placementRuns: rating.placementRuns, progress, splits, splitTrack,
   }
 }
 

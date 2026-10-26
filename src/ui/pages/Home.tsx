@@ -23,7 +23,8 @@ export function Home() {
   const { model, days } = useData()
   const me = useMyName()
   const location = useLocation()
-  const rows = model.ranking('all')
+  // Startseite: nur Eingestufte (Fahrer in der Einstufung haben noch keinen Platz)
+  const rows = model.ranking('all').filter((r) => !r.placing)
   const latest = days[0]
   // Der letzte Renntag ist nur „neu“, solange er höchstens 5 Tage zurückliegt
   const fresh = latest != null && daysSince(latest.date) <= 5

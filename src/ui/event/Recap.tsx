@@ -52,7 +52,10 @@ function MyRecap({ state, steps, me }: { state: EventState; steps: ProgressStep[
   const ranks = mine.ranks.filter((r): r is number => r != null)
   return (
     <section className="card me-row" style={{ gap: 10 }}>
-      <span className="card-title">Dein Rückblick</span>
+      <div className="card-head">
+        <span className="card-title">Dein Rückblick</span>
+        {!state.complete && <span className="hint">bisher</span>}
+      </div>
       <div className="tiles">
         <Tile value={`${s.rank}.`} label={`von ${state.standings.length}`} color="var(--me)" />
         <Tile value={fmtPts(s.total)} label="Punkte" />
