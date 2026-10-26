@@ -142,6 +142,23 @@ function qualiBest(sessions: Session[]) {
   return best
 }
 
+/**
+ * Lauf-Hinweis ohne die Paarung „Team Rot gegen Team Blau“ (die zeigen die Teamfarben). Übrig bleibt,
+ * was die Farben nicht sagen: „Aufstellung 1 von 2“, „Einsatz 2 von 3“, „Top 2 steigen auf“.
+ */
+export function withoutTeams(note: string, teamNames: string[]): string | null {
+  const names = new Set(teamNames)
+  const isTeams = (x: string) => x.split(' gegen ').every((n) => names.has(n.trim()))
+  const parts = note
+    .split(' · ')
+    .map((p) => {
+      const i = p.indexOf(': ')
+      return i >= 0 && isTeams(p.slice(i + 2)) ? p.slice(0, i) : p
+    })
+    .filter((p) => !isTeams(p))
+  return parts.length ? parts.join(' · ') : null
+}
+
 /** Endet ein Satz mit einem abgekürzten Namen („Pia S.“), kein zweiter Punkt */
 export const endSentence = (s: Story): Story => ({ ...s, text: s.text.replace(/\.\.$/, '.') })
 

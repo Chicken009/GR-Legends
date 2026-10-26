@@ -9,7 +9,7 @@ import { CarThumb } from '../CarPhoto'
 import { recapMoments } from '../../domain/event/progress'
 import { StoryPager } from '../story'
 import { eventCards } from './EventRecap'
-import { EVENT_ACCENT, fmtPts, PhasePill, phaseOf, Podium, StoryIcon, teamColor, teamEloText, useEventHistory, useEventState } from '../event/shared'
+import { EVENT_ACCENT, fmtPts, heatNote, PhasePill, phaseOf, Podium, StoryIcon, teamColor, teamEloText, useEventHistory, useEventState } from '../event/shared'
 
 const REFRESH_MS = 30_000
 const TICKER_MS = 8_000
@@ -110,10 +110,12 @@ export function EventLive() {
                 Als Nächstes · {state.next.label}
                 {heatLength(state.next) ? ` · ${heatLength(state.next)}` : ''}
               </span>
-              {state.next.note && <span style={{ color: 'var(--muted)' }}>{state.next.note}</span>}
+              {heatNote(state.next, state) && <span style={{ color: 'var(--muted)' }}>{heatNote(state.next, state)}</span>}
               {state.next.grid && <span style={{ color: 'var(--muted)', fontSize: '0.8em' }}>Startaufstellung nach {state.next.gridFrom}</span>}
-              {(state.next.grid ?? state.next.entrants).map((e, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              {(state.next.grid ?? state.next.entrants).map((e, i) => {
+                const team = e.name ? state.teams.find((t) => t.drivers.includes(e.name!)) : undefined
+                return (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 14, ...(team ? { borderLeft: `4px solid ${teamColor(team.id, team.name)}`, paddingLeft: 10 } : null) }}>
                   {state.next!.grid && (
                     <span className="num" style={{ minWidth: '1.6em', fontWeight: 800, color: EVENT_ACCENT }}>
                       {i + 1}.
@@ -126,7 +128,8 @@ export function EventLive() {
                   <span style={{ marginLeft: 'auto', color: 'var(--muted)', textAlign: 'right' }}>{e.name ? state.next!.cars[e.name] ?? '' : ''}</span>
                   {e.name && state.next!.cars[e.name] && <CarThumb car={state.next!.cars[e.name]} size={56} />}
                 </div>
-              ))}
+                )
+              })}
               {state.next.carChoice ? (
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
                   <span style={{ color: 'var(--muted)', fontSize: '0.8em' }}>Freie Wahl aus:</span>

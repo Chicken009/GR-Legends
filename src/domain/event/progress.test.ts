@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Result, Session } from '../../types'
 import { computeEvent, type EventContext } from './engine'
+import { withoutTeams } from './insights'
 import { normalizeEvent } from './normalize'
 import { eventProgress, heatPointsExplained, myRecap, placePoints, pointsHistory, recapFacts, recapMoments, waitFor } from './progress'
 import { newSection } from './templates'
@@ -89,5 +90,13 @@ describe('Punkteverlauf und Rückblick', () => {
     expect(lines.join(' ')).toMatch(/1 Gegner dahinter/)
     expect(lines.join(' ')).toMatch(/Siegbonus/)
     expect(placePoints(def, 4)).toEqual([4, 2, 1, 0])
+  })
+
+  it('lässt die Teampaarung im Lauf-Hinweis weg', () => {
+    const teams = ['Team Rot', 'Team Blau', 'Team Grün']
+    expect(withoutTeams('Team Blau gegen Team Grün', teams)).toBeNull()
+    expect(withoutTeams('Team Rot gegen Team Blau · Aufstellung 1 von 2 · Durchgang 2', teams)).toBe('Aufstellung 1 von 2 · Durchgang 2')
+    expect(withoutTeams('Einsatz 2 von 3: Team Rot gegen Team Blau', teams)).toBe('Einsatz 2 von 3')
+    expect(withoutTeams('Top 2 steigen auf', teams)).toBe('Top 2 steigen auf')
   })
 })

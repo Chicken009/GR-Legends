@@ -6,7 +6,7 @@ import type { EventFolder } from '../../data/events'
 import { carScale } from '../../data/settings'
 import { eventCars, eventContext, typicalLapMs } from '../../domain/event/context'
 import { computeEvent, type EventState, type Heat, type Standing } from '../../domain/event/engine'
-import { eventPhase, lastDay, todayIso, type EventPhase, type Story } from '../../domain/event/insights'
+import { eventPhase, lastDay, todayIso, withoutTeams, type EventPhase, type Story } from '../../domain/event/insights'
 import { heatPointsExplained, pointsHistory, type ProgressStep } from '../../domain/event/progress'
 import { FORMAT_LABEL, type EventDef } from '../../domain/event/types'
 import { RATING } from '../../domain/rating'
@@ -111,6 +111,9 @@ export function StoryIcon({ icon, size = 18 }: { icon: Story['icon']; size?: num
       return <Trophy size={size} />
   }
 }
+
+/** Hinweis zu einem Lauf ohne „Team Rot gegen Team Blau“ – die Teams zeigen die Farbstriche */
+export const heatNote = (heat: Heat, state: EventState) => (heat.note ? withoutTeams(heat.note, state.teams.map((t) => t.name)) : null)
 
 export const BONUS_ICON = { fastestLap: '⚡', pole: 'P', driverOfDay: '★', personalBest: 'PB', clean: '✓' } as const
 
@@ -406,7 +409,7 @@ export function HeatCard({ heat, state, me, children, plain }: { heat: Heat; sta
         <b>{heat.label}</b>
         <span className={`status-chip ${heat.status}`}>{STATUS_TEXT[heat.status]}</span>
         {heat.manual && <span className="status-chip">per Hand zugeordnet</span>}
-        {heat.note && <span style={{ fontSize: 11, color: 'var(--muted)' }}>{heat.note}</span>}
+        {heatNote(heat, state) && <span style={{ fontSize: 11, color: 'var(--muted)' }}>{heatNote(heat, state)}</span>}
         {heat.status !== 'done' && heat.grid && <span style={{ fontSize: 11, color: EVENT_ACCENT }}>Startaufstellung nach {heat.gridFrom}</span>}
         {inModel && (
           <Link to={`/lauf/${heat.session!.fileId}`} style={{ marginLeft: 'auto', fontSize: 12, color: EVENT_ACCENT }}>
