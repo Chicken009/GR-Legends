@@ -6,7 +6,11 @@ export interface LinePoint {
   tip?: TipContent
   /** Hervorgehobener Punkt */
   mark?: boolean
+  /** Vorläufig (z. B. Einstufung): Linie bis hierher grau gestrichelt, ohne Fläche */
+  muted?: boolean
 }
+
+const MUTED = '#8A929C'
 
 /** Graue Hintergrundlinie mit eigener, unbeschrifteter Skala (z. B. Rang hinter der Elo) */
 export interface BackLine {
@@ -30,6 +34,7 @@ export function LineChart({
   area = true,
   initialTip = null,
   back,
+  minSpan = 0,
 }: {
   points: LinePoint[]
   color: string
@@ -41,6 +46,8 @@ export function LineChart({
   area?: boolean
   initialTip?: number | null
   back?: BackLine
+  /** Mindestspanne der Achse (z. B. bei fast gleichbleibender Elo keine doppelten Beschriftungen) */
+  minSpan?: number
 }) {
   const [ref, width] = useWidth<HTMLDivElement>()
   const [open, setOpen] = useTipState<number>(ref, initialTip)
@@ -48,6 +55,11 @@ export function LineChart({
   const ys = points.map((p) => p.y)
   let min = Math.min(...ys)
   let max = Math.max(...ys)
+  if (max - min < minSpan) {
+    const mid = (min + max) / 2
+    min = mid - minSpan / 2
+    max = mid + minSpan / 2
+  }
   const pad = (max - min) * 0.12 || 1
   min -= pad
   max += pad
@@ -58,6 +70,12 @@ export function LineChart({
   const pts = points.map((p, i) => [sx(i), sy(p.y)] as [number, number])
   const ticks = niceTicks(min, max, 3)
   const last = pts[pts.length - 1]
+  // Vorläufige Punkte am Anfang: grau gestrichelt bis zum ersten festen Punkt
+  const firstSolid = points.findIndex((p) => !p.muted)
+  const solidFrom = firstSolid < 0 ? pts.length : firstSolid
+  const mutedPts = pts.slice(0, Math.min(pts.length, solidFrom + 1))
+  const solidPts = pts.slice(solidFrom)
+  const lastMuted = solidPts.length === 0
   // Hintergrundlinie: eigene Skala im mittleren Bereich, damit sie die Hauptlinie nicht dominiert
   const backVals = back?.values.filter((v): v is number => v != null) ?? []
   const backPts = (() => {
@@ -96,13 +114,14 @@ export function LineChart({
             )}
           </g>
         )}
-        {area && !invert && <path d={`${linePath(pts)} L${last[0]} ${bottom} L${pts[0][0]} ${bottom} Z`} fill={color} opacity="0.12" />}
-        <path d={linePath(pts)} fill="none" stroke={color} strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" />
+        {area && !invert && solidPts.length > 1 && <path d={`${linePath(solidPts)} L${last[0]} ${bottom} L${solidPts[0][0]} ${bottom} Z`} fill={color} opacity="0.12" />}
+        {solidFrom > 0 && mutedPts.length > 1 && <path d={linePath(mutedPts)} fill="none" stroke={MUTED} strokeWidth="2" strokeDasharray="5 4" strokeLinejoin="round" strokeLinecap="round" />}
+        {solidPts.length > 1 && <path d={linePath(solidPts)} fill="none" stroke={color} strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" />}
         {points.map((p, i) =>
           p.tip ? <circle key={i} cx={pts[i][0]} cy={pts[i][1]} r={open === i ? 6 : 4.5} fill="#1A1E24" stroke="#F2F4F5" strokeWidth="2" /> : null,
         )}
-        <circle cx={last[0]} cy={last[1]} r="5" fill={color} stroke="#1A1E24" strokeWidth="2" />
-        <text x={Math.min(last[0], width - 4)} y={last[1] + (invert ? 18 : -8)} fill="#F2F4F5" textAnchor="end" fontWeight="700" fontSize="12">
+        <circle cx={last[0]} cy={last[1]} r="5" fill={lastMuted ? MUTED : color} stroke="#1A1E24" strokeWidth="2" />
+        <text x={Math.min(last[0], width - 4)} y={last[1] + (invert ? 18 : -8)} fill={lastMuted ? MUTED : '#F2F4F5'} textAnchor="end" fontWeight="700" fontSize="12">
           {format(points[points.length - 1].y)}
         </text>
         {xLabels.map((l) => (

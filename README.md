@@ -269,7 +269,10 @@ Fahrer- **plus** Autowertung (pro Strecke) – wer im schwächeren Auto gewinnt,
 (Underdog-Bonus). Qualifyings zählen halb, Gäste gar nicht, die ersten 8 Läufe doppelt so stark
 (wer vor dem 26.10.2026 angefangen hat: 5 – 8 sagen Ergebnisse besser voraus). Diese Läufe sind die
 **Einstufung**: Neue Fahrer sehen statt Elo-Zahl und Veränderung nur „Einstufung n/8“, damit niemand
-mit einem Minus unter dem Startwert einsteigt.
+mit einem Minus unter dem Startwert einsteigt. In der Rangliste haben sie noch keinen Platz: Sie stehen ohne
+Platzzahl hinter den Eingestuften und verdrängen niemanden (wer nach wenigen Rennen aufhört, steht
+so nicht dauerhaft weit oben). Im Elo-Verlauf ist die Einstufung grau gestrichelt. Medaillen wie
+„Aufsteiger des Jahres“ rechnen weiter mit allen Fahrern, damit sich nichts rückwirkend ändert.
 
 Sinkt die Elo zuletzt, obwohl die eigenen sauberen Runden (gemessen an der typischen Runde des
 jeweiligen Autos) schneller geworden sind, zeigt das Profil diesen Fortschritt unter dem Elo-Verlauf.

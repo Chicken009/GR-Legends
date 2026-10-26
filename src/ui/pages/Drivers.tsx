@@ -31,7 +31,7 @@ export function Drivers() {
   const seasonOrder = new Map(seasonRows.map((r, i) => [r.name, i]))
   const seasonRank = new Map(seasonRows.map((r) => [r.name, r.rank]))
   const rows = p === 'all' ? all : [...all].sort((a, b) => (seasonOrder.get(a.name) ?? 999) - (seasonOrder.get(b.name) ?? 999))
-  const rankOf = (r: RankRow) => (p === 'all' ? r.rank : (seasonRank.get(r.name) ?? null))
+  const rankOf = (r: RankRow) => (p === 'all' ? (r.placing ? null : r.rank) : (seasonRank.get(r.name) ?? null))
   const medalCount = (name: string) => (model.medals.get(name) ?? []).filter((m) => !m.former).length
   const columns: Column<RankRow>[] = [
     {

@@ -108,9 +108,12 @@ export interface CarStats {
 export interface RankRow {
   name: string
   elo: number
+  /** Platz unter den Eingestuften; Fahrer in der Einstufung stehen dahinter (Platz nur zur Sortierung) */
   rank: number
   rankStart: number | null
   races: number
+  /** Noch in der Einstufung: kein Platz in der Rangliste */
+  placing: boolean
 }
 
 export type StatusCode =
@@ -523,8 +526,17 @@ export function buildModel(input: Session[]): Model {
     for (const e of rating.history.get(driver) ?? []) if (e.date <= date) v = e.after
     return v
   }
-  const rankingAt = (date: string) => {
-    const rows = drivers.map((n) => ({ name: n, elo: eloAt(n, date) })).filter((r): r is { name: string; elo: number } => r.elo != null)
+  /** Noch in der Einstufung (zum Stand dieses Tages) */
+  const placingAt = (driver: string, date: string) => (rating.history.get(driver) ?? []).filter((e) => e.date <= date).length < rating.placementRuns(driver)
+  /**
+   * Rangfolge nach Elo an einem Tag. `rankedOnly`: ohne Fahrer in der Einstufung (für Ranglisten und
+   * Anzeigen) – Medaillen rechnen wie bisher mit allen, damit sich nichts rückwirkend ändert.
+   */
+  const rankingAt = (date: string, rankedOnly = false) => {
+    const rows = drivers
+      .filter((n) => !rankedOnly || !placingAt(n, date))
+      .map((n) => ({ name: n, elo: eloAt(n, date) }))
+      .filter((r): r is { name: string; elo: number } => r.elo != null)
     rows.sort((a, b) => b.elo - a.elo)
     return new Map(rows.map((r, i) => [r.name, i + 1]))
   }
@@ -538,13 +550,20 @@ export function buildModel(input: Session[]): Model {
   const ranking = (period: Period): RankRow[] => {
     const end = periodEnd(period)
     const start = periodStart(period)
-    const endRanks = rankingAt(end)
-    const startRanks = start ? rankingAt(start) : new Map<string, number>()
+    const endRanks = rankingAt(end, true)
+    const startRanks = start ? rankingAt(start, true) : new Map<string, number>()
     const st = stats(period).drivers
-    return [...endRanks]
-      .filter(([n]) => (st.get(n)?.races ?? 0) + (st.get(n)?.qualis ?? 0) > 0)
-      .map(([name, rank]) => ({ name, elo: eloAt(name, end)!, rank, rankStart: startRanks.get(name) ?? null, races: st.get(name)?.races ?? 0 }))
+    const active = (n: string) => (st.get(n)?.races ?? 0) + (st.get(n)?.qualis ?? 0) > 0
+    const ranked = [...endRanks]
+      .filter(([n]) => active(n))
+      .map(([name, rank]) => ({ name, elo: eloAt(name, end)!, rank, rankStart: startRanks.get(name) ?? null, races: st.get(name)?.races ?? 0, placing: false }))
       .sort((a, b) => a.rank - b.rank)
+    // Fahrer in der Einstufung: dahinter, ohne Platz (nach gefahrenen Läufen)
+    const placing = drivers
+      .filter((n) => active(n) && !endRanks.has(n) && eloAt(n, end) != null)
+      .sort((a, b) => (rating.history.get(b)?.length ?? 0) - (rating.history.get(a)?.length ?? 0) || a.localeCompare(b))
+      .map((name, i) => ({ name, elo: eloAt(name, end)!, rank: ranked.length + i + 1, rankStart: null, races: st.get(name)?.races ?? 0, placing: true }))
+    return [...ranked, ...placing]
   }
 
   // ---- Rekorde ---------------------------------------------------------------------------
@@ -599,7 +618,7 @@ export function buildModel(input: Session[]): Model {
       const d = st.get(row.name)
       const list: Status[] = []
       const hist = (rating.history.get(row.name) ?? []).filter((e) => e.date <= periodEnd(period))
-      if (row.rank === 1) list.push({ code: 'crown', label: 'Platz 1 der Wertung' })
+      if (row.rank === 1 && !row.placing) list.push({ code: 'crown', label: 'Platz 1 der Wertung' })
       if (d && d.streak >= 2) list.push({ code: 'flame', value: d.streak, label: `${d.streak} Siege in Folge` })
       if (lastDay) {
         const tRec = recordTimeline.find((t) => t.kind === 'track' && t.entry.date === lastDay && t.entry.driver === row.name)
@@ -730,7 +749,7 @@ export function buildModel(input: Session[]): Model {
     const out: Goal[] = []
     const rows = ranking('all')
     const me = rows.find((r) => r.name === driver)
-    const above = me ? rows.find((r) => r.rank === me.rank - 1) : null
+    const above = me && !me.placing ? rows.find((r) => r.rank === me.rank - 1) : null
     if (me && above) {
       const gap = Math.ceil(above.elo - me.elo)
       out.push({ label: `${gap} Punkte bis Platz ${above.rank}`, detail: `vor ${above.name}`, progress: Math.max(0, Math.min(1, 1 - gap / 30)) })
@@ -973,7 +992,7 @@ export function buildModel(input: Session[]): Model {
     if (timelineCache) return timelineCache
     const ranks = new Map<string, (number | null)[]>(drivers.map((d) => [d, []]))
     for (const date of dates) {
-      const at = rankingAt(date)
+      const at = rankingAt(date, true)
       for (const d of drivers) ranks.get(d)!.push(at.get(d) ?? null)
     }
     timelineCache = { dates, ranks }
@@ -998,8 +1017,8 @@ export function buildModel(input: Session[]): Model {
     }
     const prevDay = dates[dates.length - 2]
     if (prevDay) {
-      const before = rankingAt(prevDay)
-      const after = rankingAt(lastDay)
+      const before = rankingAt(prevDay, true)
+      const after = rankingAt(lastDay, true)
       const climbs = [...after]
         .filter(([n, r]) => before.has(n) && before.get(n)! - r >= 1 && r <= 10)
         .map(([n, r]) => ({ n, r, up: before.get(n)! - r, d: (eloAt(n, lastDay) ?? 0) - (eloAt(n, prevDay) ?? 0) }))

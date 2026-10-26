@@ -180,7 +180,11 @@ describe('Kennzahlen', () => {
   it('liefert Rangliste, Status und mindestens eine Medaille pro Fahrer', () => {
     const rows = model.ranking('all')
     expect(rows[0].rank).toBe(1)
-    expect(rows.every((r, i) => i === 0 || r.elo <= rows[i - 1].elo)).toBe(true)
+    // Eingestufte nach Elo, Fahrer in der Einstufung ohne Platz dahinter
+    const ranked = rows.filter((r) => !r.placing)
+    expect(ranked.every((r, i) => i === 0 || r.elo <= ranked[i - 1].elo)).toBe(true)
+    expect(rows.findIndex((r) => r.placing)).toBe(rows.some((r) => r.placing) ? ranked.length : -1)
+    for (const r of rows) expect(r.placing).toBe(model.placement(r.name) != null)
     expect(model.statuses('all').get(rows[0].name)?.[0].code).toBe('crown')
     for (const r of rows) expect(model.medals.get(r.name)?.length ?? 0, r.name).toBeGreaterThan(0)
   })

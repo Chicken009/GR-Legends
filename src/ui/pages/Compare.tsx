@@ -54,7 +54,7 @@ export function Compare() {
 
   const driverOptions = driverNames.map((n) => {
     const r = ranking.find((x) => x.name === n)!
-    return { value: n, label: n, sub: model.placement(n) != null ? `Rang ${r.rank} · Einstufung ${model.placement(n)}/${model.placementRuns(n)}` : `Rang ${r.rank} · ${fmtElo(r.elo)} Elo`, visual: <Avatar name={n} size={34} ring={n === me ? 'var(--me)' : undefined} /> }
+    return { value: n, label: n, sub: model.placement(n) != null ? `Einstufung ${model.placement(n)}/${model.placementRuns(n)}` : `Rang ${r.rank} · ${fmtElo(r.elo)} Elo`, visual: <Avatar name={n} size={34} ring={n === me ? 'var(--me)' : undefined} /> }
   })
   const carOptions = carNames.map((n) => {
     const c = all.cars.get(n)!
