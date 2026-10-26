@@ -110,6 +110,10 @@ GR Legends
   auf; alle Rennen sind voll, fehlen Fahrer, werden die untersten Rennen kleiner.
 - **Autoliste:** Bei „Freie Wahl aus Liste“, „Nach Können“ und „Zufällig“ fahren höchstens so viele
   gleichzeitig, wie Autos ausgewählt sind – sonst müssten sich zwei ein Auto teilen.
+- **Zufällige Autos** (Wettkämpfe ab 26.10.2026): Jeder bekommt das freie Auto, das er selbst am
+  seltensten hatte, bei Gleichstand das insgesamt seltenste, sonst entscheidet das Los. So kommt jedes
+  Auto etwa gleich oft dran und jeder wechselt durch die Liste. Abschnitte mit eigener Autoliste
+  (z. B. Qualifying mit einem Auto) zählen getrennt.
 - **Autobilder:** Ablauf, Leinwand, „Dein Wettkampf“, Wettkampfliste und Regeln zeigen die Autos
   mit Foto (aus dem Ordner „Fotos“).
 - **Fair:** Ein geschlagener Gegner bringt `2 × (1 − eigene Siegchance)` × Punkte je Gegner; die

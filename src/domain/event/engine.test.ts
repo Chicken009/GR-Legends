@@ -446,6 +446,26 @@ describe('Wertung und Autos', () => {
     expect(r.heats[1].cars.A).not.toBe(r.heats[0].cars.A)
   })
 
+  it('verteilt zufällige Autos gleichmäßig, auch nach einem Qualifying mit nur einem Auto', () => {
+    const pool = ['W', 'X', 'Y', 'Z']
+    const d = normalizeEvent({
+      name: 'Test-Cup', start: '2026-11-01', drivers: ['A', 'B', 'C', 'D', 'E', 'F'], maxPerHeat: 3,
+      cars: { scale: '1:32', mode: 'random', pool, fixed: {} },
+      sections: [
+        newSection('quali', { id: 'q', maxPerHeat: 1, cars: { scale: '1:32', mode: 'random', pool: ['W'], fixed: {} } }),
+        newSection('races', { id: 'r', rounds: 4, seeding: 'elo' }),
+      ],
+    })
+    const heats = computeEvent(d, ctx()).heats.filter((h) => h.sectionId === 'r')
+    const perCar = pool.map((c) => heats.filter((h) => Object.values(h.cars).includes(c)).length)
+    expect(perCar.reduce((a, b) => a + b, 0)).toBe(24)
+    expect(Math.max(...perCar) - Math.min(...perCar)).toBeLessThanOrEqual(1)
+    for (const n of d.drivers) {
+      const own = heats.filter((h) => h.cars[n]).map((h) => h.cars[n])
+      expect(new Set(own).size).toBe(Math.min(own.length, pool.length))
+    }
+  })
+
   it('übernimmt manuelle Änderungen an einem Lauf', () => {
     const d = def({ drivers: ['A', 'B', 'C'], sections: [newSection('races', { id: 'r', rounds: 1 })], overrides: { 'r-r1-1': { drivers: ['A', 'C'], cars: { A: 'Ferrari' } } } })
     const s = computeEvent(d, ctx())

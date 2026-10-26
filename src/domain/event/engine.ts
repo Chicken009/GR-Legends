@@ -250,6 +250,8 @@ interface Env {
   /** Wie viele Läufe jeder Fahrer schon geplant hat (für das Durchtauschen der Autos) */
   heatCount: Map<string, number>
   carBase: Map<string, number>
+  /** Wie oft ein Auto aus einer Liste schon geplant ist: je Auto und je Fahrer (Schlüssel: `useKey`) */
+  carUse: Map<string, number>
   heats: Heat[]
 }
 
@@ -300,7 +302,13 @@ function carsFor(env: Env, rule: CarRule, names: string[], heatId: string): { ca
     }
     case 'random': {
       if (!pool.length) break
-      // Jeder Fahrer hat einen ausgelosten Startplatz in der Liste und rückt mit jedem Lauf eins weiter
+      if (env.def.start >= CAR_ROTATION_FROM) {
+        Object.assign(cars, rotateCars(env, pool, names, heatId))
+        break
+      }
+      // Bis CAR_ROTATION_FROM: Jeder Fahrer hat einen ausgelosten Startplatz in der Liste und rückt mit
+      // jedem Lauf eins weiter. Der Startplatz galt für alle Abschnitte – mit einer Ein-Auto-Liste im
+      // Qualifying lag er für alle auf 0, und alle wollten im selben Lauf dasselbe Auto.
       const taken = new Set<string>()
       for (const d of names) {
         if (!env.carBase.has(d)) env.carBase.set(d, hashString(`${env.def.seed}|car|${d}`) % pool.length)
@@ -315,8 +323,38 @@ function carsFor(env: Env, rule: CarRule, names: string[], heatId: string): { ca
     }
   }
   if (override) for (const [d, c] of Object.entries(override)) if (names.includes(d)) cars[d] = c
+  if (rule.mode === 'random') {
+    for (const [d, c] of Object.entries(cars)) {
+      for (const key of [useKey(pool, d, c), useKey(pool, '', c)]) env.carUse.set(key, (env.carUse.get(key) ?? 0) + 1)
+    }
+  }
   const hint = rule.mode === 'free' ? null : rule.mode === 'list' && pool.length ? `Freie Wahl aus: ${pool.join(', ')}` : null
   return { cars, hint }
+}
+
+/** Zählschlüssel je Autoliste (andere Abschnitte mit eigener Liste zählen getrennt); Fahrer leer = alle */
+const useKey = (pool: string[], driver: string, car: string) => [...pool, driver, car].join('\u0000')
+
+/**
+ * Zufällig verteilte Autos (ab CAR_ROTATION_FROM): Jeder Fahrer bekommt das freie Auto, das er selbst
+ * am seltensten hatte, bei Gleichstand das insgesamt seltenste, sonst entscheidet das Los. So kommt
+ * jedes Auto etwa gleich oft dran und jeder Fahrer wechselt durch die Liste.
+ */
+function rotateCars(env: Env, pool: string[], names: string[], heatId: string): Record<string, string> {
+  const cars: Record<string, string> = {}
+  const taken = new Set<string>()
+  const use = (d: string, c: string) => env.carUse.get(useKey(pool, d, c)) ?? 0
+  const lot = (d: string, c: string) => hashString(`${env.def.seed}|car|${heatId}|${d}|${c}`)
+  for (const d of shuffle(names, `${env.def.seed}|cars|${heatId}`)) {
+    const free = pool.filter((c) => !taken.has(c))
+    const car = (free.length ? free : pool).reduce((best, c) => {
+      const diff = use(d, c) - use(d, best) || use('', c) - use('', best) || lot(d, c) - lot(d, best)
+      return diff < 0 ? c : best
+    })
+    taken.add(car)
+    cars[d] = car
+  }
+  return cars
 }
 
 /** Höchstzahl gleichzeitig wegen der Autoliste (freie Wahl, nach Können, zufällig) – null = keine Grenze */
@@ -671,8 +709,14 @@ export function ladderPlan(n: number, per: number, opts: { advance: number | 'au
  */
 export const EVENT_RULES_FROM = '2026-10-24'
 
+/**
+ * Ausgeglichene Verteilung zufälliger Autos (`rotateCars`) gilt für Wettkämpfe ab diesem Tag –
+ * bereits gefahrene Wettkämpfe behalten ihren Plan.
+ */
+export const CAR_ROTATION_FROM = '2026-10-26'
+
 /** Läufe derselben Aufteilung auf einer Kopie der Umgebung durchspielen (ohne Nebenwirkungen) */
-const cloneEnv = (env: Env): Env => ({ ...env, used: new Set(env.used), heatCount: new Map(env.heatCount), carBase: new Map(env.carBase), heats: [...env.heats] })
+const cloneEnv = (env: Env): Env => ({ ...env, used: new Set(env.used), heatCount: new Map(env.heatCount), carBase: new Map(env.carBase), carUse: new Map(env.carUse), heats: [...env.heats] })
 
 function sectionLadder(env: Env, sec: SectionDef, seeds: Entrant[], per: number): Omit<SectionState, 'def'> {
   if (!seeds.length) return { heats: [], ranking: [], teamRanking: null, started: false, complete: false }
@@ -1084,6 +1128,7 @@ export function computeEvent(def: EventDef, ctx: EventContext): EventState {
     lastTime: '',
     heatCount: new Map(),
     carBase: new Map(),
+    carUse: new Map(),
     heats: [],
   }
   const { teams, warnings } = buildTeams(def, drivers, ctx.elo)
