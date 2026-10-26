@@ -107,11 +107,13 @@ export function DriverProfile({ onClose }: { onClose: () => void }) {
             <StatusIcons list={statuses} size={22} animate />
           </div>
           <span style={{ fontSize: 14, color: 'var(--muted)' }}>
-            {row && row.placing ? (
+            {row && row.inactive ? (
+              'inaktiv (über 12 Monate kein Rennen), ohne Rang'
+            ) : row && row.placing ? (
               'noch in der Einstufung, ohne Rang'
             ) : row ? (
               <>
-                Gesamtrang <b style={{ color: ACCENT }}>#{row.rank}</b> von {rows.filter((r) => !r.placing).length}
+                Gesamtrang <b style={{ color: ACCENT }}>#{row.rank}</b> von {rows.filter((r) => !r.placing && !r.inactive).length}
               </>
             ) : (
               'noch ohne Rang'

@@ -336,10 +336,10 @@ export function computeRatings(sessions: Session[], cfg = RATING): RatingResult 
 
 /**
  * Hypothetische Elo-Änderung für A in einem Rennen zu zweit gegen B.
- * `margin` in Runden (positiv = A vorne), `runs` = bisherige Läufe von A (Einpendel-Phase).
+ * `margin` in Runden (positiv = A vorne), `placing` = A ist noch in der Einstufung.
  */
-export function duelDelta(strengthA: number, strengthB: number, margin: number, runs: number, cfg = RATING): number {
-  const k = runs < cfg.provisionalRaces ? cfg.kProvisional : cfg.k
+export function duelDelta(strengthA: number, strengthB: number, margin: number, placing: boolean, cfg = RATING): number {
+  const k = placing ? cfg.kProvisional : cfg.k
   const S = 0.5 + 0.5 * Math.tanh(margin / cfg.raceScaleLaps)
   const E = 1 / (1 + 10 ** ((strengthB - strengthA) / cfg.scale))
   return k * (S - E)

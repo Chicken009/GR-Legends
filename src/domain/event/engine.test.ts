@@ -566,6 +566,17 @@ describe('Ansicht', () => {
     expect(computeEvent(d, ctx()).sections[1].heats[0].grid).toBeNull()
   })
 
+  it('stellt nach Elo auf, wahlweise Schwächste vorne', () => {
+    const races = (gridOrder?: 'worst') => computeEvent(def({ sections: [newSection('races', { id: 'r', seeding: 'elo', rounds: 1, gridOrder })] }), ctx())
+    const best = races().heats[0]
+    const names = best.grid!.map((e) => e.name!)
+    expect(names).toEqual([...names].sort((a, b) => ELO[b] - ELO[a]))
+    expect(best.gridFrom).toBe('Elo')
+    const worst = races('worst').heats[0]
+    expect(worst.grid!.map((e) => e.name)).toEqual([...names].reverse())
+    expect(worst.gridFrom).toBe('Elo, Schwächste vorne')
+  })
+
   it('erklärt, was ein Fahrer braucht', () => {
     const quali = ['F', 'E', 'D', 'C', 'B', 'A'].map((n, i) => run('quali', [n], { best: [10000 + (5 - i) * 10] }))
     const s = computeEvent(d, ctx(quali))

@@ -60,7 +60,7 @@ export function Celebration() {
   const t = TIERS[medal.tier]
   const hist = model.rating.history.get(me) ?? []
   const last = hist[hist.length - 1]
-  const rank = model.ranking('all').find((r) => r.name === me && !r.placing)?.rank
+  const rank = model.ranking('all').find((r) => r.name === me && !r.placing && !r.inactive)?.rank
   const placing = model.placement(me)
   const next = () => {
     const seen = readSeen(me) ?? new Set<string>()

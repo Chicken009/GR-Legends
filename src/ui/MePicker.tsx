@@ -11,7 +11,7 @@ export function MePicker() {
   const [picked, setPicked] = useState<string | null>(me)
   // Fahrer aus der Wertung, danach neue Fahrer ohne Rennen (aus dem Einstellungen-Sheet)
   const rows: { name: string; sub: string }[] = [
-    ...model.ranking('all').map((r) => ({ name: r.name, sub: `${r.placing ? 'Einstufung' : `Rang ${r.rank}`} · ${r.races} Rennen` })),
+    ...model.ranking('all').map((r) => ({ name: r.name, sub: `${r.inactive ? 'inaktiv' : r.placing ? 'Einstufung' : `Rang ${r.rank}`} · ${r.races} Rennen` })),
     ...newcomers.map((name) => ({ name, sub: 'Noch kein Rennen' })),
   ]
   const shown = rows.filter((r) => r.name.toLowerCase().includes(query.trim().toLowerCase()))

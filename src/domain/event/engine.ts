@@ -1206,14 +1206,19 @@ export function computeEvent(def: EventDef, ctx: EventContext): EventState {
       else if (sec.format === 'ko') part = sectionKo(env, sec, seeds, per)
       else part = sectionRaces(env, sec, seeds, per)
     }
-    // Startaufstellung nach dem Ergebnis des vorigen Abschnitts (z. B. Qualifying), sobald es feststeht
-    if (sec.seeding === 'previous' && prev?.complete && prev.ranking.length) {
-      const rank = new Map(prev.ranking.map((r, k) => [r.name, k]))
+    // Startaufstellung: nach dem Ergebnis des vorigen Abschnitts (z. B. Qualifying), sobald es
+    // feststeht, oder nach der Elo zu Beginn des Wettkampfs – Beste oder Schwächste vorne
+    const byPrev = sec.seeding === 'previous' && prev?.complete && prev.ranking.length ? new Map(prev.ranking.map((r, k) => [r.name, k])) : null
+    // Erster Abschnitt mit „vorheriger Abschnitt“ = nach Elo
+    const byElo = !byPrev && (sec.seeding === 'elo' || (sec.seeding === 'previous' && !prev)) && sec.format !== 'team'
+    if (byPrev || byElo) {
+      const key = (n: string) => (byPrev ? (byPrev.get(n) ?? 999) : -ctx.elo(n))
+      const dir = sec.gridOrder === 'worst' ? -1 : 1
       for (const h of part.heats) {
         if (h.status === 'done' || h.kind !== 'race' || h.entrants.length < 2) continue
-        const named = h.entrants.filter((e) => e.name != null)
-        h.grid = [...named.sort((a, b) => (rank.get(a.name!) ?? 999) - (rank.get(b.name!) ?? 999)), ...h.entrants.filter((e) => e.name == null)]
-        h.gridFrom = prev.def.name
+        const named = h.entrants.filter((e) => e.name != null).sort((a, b) => dir * (key(a.name!) - key(b.name!)))
+        h.grid = [...named, ...h.entrants.filter((e) => e.name == null)]
+        h.gridFrom = `${byPrev ? prev!.def.name : 'Elo'}${sec.gridOrder === 'worst' ? ', Schwächste vorne' : ''}`
       }
     }
     const state: SectionState = { def: sec, ...part }

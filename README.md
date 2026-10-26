@@ -95,6 +95,9 @@ GR Legends
 - **Einer je Team mit unterschiedlich großen Teams** (ab 24.10.2026): Ein Durchgang ist so lang,
   dass es für alle aufgeht – jedes Team gleich oft dran, die Fahrer wechseln reihum. Ein halber
   Durchgang: jeder fährt genau einmal, die Teampunkte werden auf gleich viele Einsätze hochgerechnet.
+- **Startaufstellung:** Offene Rennläufe zeigen die Startplätze, wenn die Startreihenfolge nach dem
+  vorigen Abschnitt (sobald er komplett ist) oder nach Elo (zu Beginn des Wettkampfs) gilt –
+  einstellbar „Beste vorne“ oder „Schwächste vorne“.
 - **Teamrennen-Durchgänge:** Passen zwei Teams auf die Bahn, ist ein Durchgang „jedes Team einmal
   gegen jedes“ (4 Teams = 6 Rennen); optional nur ein halber Durchgang mit nach Elo ausgeglichenen
   Gegnern. Der Editor zeigt die Rennzahl je Durchgang. Läufe mit weniger Fahrern werden auf die
@@ -271,7 +274,11 @@ Fahrer- **plus** Autowertung (pro Strecke) – wer im schwächeren Auto gewinnt,
 **Einstufung**: Neue Fahrer sehen statt Elo-Zahl und Veränderung nur „Einstufung n/8“, damit niemand
 mit einem Minus unter dem Startwert einsteigt. In der Rangliste haben sie noch keinen Platz: Sie stehen ohne
 Platzzahl hinter den Eingestuften und verdrängen niemanden (wer nach wenigen Rennen aufhört, steht
-so nicht dauerhaft weit oben). Im Elo-Verlauf ist die Einstufung grau gestrichelt. Medaillen wie
+so nicht dauerhaft weit oben). Wer seit über 12 Monaten (vor dem letzten Renntag) kein Rennen
+gefahren ist, steht als „inaktiv“ ohne Platz ganz am Ende – bis zum nächsten Rennen (Schalter
+„Inaktive Fahrer filtern“, standardmäßig an; aus = wie alle anderen nach Elo). Der eigene Name
+(„Wer bist du?“) wird von keinem Filter der Rangliste erfasst. Im
+Elo-Verlauf ist die Einstufung grau gestrichelt. Medaillen wie
 „Aufsteiger des Jahres“ rechnen weiter mit allen Fahrern, damit sich nichts rückwirkend ändert.
 
 Sinkt die Elo zuletzt, obwohl die eigenen sauberen Runden (gemessen an der typischen Runde des
