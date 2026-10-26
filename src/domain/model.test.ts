@@ -8,7 +8,7 @@ import { CHALLENGE_POOL, CHALLENGES_PER_SEASON, NEW_PER_SEASON, seasonChallengeI
 import { constructorStandings, seasonStandings } from './season'
 import { classifyIncidents, hasTankFunction, splitTime } from './laps'
 import { buildSplits, fmtMark, markNext, markReached, markStep, splitKey } from './splits'
-import { buildModel, PLACEMENT_RUNS, positionTrace } from './model'
+import { buildModel, positionTrace } from './model'
 import { computeRatings, RATING, winChances } from './rating'
 import { buildSession } from './sessions'
 
@@ -36,6 +36,23 @@ function race(id: string, date: string, order: [string, string, number][]): Sess
 }
 
 describe('Wertung', () => {
+  it('neue Fahrer ab RATING.v2From: 8 Einstufungsläufe, ältere behalten 5', () => {
+    const old = race('o', '2026-01-01', [['Anna', 'X', 10], ['Ben', 'X', 9]])
+    const fresh = race('n', '2026-11-01', [['Anna', 'X', 10], ['Mika', 'X', 9]])
+    const r = computeRatings([old, fresh])
+    expect(r.placementRuns('Anna')).toBe(RATING.provisionalRacesLegacy)
+    expect(r.placementRuns('Mika')).toBe(RATING.provisionalRaces)
+    expect(RATING.provisionalRaces).toBe(8)
+  })
+
+  it('ändert ältere Elo-Werte nicht, wenn Läufe ab RATING.v2From dazukommen', () => {
+    const early = [race('a', '2026-10-01', [['Anna', 'X', 10], ['Ben', 'Y', 9]]), race('b', '2026-10-02', [['Ben', 'X', 10], ['Anna', 'Y', 9]])]
+    const later = [...early, race('c', '2026-11-01', [['Anna', 'Y', 10], ['Ben', 'X', 8]])]
+    const before = computeRatings(early).history.get('Anna')!
+    expect(computeRatings(later).history.get('Anna')!.slice(0, before.length)).toEqual(before)
+    expect(computeRatings(later).legacyCars).toEqual(computeRatings(early).legacyCars)
+  })
+
   it('schreibt die Autowertung vor jedem Lauf fest: spätere Läufe ändern sie nicht', () => {
     // A und B tauschen die Autos; mit Auto „Schnell“ ist jeder eine Runde vorne
     const day = (n: number, date: string) => [
@@ -249,9 +266,12 @@ describe('Einstufung und Pace', () => {
 
   it('meldet die Einstufung nur für die ersten Läufe', () => {
     for (const [name, h] of model.rating.history) {
-      expect(model.placement(name)).toBe(h.length < PLACEMENT_RUNS ? h.length : null)
+      const runs = model.placementRuns(name)
+      // Testdaten sind älter: wer vor RATING.v2From begann, hat 5 Einstufungsläufe
+      expect(runs).toBe(RATING.provisionalRacesLegacy)
+      expect(model.placement(name)).toBe(h.length < runs ? h.length : null)
       expect(model.placement(name, h[0].fileId)).toBe(1)
-      if (h.length > PLACEMENT_RUNS) expect(model.placement(name, h[h.length - 1].fileId)).toBeNull()
+      if (h.length > runs) expect(model.placement(name, h[h.length - 1].fileId)).toBeNull()
     }
   })
 

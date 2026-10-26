@@ -99,7 +99,7 @@ export function Celebration() {
       {last && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--nav)', border: '1px solid #262B33', borderRadius: 16, padding: '10px 14px', boxShadow: 'var(--sh1)' }}>
           {placing != null ? (
-            <Placement n={placing} size={14} />
+            <Placement n={placing} driver={me} size={14} />
           ) : (
             <>
               <span style={{ fontSize: 13, color: 'var(--muted)' }}>Elo</span>

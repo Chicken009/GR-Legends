@@ -122,11 +122,24 @@ GR Legends
 - **Autobilder:** Ablauf, Leinwand, „Dein Wettkampf“, Wettkampfliste und Regeln zeigen die Autos
   mit Foto (aus dem Ordner „Fotos“).
 - **Fair:** Ein geschlagener Gegner bringt `2 × (1 − eigene Siegchance)` × Punkte je Gegner; die
-  Siegchance kommt aus der Fahrer-Elo zu Beginn des Wettkampfs plus der Autowertung, wie sie vor
-  dem jeweiligen Lauf feststand. Diese ist festgeschrieben: Spätere Läufe ändern alte Punkte nicht. Die erwarteten Punkte sind
-  so für beide Seiten eines Duells gleich.
+  Siegchance kommt aus Fahrer-Elo plus Autowertung. Die erwarteten Punkte sind so für beide Seiten
+  eines Duells gleich. Wer im Editor „Fair“ wählt, bekommt auch „Siegbonus fair“ – solange an der
+  Wertung noch nichts geändert wurde.
+  - Wettkämpfe ab 26.10.2026: Autowertung, wie sie vor dem jeweiligen Lauf feststand (spätere Läufe
+    ändern alte Punkte nicht). Fahrer, die zu Beginn noch in der Einstufung sind, zählen mit ihrer
+    Elo vor dem jeweiligen Lauf – so zählen ihre Ergebnisse statt des Startwerts. Sonst gilt die
+    Elo zu Beginn.
+  - Ältere Wettkämpfe: Elo zu Beginn und Autowertung nach der alten Rechnung, Stand vor dem
+    26.10.2026 – sie ändern sich nicht mehr.
 - **Bonus:** schnellste Runde, Pole, Fahrer des Tages (größte Leistung über der Erwartung), neue
-  persönliche Bestzeit, Rennen ohne Abflug – jeweils einstellbar, 0 = aus.
+  persönliche Bestzeit, Rennen ohne Abflug – jeweils einstellbar, 0 = aus. Wettkämpfe ab 26.10.2026:
+  Bei „Fair“ zählen schnellste Runde und Pole im Verhältnis zur typischen Runde des eigenen Autos
+  (bis zum Ende des Wettkampfs). Fahrer des Tages: Überleistung je Gegner (mindestens 0,1),
+  vergleichbar bei verschieden vielen und großen Rennen; liegt jemand weniger als 0,05 dahinter,
+  wird der Bonus geteilt.
+- **Unsicherheit:** Probelauf und Regeln weisen darauf hin, wenn Fahrer noch in der Einstufung sind
+  oder Autos eine vorläufige Wertung haben. Bei „Nach Können“ warnt der Editor vor vorläufigen
+  Autos.
 - **Ansicht:** Stand, Ablauf, Regeln, „Dein Wettkampf“ (nächster Lauf, Auto, was zum Aufsteigen
   oder Überholen fehlt, Tipps aus den Runden), Spannungsmeldungen, Siegerehrung.
 - **Leinwand** (`#/wettkampf/<id>/leinwand`): für Tablet oder Fernseher an der Bahn, aktualisiert
@@ -253,20 +266,32 @@ Ergebnisse nicht nachträglich.
 Elo-Skala (200 Punkte = Siegchance 10 : 1), damit die Zahlen dreistellig und nah beieinander
 bleiben. Das Duell-Ergebnis hängt vom Abstand ab (Runden bzw. Zeit). Die Erwartung kommt aus
 Fahrer- **plus** Autowertung (pro Strecke) – wer im schwächeren Auto gewinnt, bekommt mehr Punkte
-(Underdog-Bonus). Qualifyings zählen halb, Gäste gar nicht, die ersten 5 Läufe doppelt so stark.
-Diese 5 Läufe sind die **Einstufung**: Neue Fahrer sehen statt Elo-Zahl und Veränderung nur
-„Einstufung n/5“, damit niemand mit einem Minus unter dem Startwert einsteigt.
+(Underdog-Bonus). Qualifyings zählen halb, Gäste gar nicht, die ersten 8 Läufe doppelt so stark
+(wer vor dem 26.10.2026 angefangen hat: 5 – 8 sagen Ergebnisse besser voraus). Diese Läufe sind die
+**Einstufung**: Neue Fahrer sehen statt Elo-Zahl und Veränderung nur „Einstufung n/8“, damit niemand
+mit einem Minus unter dem Startwert einsteigt.
 
-**Autowertung**: Sie kommt aus den Runden, nicht aus den Ergebnissen. Modell je Strecke:
+Sinkt die Elo zuletzt, obwohl die eigenen sauberen Runden (gemessen an der typischen Runde des
+jeweiligen Autos) schneller geworden sind, zeigt das Profil diesen Fortschritt unter dem Elo-Verlauf.
+
+**Ab 26.10.2026, nicht rückwirkend:** Alle Läufe vor diesem Tag werden weiter genau wie bisher
+gerechnet (alte Autowertung, Schätzung vor jedem Renntag, 5 Einstufungsläufe); auch der Maßstab
+für das Duell gegen die Bahn kommt für sie nur aus Läufen vor diesem Tag. Neue Läufe ändern ältere
+Elo-Werte nicht mehr.
+
+**Autowertung** (ab 26.10.2026; davor Abflüge pro Runde × typische Kosten eines Abflugs): Sie kommt
+aus den Runden, nicht aus den Ergebnissen. Modell je Strecke:
 Rundenzeit = Lauf + Fahrer + Auto. Der Lauf fängt Bahnzustand und Tagesform ab, der Fahrer sein
 Können – übrig bleibt, was das Auto ausmacht, gelernt aus Fahrern, die verschiedene Autos gefahren
 sind. Zwei Teile:
 - **Tempo**: Ø saubere Runde gegenüber dem Ø Auto (halbe Wirkung nach etwa 10 Läufen).
 - **Zeitverlust** durch Abflüge und Defekte (Rennen ohne Tank): die tatsächlich verlorene Zeit als
   Anteil der Fahrzeit. Ein Auto, das immer wieder stehen bleibt, kostet so viel mehr als ein kurzer
-  Abflug. Zwischenfälle hängen viel am Zufall und am Fahrer und werden deshalb stärker zum Schnitt
-  gezogen (halbe Wirkung nach etwa 15 Läufen). Die Abflüge pro 100 Runden in der Autoliste sind nur
-  Anzeige.
+  Abflug. Ein Zwischenfall zählt höchstens 5 saubere Runden (längere Stillstände sind meist
+  Rennpausen). Zwischenfälle hängen viel am Zufall und am Fahrer und werden deshalb stärker zum
+  Schnitt gezogen (halbe Wirkung nach etwa 15 Läufen). Die Abflüge pro 100 Runden und der neutrale
+  „Verlust/10 Rd“ (Sekunden je 10 Runden, nicht um Fahrer bereinigt) in der Autoliste sind nur
+  Anzeige. Autos mit weniger als 10 Rennen sind dort als vorläufig markiert.
 
 Die Glättung ist daran abgestimmt, wie gut die Autowertung Rennen vorhersagt, die bei der Schätzung
 weggelassen wurden (Rennen mit verschiedenen Autos seit 2025).
@@ -276,8 +301,9 @@ gewichtet (1 / Streuung, relativ zum Schnitt, zwischen 0,25 und 3; bei wenigen L
 geglättet). Wer gleichmäßig fährt, bei dem sind Abweichungen eher echte Autounterschiede – egal,
 wie schnell er ist.
 
-1 % schnellere Runden ≈ 8 Elo-Punkte (abgeleitet aus Tempo und Wertung der Fahrer). Für die Elo
-wird vor jedem Renntag nur aus früheren Läufen geschätzt, für Wettkämpfe vor jedem einzelnen Lauf. Über die Zeit: Der Grundwert kommt aus allen Läufen
+1 % schnellere Runden ≈ 8 Elo-Punkte (abgeleitet aus Tempo und Wertung der Fahrer). Geschätzt wird
+nur aus früheren Läufen, ab 26.10.2026 vor jedem einzelnen Lauf (ein neues Auto ist so schon am
+ersten Abend eingeschätzt), davor vor jedem Renntag. Über die Zeit: Der Grundwert kommt aus allen Läufen
 (alte zählen voll), dazu ein Trend aus den neueren Läufen (Halbwertszeit 120 Tage). Der Trend setzt
 sich erst durch, wenn er über mehrere Rennen gleich bleibt (halbe Wirkung nach ca. 20 Läufen) –
 so zeigen sich mechanische Änderungen, einzelne Ausreißer aber kaum. Underdog-Bonus ab 6 Punkten unter

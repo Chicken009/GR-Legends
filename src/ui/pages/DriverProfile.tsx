@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useMe } from '../me'
 import { useStored } from '../useStored'
 import { NewcomerProfile } from './NewcomerProfile'
-import { CAREER_XP, PLACEMENT_RUNS, type Medal } from '../../domain/model'
+import { CAREER_XP, type Medal } from '../../domain/model'
 import { AREA, SERIES } from '../colors'
 import { Avatar, carPath, driverPath, PeriodTabs, Placement, Segment, Sheet, Tile, useData, useMyName } from '../components'
 import { isQuali } from '../../domain/rating'
@@ -125,7 +125,7 @@ export function DriverProfile({ onClose }: { onClose: () => void }) {
       </div>
 
       <div className="tiles">
-        {placing != null ? <Tile value={`${placing}/${PLACEMENT_RUNS}`} label="Einstufung" color={ACCENT} /> : <Tile value={<Amount kind="elo" value={model.rating.drivers.get(driver) ?? 0} size={20} unit={false} />} label="Elo" />}
+        {placing != null ? <Tile value={`${placing}/${model.placementRuns(driver)}`} label="Einstufung" color={ACCENT} /> : <Tile value={<Amount kind="elo" value={model.rating.drivers.get(driver) ?? 0} size={20} unit={false} />} label="Elo" />}
         <Tile value={d.races} label="Rennen" />
         <Tile value={d.wins} label="Siege" />
         <Tile value={fmtPct(d.beatShare)} label="Ø geschlagen" />
@@ -343,7 +343,7 @@ function AllRaces({ driver }: { driver: string }) {
                     {formatTime(result.validBestLapMs)}
                   </span>
                   {placing != null ? (
-                    <Placement n={placing} size={11} short />
+                    <Placement n={placing} driver={driver} size={11} short />
                   ) : dl != null ? (
                     <span className="num" style={{ fontSize: 11, fontWeight: 600, color: dl > 0.5 ? ACCENT : 'var(--muted)' }}>
                       {fmtDelta(dl)} Elo
@@ -552,23 +552,28 @@ function DriverChart({ driver, kind, period }: { driver: string; kind: ChartKind
   if (history.length === 0) return <p className="muted" style={{ margin: 0, fontSize: 13 }}>Keine Läufe in diesem Zeitraum.</p>
   if (kind === 'elo') {
     const all = model.rating.history.get(driver) ?? []
-    if (all.length < PLACEMENT_RUNS)
+    const runs = model.placementRuns(driver)
+    if (all.length < runs)
       return (
         <p className="muted" style={{ margin: 0, fontSize: 13, lineHeight: 1.45 }}>
-          Noch in der Einstufung ({all.length}/{PLACEMENT_RUNS} Läufe). Die ersten Läufe pendeln die Wertung ein – der Elo-Verlauf erscheint danach.
+          Noch in der Einstufung ({all.length}/{runs} Läufe). Die ersten Läufe pendeln die Wertung ein – der Elo-Verlauf erscheint danach.
         </p>
       )
-    const placingRun = (e: (typeof history)[number]) => all.indexOf(e) < PLACEMENT_RUNS
+    const placingRun = (e: (typeof history)[number]) => all.indexOf(e) < runs
     const ups = [...history.keys()].filter((i) => !placingRun(history[i]) && history[i].delta > 0).sort((a, b) => history[b].delta - history[a].delta).slice(0, 2)
     const downs = [...history.keys()].filter((i) => !placingRun(history[i]) && history[i].delta < 0).sort((a, b) => history[a].delta - history[b].delta).slice(0, 2)
     const turning = new Set([...ups, ...downs, history.length - 1])
     const points: LinePoint[] = history.map((e, i) => ({
       y: e.after,
       tip: placingRun(e)
-        ? { title: `Einstufungslauf ${all.indexOf(e) + 1}/${PLACEMENT_RUNS}`, text: 'Die ersten Läufe pendeln die Wertung ein.', sub: `${formatDate(e.date)} · ${e.type} · ${e.position}. von ${e.field}`, color: '#C5CCD3' }
+        ? { title: `Einstufungslauf ${all.indexOf(e) + 1}/${runs}`, text: 'Die ersten Läufe pendeln die Wertung ein.', sub: `${formatDate(e.date)} · ${e.type} · ${e.position}. von ${e.field}`, color: '#C5CCD3' }
         : turning.has(i) ? { title: `${fmtDelta(e.delta)} Elo`, text: e.reason, sub: `${formatDate(e.date)} · ${e.type} · ${e.position}. von ${e.field}`, color: e.delta >= 0 ? ACCENT : '#C5CCD3' } : undefined,
     }))
     const mid = Math.floor(history.length / 2)
+    // Sinkt die Elo zuletzt, obwohl man selbst schneller geworden ist: das zeigen, statt nur die fallende Kurve
+    const recent = all.slice(-8)
+    const falling = recent.length >= 4 && recent[recent.length - 1].after < recent[0].before
+    const prog = model.progress(driver)
     // Gesamtrang nach dem jeweiligen Renntag als graue Linie im Hintergrund
     const { dates, ranks } = model.rankTimeline()
     const myRanks = ranks.get(driver) ?? []
@@ -594,6 +599,11 @@ function DriverChart({ driver, kind, period }: { driver: string; kind: ChartKind
           </span>
         </div>
         <span style={{ fontSize: 11, color: 'var(--muted)' }}>Weiße Punkte antippen: Warum ging es hoch oder runter?</span>
+        {falling && prog && prog.pct >= 1 && (
+          <p style={{ margin: 0, fontSize: 13, color: 'var(--text-2)', lineHeight: 1.45 }}>
+            <b style={{ color: ACCENT }}>Du wirst schneller:</b> Deine sauberen Runden sind {prog.pct.toLocaleString('de-DE', { maximumFractionDigits: 1 })} % schneller als in deinen ersten Rennen (gemessen am jeweils gefahrenen Auto). Die Elo vergleicht nur mit den anderen – werden die auch besser, sinkt sie trotzdem. Deinen eigenen Fortschritt zeigt das Diagramm „Runden“.
+          </p>
+        )}
       </>
     )
   }

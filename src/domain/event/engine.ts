@@ -1,6 +1,6 @@
 import type { Session } from '../../types'
 import { isGuest } from '../drivers'
-import { isQuali } from '../rating'
+import { isQuali, RATING } from '../rating'
 import { hashString, shuffle } from './random'
 import { heatLength, type CarRule, type EventDef, type SectionDef, type TeamDef } from './types'
 
@@ -14,13 +14,15 @@ import { heatLength, type CarRule, type EventDef, type SectionDef, type TeamDef 
 export interface EventContext {
   /** Läufe aus dem Wettkampf-Ordner */
   sessions: Session[]
-  /** Elo des Fahrers zu Beginn des Wettkampfs */
-  elo: (driver: string) => number
+  /** Elo des Fahrers zu Beginn des Wettkampfs; mit Lauf: Stärke für diesen Lauf (Einstufung: Elo vor dem Lauf) */
+  elo: (driver: string, at?: Session) => number
   /**
    * Autowertung auf der Strecke (Elo-Punkte, 0 = Durchschnitt). Mit Lauf: Stand vor diesem Lauf
    * (festgeschrieben), ohne: aktueller Stand (für die Planung).
    */
   car: (car: string, at?: Session) => number
+  /** Typische saubere Runde eines Autos auf der Strecke (für „schnellste Runde“ und Pole nach Auto bei „Fair“) */
+  carLapMs?: (car: string) => number | null
   /** Persönliche Bestzeit auf der Strecke vor dem Wettkampf (im Maßstab dieses Autos) */
   previousBest: (driver: string, car: string) => number | null
 }
@@ -294,7 +296,7 @@ interface Env {
   heats: Heat[]
 }
 
-const strengthOf = (env: Env, name: string, car?: string, at?: Session) => env.ctx.elo(name) + (car ? env.ctx.car(car, at) : 0)
+const strengthOf = (env: Env, name: string, car?: string, at?: Session) => env.ctx.elo(name, at) + (car ? env.ctx.car(car, at) : 0)
 
 /** Punkte für eine Reihenfolge: je geschlagenem Gegner + Sieg; fair: gegen Stärkere mehr */
 function orderPoints(env: Env, order: string[], strength: (n: string) => number): Map<string, number> {
@@ -752,10 +754,16 @@ export const EVENT_RULES_FROM = '2026-10-24'
  * Ausgeglichene Verteilung zufälliger Autos (`rotateCars`) gilt für Wettkämpfe ab diesem Tag –
  * bereits gefahrene Wettkämpfe behalten ihren Plan.
  */
-export const CAR_ROTATION_FROM = '2026-10-26'
+export const CAR_ROTATION_FROM = RATING.v2From
+
+/**
+ * Fahrer des Tages (ab RATING.v2From): mindestens so viel Überleistung je Gegner (geschlagene minus
+ * erwartete); liegt jemand weniger als `tie` dahinter, wird der Bonus geteilt
+ */
+export const DOTD = { minPerOpponent: 0.1, tie: 0.05 }
 
 /** Teams „Nach Elo“ nach Schnitt statt Summe ausgleichen (`balanceAverages`) – für Wettkämpfe ab diesem Tag */
-export const TEAMS_BY_AVERAGE_FROM = '2026-10-26'
+export const TEAMS_BY_AVERAGE_FROM = RATING.v2From
 
 /** Läufe derselben Aufteilung auf einer Kopie der Umgebung durchspielen (ohne Nebenwirkungen) */
 const cloneEnv = (env: Env): Env => ({ ...env, used: new Set(env.used), heatCount: new Map(env.heatCount), carBase: new Map(env.carBase), carUse: new Map(env.carUse), heats: [...env.heats] })
@@ -1240,6 +1248,17 @@ export function computeEvent(def: EventDef, ctx: EventContext): EventState {
   })
   // Kennzahlen und Erwartung (nur Rennen)
   const over = new Map<string, number>()
+  /** Gegner, gegen die jemand gefahren ist (für den Fahrer des Tages je Gegner) */
+  const faced = new Map<string, number>()
+  // Ab RATING.v2From bei „Fair“: schnellste Runde und Pole gemessen an der typischen Runde des eigenen Autos
+  const newRules = def.start >= RATING.v2From
+  const byCar = newRules && sc.method === 'fair'
+  const allLaps = sessions.flatMap((x) => x.results.flatMap((r) => r.lapTimes.filter((l) => l.status === 'normal').map((l) => l.ms))).sort((a, b) => a - b)
+  const fallbackRef = allLaps.length ? allLaps[Math.floor(allLaps.length / 2)] : null
+  const relLap = (ms: number, car: string) => {
+    const ref = ctx.carLapMs?.(car) ?? fallbackRef
+    return byCar && ref ? ms / ref : ms
+  }
   let fastest: EventState['fastestLap'] = null
   /** Fahrer → Auto → beste Runde im Wettkampf */
   const eventBest = new Map<string, Map<string, number>>()
@@ -1259,7 +1278,7 @@ export function computeEvent(def: EventDef, ctx: EventContext): EventState {
       if (h.kind !== 'race') continue
       row.races++
       if (h.order[0] === n && h.order.length > 1) row.wins++
-      if (ms != null && (!fastest || ms < fastest.ms)) fastest = { name: n, ms, car: res?.car ?? '' }
+      if (ms != null && (!fastest || relLap(ms, res?.car ?? '') < relLap(fastest.ms, fastest.car))) fastest = { name: n, ms, car: res?.car ?? '' }
       if (sc.clean && res && res.laps >= 3 && !res.lapTimes.some((l) => l.status === 'crash')) row.bonuses.push({ kind: 'clean', label: `Ohne Abflug · ${h.label}`, points: sc.clean })
     }
     if (h.kind === 'race' && h.order.length > 1) {
@@ -1268,17 +1287,40 @@ export function computeEvent(def: EventDef, ctx: EventContext): EventState {
         let expected = 0
         for (const o of h.order) if (o !== n) expected += winProb(str(n), str(o))
         over.set(n, (over.get(n) ?? 0) + (h.order.length - 1 - i) - expected)
+        faced.set(n, (faced.get(n) ?? 0) + h.order.length - 1)
       })
     }
   }
   const started = heats.some((h) => h.status === 'done')
   const planned = heats.filter((h) => h.sectionId && def.sections.find((s) => s.id === h.sectionId)?.format !== 'free')
   const complete = planned.length > 0 && planned.every((h) => h.status === 'done')
-  if (fastest && sc.fastestLap) rows.get(fastest.name)?.bonuses.push({ kind: 'fastestLap', label: 'Schnellste Runde', points: sc.fastestLap })
+  if (fastest && sc.fastestLap) rows.get(fastest.name)?.bonuses.push({ kind: 'fastestLap', label: byCar ? 'Schnellste Runde (gemessen am Auto)' : 'Schnellste Runde', points: sc.fastestLap })
   const quali = sections.find((s) => s.def.format === 'quali')
-  if (quali?.complete && quali.ranking[0] && sc.pole) rows.get(quali.ranking[0].name)?.bonuses.push({ kind: 'pole', label: 'Pole', points: sc.pole })
-  const dotd = [...over].filter(([n]) => (rows.get(n)?.races ?? 0) >= 2).sort((a, b) => b[1] - a[1])[0]
-  if (dotd && dotd[1] > 0.5 && sc.driverOfDay) rows.get(dotd[0])?.bonuses.push({ kind: 'driverOfDay', label: 'Fahrer des Tages', points: sc.driverOfDay })
+  if (quali?.complete && quali.ranking[0] && sc.pole) {
+    let pole = quali.ranking[0].name
+    if (byCar) {
+      // Beste Qualifying-Runde im Verhältnis zur typischen Runde des eigenen Autos
+      const tries = quali.heats.flatMap((h) => h.session?.results.filter((r) => h.order.includes(r.driver) && r.validBestLapMs != null).map((r) => ({ n: r.driver, v: relLap(r.validBestLapMs!, r.car) })) ?? [])
+      pole = tries.sort((a, b) => a.v - b.v)[0]?.n ?? pole
+    }
+    rows.get(pole)?.bonuses.push({ kind: 'pole', label: byCar ? 'Pole (gemessen am Auto)' : 'Pole', points: sc.pole })
+  }
+  if (sc.driverOfDay) {
+    const eligible = [...over].filter(([n]) => (rows.get(n)?.races ?? 0) >= 2)
+    if (newRules) {
+      // Ab RATING.v2From: Überleistung je Gegner (vergleichbar bei verschieden vielen und großen Rennen);
+      // liegen die Besten fast gleichauf, wird der Bonus geteilt
+      const perOpp = eligible.map(([n, v]) => [n, v / Math.max(1, faced.get(n) ?? 1)] as const).sort((a, b) => b[1] - a[1])
+      const top = perOpp[0]
+      if (top && top[1] > DOTD.minPerOpponent) {
+        const tied = perOpp.filter(([, v]) => top[1] - v < DOTD.tie)
+        for (const [n] of tied) rows.get(n)?.bonuses.push({ kind: 'driverOfDay', label: tied.length > 1 ? 'Fahrer des Tages (geteilt)' : 'Fahrer des Tages', points: Math.round((sc.driverOfDay / tied.length) * 10) / 10 })
+      }
+    } else {
+      const dotd = eligible.sort((a, b) => b[1] - a[1])[0]
+      if (dotd && dotd[1] > 0.5) rows.get(dotd[0])?.bonuses.push({ kind: 'driverOfDay', label: 'Fahrer des Tages', points: sc.driverOfDay })
+    }
+  }
   if (sc.personalBest) {
     for (const [n, own] of eventBest) {
       const beaten = [...own].some(([car, ms]) => {

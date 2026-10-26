@@ -491,6 +491,41 @@ describe('Wertung und Autos', () => {
     expect(make('2026-10-25').previousBest('A', 'Groß')).toBe(9000)
   })
 
+  it('neue Wettkämpfe: Fahrer in der Einstufung zählen mit ihrer Elo vor dem Lauf', () => {
+    const at = (r: Session, date: string, time: string) => ({ ...r, track: 'T', date, createdTime: time })
+    const races = [at(run('race', ['Neu', 'B']), '2026-11-01', '2026-11-01T10'), at(run('race', ['Neu', 'B']), '2026-11-01', '2026-11-01T11')]
+    const rating = computeRatings(races)
+    const c = eventContext(def({ start: '2026-11-01', drivers: ['Neu', 'B'], sections: [] }), rating, races, races, 'T')
+    const h = rating.history.get('Neu')!
+    expect(c.elo('Neu')).toBe(500)
+    expect(c.elo('Neu', races[1])).toBeCloseTo(h[1].before)
+    expect(h[1].before).toBeGreaterThan(500)
+    // ältere Wettkämpfe: Elo zu Beginn
+    const old = eventContext(def({ start: '2026-10-01', drivers: ['Neu', 'B'], sections: [] }), rating, races, races, 'T')
+    expect(old.elo('Neu', races[1])).toBe(500)
+  })
+
+  it('Fahrer des Tages ab RATING.v2From: je Gegner, bei Gleichstand geteilt', () => {
+    const races = [run('race', ['A', 'B', 'C']), run('race', ['B', 'A', 'C'])]
+    const even = { ...ctx(races), elo: () => 500 }
+    const make = (start: string) => def({ start, drivers: ['A', 'B', 'C'], scoring: { driverOfDay: 2 }, sections: [newSection('races', { id: 'r', rounds: 2 })] } as never)
+    const bonus = (st: ReturnType<typeof computeEvent>) => st.standings.flatMap((x) => x.bonuses.filter((b) => b.kind === 'driverOfDay').map((b) => [x.name, b.points]))
+    expect(bonus(computeEvent(make('2026-11-01'), even)).sort()).toEqual([['A', 1], ['B', 1]])
+    // ältere Wettkämpfe: wie bisher an einen
+    expect(bonus(computeEvent(make('2026-06-01'), even))).toHaveLength(1)
+  })
+
+  it('„Fair“ ab RATING.v2From: schnellste Runde gemessen an der typischen Runde des Autos', () => {
+    const race = run('race', ['A', 'B'], { best: [8900, 10500] })
+    race.results[0].car = 'Schnell'
+    race.results[1].car = 'Langsam'
+    const c = { ...ctx([race]), carLapMs: (car: string) => (car === 'Schnell' ? 9000 : 11000) }
+    const make = (start: string) => def({ start, drivers: ['A', 'B'], scoring: { method: 'fair', fastestLap: 2 }, sections: [newSection('races', { id: 'r', rounds: 1 })] } as never)
+    const fl = (st: ReturnType<typeof computeEvent>) => st.standings.find((x) => x.bonuses.some((b) => b.kind === 'fastestLap'))?.name
+    expect(fl(computeEvent(make('2026-11-01'), c))).toBe('B')
+    expect(fl(computeEvent(make('2026-06-01'), c))).toBe('A')
+  })
+
   it('übernimmt manuelle Änderungen an einem Lauf', () => {
     const d = def({ drivers: ['A', 'B', 'C'], sections: [newSection('races', { id: 'r', rounds: 1 })], overrides: { 'r-r1-1': { drivers: ['A', 'C'], cars: { A: 'Ferrari' } } } })
     const s = computeEvent(d, ctx())

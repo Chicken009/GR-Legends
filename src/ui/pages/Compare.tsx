@@ -1,6 +1,5 @@
 import { useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
-import { PLACEMENT_RUNS } from '../../domain/model'
 import { carKey, duelDelta, winChances } from '../../domain/rating'
 import { CarThumb } from '../CarPhoto'
 import { UnderdogBonus } from './Cars'
@@ -55,7 +54,7 @@ export function Compare() {
 
   const driverOptions = driverNames.map((n) => {
     const r = ranking.find((x) => x.name === n)!
-    return { value: n, label: n, sub: model.placement(n) != null ? `Rang ${r.rank} · Einstufung ${model.placement(n)}/${PLACEMENT_RUNS}` : `Rang ${r.rank} · ${fmtElo(r.elo)} Elo`, visual: <Avatar name={n} size={34} ring={n === me ? 'var(--me)' : undefined} /> }
+    return { value: n, label: n, sub: model.placement(n) != null ? `Rang ${r.rank} · Einstufung ${model.placement(n)}/${model.placementRuns(n)}` : `Rang ${r.rank} · ${fmtElo(r.elo)} Elo`, visual: <Avatar name={n} size={34} ring={n === me ? 'var(--me)' : undefined} /> }
   })
   const carOptions = carNames.map((n) => {
     const c = all.cars.get(n)!

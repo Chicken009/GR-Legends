@@ -1,12 +1,13 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { PLACEMENT_RUNS, type RankRow } from '../../domain/model'
+import { RATING } from '../../domain/rating'
 import { SEASON_POINTS } from '../../domain/season'
 import { AREA } from '../colors'
 import { FieldSwitch } from '../FieldSwitch'
 import { Avatar, DriverSettingsHint, driverPath, PageHead, PeriodTabs, Placement, Rank, SettingsProblem, useData, useMyName, ViewToggle } from '../components'
 import { DataTable, type Column } from '../DataTable'
 import { StatusIcons } from '../icons'
-import { fmtElo, fmtGapSec, fmtNum, fmtPct, formatTime } from '../format'
+import { fmtElo, fmtGapSec, fmtNum, fmtPct, formatDate, formatTime } from '../format'
 import { useStored } from '../useStored'
 import { Amount } from '../currency'
 
@@ -42,7 +43,7 @@ export function Drivers() {
         </span>
       ),
     },
-    { key: 'elo', label: 'Elo', strong: true, value: (r) => r.elo, render: (r) => { const n = model.placement(r.name); return n != null ? <Placement n={n} /> : fmtElo(r.elo) } },
+    { key: 'elo', label: 'Elo', strong: true, value: (r) => r.elo, render: (r) => { const n = model.placement(r.name); return n != null ? <Placement n={n} driver={r.name} /> : fmtElo(r.elo) } },
     { key: 'level', label: 'Level', title: 'Karriere-Level aus Erfahrungspunkten (steigt mit jedem Rennen)', value: (r) => model.career(r.name)?.xp ?? 0, render: (r) => { const c = model.career(r.name); return c ? `${c.level} · ${c.title}` : '–' } },
     ...(p !== 'all'
       ? [
@@ -138,7 +139,7 @@ export function Drivers() {
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   {model.placement(r.name) != null ? (
-                    <Placement n={model.placement(r.name)!} size={14} />
+                    <Placement n={model.placement(r.name)!} driver={r.name} size={14} />
                   ) : (
                     <>
                       <Amount kind="elo" value={r.elo} size={24} plain />
@@ -180,7 +181,7 @@ export function Drivers() {
           <span>Streuung = Schwankung sauberer Runden (kleiner = präziser)</span>
           <span>Abflüge nur aus Rennen ohne Tankfunktion</span>
           {p !== 'all' && <span>Sortiert nach Saisonwertung {p} (Punkte, beste {SEASON_POINTS.countedDays} Renntage)</span>}
-          <span>Einstufung = neue Fahrer, die ersten {PLACEMENT_RUNS} Läufe pendeln die Wertung ein</span>
+          <span>Einstufung = neue Fahrer, die ersten {PLACEMENT_RUNS} Läufe pendeln die Wertung ein (wer vor dem {formatDate(RATING.v2From)} angefangen hat: {RATING.provisionalRacesLegacy})</span>
         </div>
       )}
     </div>

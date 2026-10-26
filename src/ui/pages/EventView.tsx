@@ -8,7 +8,7 @@ import { useMe } from '../me'
 import { StrokeIcon, TOOL_ICONS } from '../icons'
 import { useStored } from '../useStored'
 import { CarThumb } from '../CarPhoto'
-import { CarChips, dateRange, EVENT_ACCENT, fmtPts, HeatCard, PhasePill, phaseOf, Podium, rulesText, StandingsList, Stories, teamColor, TeamList, TeamStandings, TeamTag, useEventState } from '../event/shared'
+import { CarChips, dateRange, EVENT_ACCENT, fmtPts, HeatCard, PhasePill, phaseOf, Podium, rulesText, uncertainty, StandingsList, Stories, teamColor, TeamList, TeamStandings, TeamTag, useEventState } from '../event/shared'
 
 type Tab = 'stand' | 'ablauf' | 'regeln'
 
@@ -201,6 +201,7 @@ export function EventView() {
               <li key={t}>{t}</li>
             ))}
           </ul>
+          {!state.complete && uncertainty(data, def) && <span style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.45 }}>{uncertainty(data, def)}</span>}
         </section>
       )}
       {tab === 'regeln' && <CarsCard def={def} />}
