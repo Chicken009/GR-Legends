@@ -48,7 +48,8 @@ export function Recap({ state, steps, me }: { state: EventState; steps: Progress
 function MyRecap({ state, steps, me }: { state: EventState; steps: ProgressStep[]; me: string }) {
   const s = state.standings.find((x) => x.name === me)!
   const mine = myRecap(state, steps, me)
-  const team = s.teamId ? state.teamStandings.find((t) => t.id === s.teamId) : null
+  // Ohne Teampunkte (noch kein Teamrennen bei getrennter Wertung) gibt es keinen Team-Platz
+  const team = s.teamId && state.teamStandings.some((t) => t.points !== 0) ? state.teamStandings.find((t) => t.id === s.teamId) : null
   const ranks = mine.ranks.filter((r): r is number => r != null)
   return (
     <section className="card me-row" style={{ gap: 10 }}>

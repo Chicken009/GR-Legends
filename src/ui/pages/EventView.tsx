@@ -189,6 +189,8 @@ function MyEvent({ state, me, insight, showPlan, lapMs }: { state: EventState; m
   const team = s?.teamId ? state.teamStandings.find((t) => t.id === s.teamId) : null
   const color = team ? teamColor(team.id, team.name) : undefined
   const wait = showPlan ? waitFor(state, me, lapMs) : null
+  // Bei getrennter Wertung gibt es Teampunkte erst mit dem ersten Teamrennen – vorher keinen Team-Platz
+  const teamStarted = state.teamStandings.some((t) => t.points !== 0)
   const heat = insight.nextHeat
   return (
     <section className="card me-row" style={{ gap: 10 }}>
@@ -202,7 +204,7 @@ function MyEvent({ state, me, insight, showPlan, lapMs }: { state: EventState; m
           <Tile value={fmtPts(s.total)} label="Punkte" color={color} />
           {team ? (
             <>
-              <Tile value={`${team.rank}.`} label="Team-Platz" color={color} />
+              <Tile value={teamStarted ? `${team.rank}.` : '–'} label="Team-Platz" color={color} />
               <Tile value={fmtPts(team.points)} label="Team-Punkte" color={color} />
             </>
           ) : (
