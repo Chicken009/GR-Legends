@@ -6,7 +6,7 @@ import type { EventFolder } from '../../data/events'
 import { carScale } from '../../data/settings'
 import { eventCars, eventContext, typicalLapMs } from '../../domain/event/context'
 import { computeEvent, type EventState, type Heat, type Standing } from '../../domain/event/engine'
-import { eventPhase, lastDay, todayIso, withoutTeams, type EventPhase, type Story } from '../../domain/event/insights'
+import { eventFinished, eventPhase, lastDay, todayIso, withoutTeams, type EventPhase, type Story } from '../../domain/event/insights'
 import { heatPointsExplained, pointsHistory, type ProgressStep } from '../../domain/event/progress'
 import { FORMAT_LABEL, type EventDef } from '../../domain/event/types'
 import { RATING } from '../../domain/rating'
@@ -78,6 +78,9 @@ export const PHASE_LABEL: Record<EventPhase, string> = { planned: 'geplant', run
 export function phaseOf(def: EventDef, state: EventState) {
   return eventPhase(def, state, todayIso())
 }
+
+/** Ergebnis steht fest (alle geplanten Läufe gefahren) – erst dann Siegerehrung und „Sieger“ */
+export const finishedOf = (def: EventDef, state: EventState) => eventFinished(def, state, todayIso())
 
 export function dateRange(def: EventDef) {
   return def.end ? `${formatDate(def.start)} – ${formatDate(lastDay(def))}` : formatDate(def.start)

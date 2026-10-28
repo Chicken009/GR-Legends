@@ -6,7 +6,7 @@ import { PageHead, useData } from '../components'
 import { useMe } from '../me'
 import { StrokeIcon, TOOL_ICONS } from '../icons'
 import { CarThumb } from '../CarPhoto'
-import { computeFor, dateRange, EVENT_ACCENT, PhasePill, phaseOf, Pts, teamColor } from '../event/shared'
+import { computeFor, dateRange, EVENT_ACCENT, finishedOf, PhasePill, phaseOf, Pts, teamColor } from '../event/shared'
 
 /** Liste der Wettkämpfe (Seite und Reiter „Wettkämpfe“ der Saison) */
 export function EventList() {
@@ -75,7 +75,7 @@ export function EventCard({ folder, me }: { folder: EventFolder; me: string | nu
         <span style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px 16px', fontSize: 13, color: 'var(--text-2)' }}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
             <span>
-              {phase === 'done' ? 'Sieger' : 'Vorn'}: <b style={{ color: leader.name === me ? 'var(--me)' : 'var(--text)' }}>{leader.name === me ? 'Du' : leader.name}</b>
+              {finishedOf(folder.def, state) ? 'Sieger' : 'Vorn'}: <b style={{ color: leader.name === me ? 'var(--me)' : 'var(--text)' }}>{leader.name === me ? 'Du' : leader.name}</b>
             </span>
             <Pts value={leader.total} size={13} />
           </span>

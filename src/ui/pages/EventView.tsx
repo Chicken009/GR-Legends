@@ -20,6 +20,7 @@ import {
   NextHeatPanel,
   PhasePill,
   phaseOf,
+  finishedOf,
   Podium,
   ProgressChart,
   Pts,
@@ -61,6 +62,7 @@ export function EventView() {
   }
   const def = folder.def
   const phase = phaseOf(def, state)
+  const finished = finishedOf(def, state)
   const today = todayIso()
   const showPlan = planVisible(def, today)
   const inEvent = !!me && state.drivers.includes(me)
@@ -91,7 +93,7 @@ export function EventView() {
           </Link>
         </span>
       </div>
-      {showPlan && progress.total > 0 && phase !== 'done' && (
+      {showPlan && progress.total > 0 && !finished && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <div className="ev-progress" role="progressbar" aria-valuemin={0} aria-valuemax={progress.total} aria-valuenow={progress.done} aria-label="Gefahrene Läufe">
             <span style={{ width: `${(progress.done / progress.total) * 100}%` }} />
@@ -113,7 +115,13 @@ export function EventView() {
         </p>
       ))}
 
-      {phase === 'done' && state.started && (
+      {phase === 'done' && !finished && state.started && (
+        <p className="inner" style={{ margin: 0, padding: '10px 12px', fontSize: 13, color: 'var(--text-2)' }}>
+          Es fehlen noch Ergebnisse ({progress.done} von {progress.total} Läufen). Die Siegerehrung erscheint, sobald alle Dateien da sind.
+        </p>
+      )}
+
+      {finished && (
         <>
           <section className="card" style={{ gap: 14 }}>
             <span className="card-title">Siegerehrung</span>
@@ -123,9 +131,9 @@ export function EventView() {
         </>
       )}
 
-      {inEvent && phase !== 'done' && <MyEvent state={state} me={me!} showPlan={showPlan} lapMs={lapMs} />}
+      {inEvent && !finished && <MyEvent state={state} me={me!} showPlan={showPlan} lapMs={lapMs} />}
 
-      {showPlan && state.next && phase !== 'done' && <NextUp state={state} me={me} shownAbove={inEvent && state.next.entrants.some((e) => e.name === me)} />}
+      {showPlan && state.next && !finished && <NextUp state={state} me={me} shownAbove={inEvent && state.next.entrants.some((e) => e.name === me)} />}
 
       <Segment
         value={tab}
@@ -151,7 +159,7 @@ export function EventView() {
             <TeamStandings state={state} me={me} />
             <ProgressChart state={state} steps={steps} me={me} />
             <RankChart state={state} steps={steps} me={me} />
-            {phase !== 'done' && <RecapBanner id={id} state={state} me={me} done={false} />}
+            {!finished && <RecapBanner id={id} state={state} me={me} done={false} />}
           </>
         ) : (
           <>

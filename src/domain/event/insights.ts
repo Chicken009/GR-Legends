@@ -24,6 +24,17 @@ export function eventPhase(def: EventDef, state: EventState, today: string): Eve
   return state.started || today >= def.start ? 'running' : 'planned'
 }
 
+/**
+ * Steht das Ergebnis fest? Erst wenn alle geplanten Läufe Ergebnisse haben – nicht schon, weil das
+ * Datum vorbei ist (fehlt eine Datei, gibt es noch keine Siegerehrung). Ohne Plan („Wie gefahren“)
+ * gilt der Wettkampf nach dem letzten Tag als fertig.
+ */
+export function eventFinished(def: EventDef, state: EventState, today: string): boolean {
+  if (state.complete) return true
+  const planned = state.heats.some((h) => def.sections.find((s) => s.id === h.sectionId)?.format !== 'free')
+  return !planned && state.started && today > lastDay(def)
+}
+
 /** Wettkampf in der App zeigen? */
 export const eventVisible = (def: EventDef, today: string) => def.show === 'now' || today >= addDays(def.start, -7)
 

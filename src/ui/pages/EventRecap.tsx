@@ -9,7 +9,7 @@ import { formatTime } from '../format'
 import { NAV_ICONS, PATHS, ShareIcon } from '../icons'
 import { useMe } from '../me'
 import { CarHero, Group, Huge, Line, StatTile, StoryPager, type CardDef } from '../story'
-import { EVENT_ACCENT, fmtPts, phaseOf, Podium, teamColor, useEventHistory, useEventState } from '../event/shared'
+import { EVENT_ACCENT, finishedOf, fmtPts, Podium, teamColor, useEventHistory, useEventState } from '../event/shared'
 
 const fmtSec = (ms: number) => `${(ms / 1000).toLocaleString('de-DE', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} s`
 const ROCKET = 'M12 2c3 2 5 6 5 10l-2 4H9l-2-4c0-4 2-8 5-10zM9 16l-3 3M15 16l3 3M12 9.5a1.5 1.5 0 1 0 0 .01'
@@ -337,5 +337,5 @@ export function EventRecap() {
       </div>
     )
   }
-  return <StoryPager cards={eventCards(state, steps, me, phaseOf(state.def, state) === 'done', back)} label={`Rückblick ${state.def.name}`} onDone={back} doneLabel="Zum Wettkampf" />
+  return <StoryPager cards={eventCards(state, steps, me, finishedOf(state.def, state), back)} label={`Rückblick ${state.def.name}`} onDone={back} doneLabel="Zum Wettkampf" />
 }

@@ -9,7 +9,7 @@ import { CarThumb } from '../CarPhoto'
 import { recapMoments } from '../../domain/event/progress'
 import { StoryPager } from '../story'
 import { eventCards } from './EventRecap'
-import { EVENT_ACCENT, fmtPts, heatNote, PhasePill, phaseOf, Podium, StoryIcon, teamColor, teamEloText, useEventHistory, useEventState } from '../event/shared'
+import { EVENT_ACCENT, finishedOf, fmtPts, heatNote, PhasePill, phaseOf, Podium, StoryIcon, teamColor, teamEloText, useEventHistory, useEventState } from '../event/shared'
 
 const REFRESH_MS = 30_000
 const TICKER_MS = 8_000
@@ -61,7 +61,7 @@ export function EventLive() {
   }
   const def = folder.def
   const phase = phaseOf(def, state)
-  const done = phase === 'done' && state.started
+  const done = finishedOf(def, state)
   // Nach dem Wettkampf läuft der Rückblick: besondere Momente zum gemeinsamen Anschauen
   const stories = done ? recapMoments(state, steps) : storylines(state)
   const story = stories.length ? stories[tick % stories.length] : null
