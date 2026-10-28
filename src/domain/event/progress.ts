@@ -341,7 +341,8 @@ export function recapMoments(state: EventState, steps: ProgressStep[]): Story[] 
   const f = recapFacts(state, steps)
   const out: Story[] = []
   const [a, b] = state.standings
-  if (a && state.started) out.push({ icon: 'crown', text: `${a.name} ${state.complete ? 'gewinnt' : 'führt'} mit ${fmt1(a.total)} Punkten${b ? (a.total > b.total ? ` – ${fmt1(a.total - b.total)} vor ${b.name}` : ` – punktgleich mit ${b.name}`) : ''}.` })
+  if (a && state.started && state.def.scoring.method === 'place') out.push({ icon: 'crown', text: `${a.name} ${state.complete ? 'gewinnt' : 'führt'}${b ? ` vor ${b.name}` : ''}.` })
+  else if (a && state.started) out.push({ icon: 'crown', text: `${a.name} ${state.complete ? 'gewinnt' : 'führt'} mit ${fmt1(a.total)} Punkten${b ? (a.total > b.total ? ` – ${fmt1(a.total - b.total)} vor ${b.name}` : ` – punktgleich mit ${b.name}`) : ''}.` })
   if (f.wireToWire) out.push({ icon: 'flag', text: `Start-Ziel: ${f.wireToWire} lag nach jedem Lauf vorn.` })
   if (f.turn) out.push({ icon: 'flag', text: `Die Wende: Nach ${f.turn.label} übernahm ${f.turn.name} die Spitze.` })
   if (f.jump) out.push({ icon: 'rocket', text: `Größter Sprung: ${f.jump.name} in ${f.jump.label} von Platz ${f.jump.from} auf ${f.jump.to}.` })

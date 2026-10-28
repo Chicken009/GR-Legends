@@ -29,8 +29,12 @@ export interface CarRule {
 }
 
 export interface Scoring {
-  /** absolute: Punkte für die Platzierung · fair: Siege gegen Stärkere (laut Elo) zählen mehr */
-  method: 'absolute' | 'fair'
+  /**
+   * absolute („Punkte“): Punkte je geschlagenem Gegner · fair: Siege gegen Stärkere (laut Elo) zählen
+   * mehr · place („Platzierung“): keine Punkte, es zählt der Platz im letzten Abschnitt (z. B. Finale
+   * der Leiter); intern wird wie „absolute“ ohne Bonus gerechnet, um innerhalb von Abschnitten zu ordnen
+   */
+  method: 'absolute' | 'fair' | 'place'
   perBeaten: number
   win: number
   /** Bonus: schnellste Runde aller Rennen */

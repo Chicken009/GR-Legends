@@ -9,7 +9,7 @@ import { CarThumb } from '../CarPhoto'
 import { recapMoments } from '../../domain/event/progress'
 import { StoryPager } from '../story'
 import { eventCards } from './EventRecap'
-import { Ceremony, EVENT_ACCENT, GridSlot, gridStagger, finishedOf, fmtPts, heatNote, PhasePill, phaseOf, StoryIcon, teamColor, teamEloText, useEventHistory, useEventState } from '../event/shared'
+import { Ceremony, EVENT_ACCENT, GridSlot, gridStagger, placeMode, finishedOf, fmtPts, heatNote, PhasePill, phaseOf, StoryIcon, teamColor, teamEloText, useEventHistory, useEventState } from '../event/shared'
 
 const REFRESH_MS = 30_000
 const TICKER_MS = 8_000
@@ -164,7 +164,7 @@ export function EventLive() {
                     <span style={{ marginLeft: 'auto', color: 'var(--muted)' }}>{r?.validBestLapMs ? formatTime(r.validBestLapMs) : ''}</span>
                     {r?.car && <CarThumb car={r.car} size={40} />}
                     <span className="num" style={{ minWidth: 50, textAlign: 'right', fontWeight: 800, color: lastDone.advancing?.includes(n) ? EVENT_ACCENT : undefined }}>
-                      {lastDone.advancing?.includes(n) ? '↑ weiter' : lastDone.points.has(n) ? `+${fmtPts(lastDone.points.get(n)!)}` : ''}
+                      {lastDone.advancing?.includes(n) ? '↑ weiter' : !placeMode(state) && lastDone.points.has(n) ? `+${fmtPts(lastDone.points.get(n)!)}` : ''}
                     </span>
                   </div>
                 )
@@ -187,7 +187,7 @@ export function EventLive() {
                 <span style={{ fontWeight: 700 }}>{r.name}</span>
                 {state.started && (
                   <span className="num" style={{ marginLeft: 'auto', fontSize: '1.3em', fontWeight: 800 }}>
-                    {fmtPts(r.total)}
+                    {placeMode(state) ? '' : fmtPts(r.total)}
                   </span>
                 )}
               </div>
@@ -206,7 +206,7 @@ export function EventLive() {
                     {t.drivers.join(', ')} · {teamEloText(t, state.teamStandings)}
                   </span>
                   <span className="num" style={{ marginLeft: 'auto', fontSize: '1.2em', fontWeight: 800 }}>
-                    {teamsScored ? fmtPts(t.points) : ''}
+                    {teamsScored ? (placeMode(state) ? `Ø ${fmtPts(t.points)}` : fmtPts(t.points)) : ''}
                   </span>
                 </div>
               ))}

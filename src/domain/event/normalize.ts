@@ -114,7 +114,7 @@ export function normalizeEvent(raw: unknown, fallbackName = ''): EventDef {
     maxPerHeat: num(raw.maxPerHeat, 4, 1, 12),
     cars: normalizeCars(raw.cars),
     scoring: {
-      method: oneOf(scoring.method, ['absolute', 'fair'] as const, DEFAULT_SCORING.method),
+      method: oneOf(scoring.method, ['absolute', 'fair', 'place'] as const, DEFAULT_SCORING.method),
       perBeaten: num(scoring.perBeaten, DEFAULT_SCORING.perBeaten, 0, 100),
       win: num(scoring.win, DEFAULT_SCORING.win, 0, 100),
       fastestLap: num(scoring.fastestLap, DEFAULT_SCORING.fastestLap, 0, 100),

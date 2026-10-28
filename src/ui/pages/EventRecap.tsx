@@ -11,7 +11,7 @@ import { useMe } from '../me'
 import { CarHero, Group, Huge, Line, StatTile, StoryPager, type CardDef } from '../story'
 import { MiniBars } from '../charts/Mini'
 import { RuleChip } from '../PointsLadder'
-import { BONUS_ICON, EVENT_ACCENT, finishedOf, fmtPts, Podium, teamColor, TeamPodium, useEventHistory, useEventState } from '../event/shared'
+import { BONUS_ICON, EVENT_ACCENT, finishedOf, fmtPts, placeDetail, placeMode, Podium, teamColor, TeamPodium, useEventHistory, useEventState } from '../event/shared'
 
 const fmtSec = (ms: number) => `${(ms / 1000).toLocaleString('de-DE', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} s`
 const ROCKET = 'M12 2c3 2 5 6 5 10l-2 4H9l-2-4c0-4 2-8 5-10zM9 16l-3 3M15 16l3 3M12 9.5a1.5 1.5 0 1 0 0 .01'
@@ -40,6 +40,7 @@ export function eventCards(state: EventState, steps: ProgressStep[], me: string 
   const cards: CardDef[] = []
   // Siegerkarte(n) je nach Art: Einzel = Fahrerpodest, Team = Teampodest mit allen Mitgliedern, gemischt = beide
   const kind = eventKind(state)
+  const place = placeMode(state)
   const teamsScored = state.teamStandings.some((t) => t.points !== 0)
   if (kind !== 'single' && teamsScored) {
     const winner = state.teamStandings[0]
@@ -92,10 +93,11 @@ export function eventCards(state: EventState, steps: ProgressStep[], me: string 
           <Group>
             <Huge color={ME}>{mine.rank}.</Huge>
             <Line>
-              von {state.standings.length} · {fmtPts(mine.total)} Pkt. · {mine.wins} {mine.wins === 1 ? 'Sieg' : 'Siege'}
+              von {state.standings.length}
+              {place ? (placeDetail(state, me) ? ` · ${placeDetail(state, me)}` : '') : ` · ${fmtPts(mine.total)} Pkt.`} · {mine.wins} {mine.wins === 1 ? 'Sieg' : 'Siege'}
             </Line>
           </Group>
-          {bars.length > 1 && (
+          {!place && bars.length > 1 && (
             <Group gap={6}>
               <span style={{ fontSize: 12, color: 'var(--muted)' }}>Punkte je Lauf – antippen</span>
               <MiniBars items={bars} color={ME} height={70} label="Deine Punkte je Lauf" />
@@ -107,7 +109,7 @@ export function eventCards(state: EventState, steps: ProgressStep[], me: string 
               )}
             </Group>
           )}
-          {mine.bonuses.length > 0 && (
+          {!place && mine.bonuses.length > 0 && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {mine.bonuses.map((b, i) => (
                 <RuleChip key={i} value={`${BONUS_ICON[b.kind]} +${fmtPts(b.points)}`} label={b.label} color="var(--gold)" />

@@ -99,12 +99,14 @@ export function driverInsight(state: EventState, driver: string): DriverInsight 
     const max = maxHeatPoints(state, nextHeat)
     if (nextHeat.note && /steigen auf|kommen weiter/.test(nextHeat.note)) needs.push(`${nextHeat.label}: ${nextHeat.note} – du musst unter die ersten ${nextHeat.note.match(/\d+/)?.[0] ?? ''}.`)
     if (nextHeat.note === 'Entscheidet den Sieg') needs.push(`${nextHeat.label}: Hier fällt die Entscheidung.`)
-    if (standing && above && max > 0) {
+    // Bei „Platzierung“ zählen keine Punkte – dann keine Punkte-Rechnung
+    const pointsCount = state.def.scoring.method !== 'place'
+    if (pointsCount && standing && above && max > 0) {
       const gap = above.total - standing.total
       if (gap < max) needs.push(`${gap <= 0 ? 'Punktgleich mit' : `${fmt1(gap)} ${gap === 1 ? 'Punkt' : 'Punkte'} hinter`} ${above.name} – mit einem Sieg in ${nextHeat.label} (bis ${fmt1(max)} Punkte) ziehst du vorbei.`)
       else needs.push(`${fmt1(gap)} Punkte bis ${above.name} – in ${nextHeat.label} sind bis zu ${fmt1(max)} drin.`)
     }
-    if (standing && standing.rank === 1 && below && max > 0 && standing.total - below.total < max) {
+    if (pointsCount && standing && standing.rank === 1 && below && max > 0 && standing.total - below.total < max) {
       needs.push(`Du führst, aber ${below.name} ist nur ${fmt1(standing.total - below.total)} Punkte hinter dir.`)
     }
   }
@@ -184,7 +186,7 @@ export function storylines(state: EventState): Story[] {
   const [a, b] = state.standings
   if (state.complete && a) {
     out.push({ icon: 'crown', text: `${a.name} gewinnt ${state.def.name}!` })
-  } else if (a && b && state.started && state.next) {
+  } else if (a && b && state.started && state.next && state.def.scoring.method !== 'place') {
     const gap = a.total - b.total
     const max = maxHeatPoints(state, state.next)
     if (gap === 0) out.push({ icon: 'crown', text: `Gleichstand an der Spitze: ${a.name} und ${b.name}.` })

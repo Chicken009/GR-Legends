@@ -5,7 +5,7 @@ import { eventSessions } from '../../data/useRaceDays'
 import type { EventFolder } from '../../data/events'
 import { carScale } from '../../data/settings'
 import { eventCars, eventContext, typicalLapMs } from '../../domain/event/context'
-import { computeEvent, type EventState, type Heat, type Standing, type TeamStanding } from '../../domain/event/engine'
+import { byPlace, computeEvent, type EventState, type Heat, type Standing, type TeamStanding } from '../../domain/event/engine'
 import { eventFinished, eventPhase, lastDay, todayIso, withoutTeams, type EventPhase, type Story } from '../../domain/event/insights'
 import { eventKind, heatPointsExplained, pointsHistory, stages, teamContributions, type ProgressStep, type Stage } from '../../domain/event/progress'
 import { FORMAT_LABEL, type EventDef } from '../../domain/event/types'
@@ -121,6 +121,26 @@ export const heatNote = (heat: Heat, state: EventState) => (heat.note ? withoutT
 
 export const BONUS_ICON = { fastestLap: '⚡', pole: 'P', driverOfDay: '★', personalBest: 'PB', clean: '✓' } as const
 
+/** Wertung nach Platzierung (keine Punkte anzeigen) */
+export const placeMode = (state: EventState) => byPlace(state.def)
+
+/** Bei „Platzierung“: wo ein Fahrer im letzten Abschnitt gelandet ist, z. B. „Finale P1“ */
+export function placeDetail(state: EventState, name: string): string {
+  const last = [...state.sections].reverse().find((s) => s.def.weight > 0 && s.def.format !== 'free' && s.ranking.length)
+  return last?.ranking.find((r) => r.name === name)?.detail ?? ''
+}
+
+/** Wert eines Teams: Punkte, bei „Platzierung“ der Durchschnittsplatz */
+export function TeamScore({ state, value, color, size = 18 }: { state: EventState; value: number; color?: string; size?: number }) {
+  if (!placeMode(state)) return <Pts value={value} color={color} size={size} />
+  return (
+    <span className="num" style={{ fontSize: size, fontWeight: 800, color, whiteSpace: 'nowrap' }}>
+      <span style={{ fontSize: Math.max(10, Math.round(size * 0.6)), fontWeight: 700, marginRight: 3, opacity: 0.85 }}>Ø Platz</span>
+      {fmtPts(value)}
+    </span>
+  )
+}
+
 /** Punkte wie überall in der App: große Zahl, dahinter klein „Pkt.“ */
 export function Pts({ value, color, size = 18 }: { value: number; color?: string; size?: number }) {
   return (
@@ -141,6 +161,7 @@ export function StandingsList({ state, me, steps }: { state: EventState; me: str
   // Abschnitte, die für die Einzelwertung zählen (bei getrennter Wertung ohne Teamrennen)
   const counts = (s: EventState['sections'][number]) => s.def.weight > 0 && s.def.format !== 'free' && !(state.separate && s.def.format === 'team')
   const scoring = state.sections.filter(counts)
+  const place = placeMode(state)
   return (
     <>
       {state.standings.map((r) => {
@@ -155,9 +176,10 @@ export function StandingsList({ state, me, steps }: { state: EventState; me: str
             <span className="grow" style={{ gap: 4 }}>
               <span className="name">{r.name === me ? `Du · ${r.name}` : r.name}</span>
               <span className="sub">
+                {place && placeDetail(state, r.name) ? `${placeDetail(state, r.name)} · ` : ''}
                 {r.wins} {r.wins === 1 ? 'Sieg' : 'Siege'} · {r.races} Rennen
               </span>
-              {(scoring.length > 1 || r.bonuses.length > 0) && (
+              {!place && (scoring.length > 1 || r.bonuses.length > 0) && (
                 <span style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                   {scoring.length > 1 &&
                     state.sections.map((s, i) =>
@@ -175,10 +197,12 @@ export function StandingsList({ state, me, steps }: { state: EventState; me: str
                 </span>
               )}
             </span>
-            <span style={{ paddingTop: 4 }}>
-              <Pts value={r.total} color={color} />
-            </span>
-            {steps && steps.length > 2 && (
+            {!place && (
+              <span style={{ paddingTop: 4 }}>
+                <Pts value={r.total} color={color} />
+              </span>
+            )}
+            {!place && steps && steps.length > 2 && (
               <span style={{ paddingTop: 8 }}>
                 <Sparkline values={steps.map((s) => s.totals.get(r.name) ?? 0)} color={r.name === me ? ME : '#8A94A0'} label={`Punkteverlauf ${r.name}`} />
               </span>
@@ -233,8 +257,8 @@ export function TeamList({ state }: { state: EventState }) {
 }
 
 /** Plätze aus Punkten (gleiche Punkte = gleicher Platz) */
-function ranksOf(points: Map<string, number>): Map<string, number> {
-  const sorted = [...points].sort((a, b) => b[1] - a[1])
+function ranksOf(points: Map<string, number>, lowerIsBetter = false): Map<string, number> {
+  const sorted = [...points].sort((a, b) => (lowerIsBetter ? a[1] - b[1] : b[1] - a[1]))
   const out = new Map<string, number>()
   sorted.forEach(([id, p], i) => out.set(id, i > 0 && sorted[i - 1][1] === p ? out.get(sorted[i - 1][0])! : i + 1))
   return out
@@ -252,6 +276,9 @@ export function EventCharts({ state, steps, me, teamsFirst }: { state: EventStat
   const canStage = st.length >= 3 && st.length < steps.length
   const [by, setBy] = useState<'etappen' | 'laeufe'>(canStage && steps.length > 7 ? 'etappen' : 'laeufe')
   if (steps.length < 3) return null
+  // Platzierung: keine Punkte, nur der Platz (bei Teams: kleinerer Durchschnittsplatz ist besser)
+  const place = placeMode(state)
+  const shownMetric = place ? 'platz' : metric
   const teams = state.teamStandings.length > 0 && state.teamStandings.some((t) => t.points !== 0)
   const shownWho = who === 'teams' && teams ? 'teams' : 'fahrer'
   const useStages = by === 'etappen' && canStage
@@ -267,10 +294,10 @@ export function EventCharts({ state, steps, me, teamsFirst }: { state: EventStat
         <span className="hint">{useStages ? 'je Etappe' : 'je Lauf'} · antippen</span>
       </div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <Segment small value={metric} onChange={setMetric} label="Wert" options={[['punkte', 'Punkte'], ['platz', 'Platz']]} />
+        {!place && <Segment small value={metric} onChange={setMetric} label="Wert" options={[['punkte', 'Punkte'], ['platz', 'Platz']]} />}
         {teams && <Segment small value={shownWho} onChange={setWho} label="Für" options={[['fahrer', 'Fahrer'], ['teams', 'Teams']]} />}
       </div>
-      {metric === 'punkte' ? (
+      {shownMetric === 'punkte' ? (
         <PointsChart
           dates={keys}
           axis={points.map((x) => x.short)}
@@ -289,7 +316,7 @@ export function EventCharts({ state, steps, me, teamsFirst }: { state: EventStat
           axis={points.slice(1).map((x) => x.short)}
           series={
             shownWho === 'teams'
-              ? state.teamStandings.map((t) => ({ name: t.name, ranks: points.slice(1).map((x) => ranksOf(x.teams).get(t.id) ?? null) }))
+              ? state.teamStandings.map((t) => ({ name: t.name, ranks: points.slice(1).map((x) => ranksOf(x.teams, place).get(t.id) ?? null) }))
               : names.map((n) => ({ name: n, ranks: points.slice(1).map((x) => x.ranks.get(n) ?? null) }))
           }
           colors={shownWho === 'teams' ? new Map(state.teamStandings.map((t) => [t.name, teamColor(t.id, t.name)])) : driverColor}
@@ -338,7 +365,7 @@ export function NextHeatPanel({ state, heat, me, ahead, minutes, day }: { state:
 /** Link zum Rückblick als Story (wie „Dein Jahr“ in der Saison) */
 export function RecapBanner({ id, state, me, done }: { id: string; state: EventState; me: string | null; done: boolean }) {
   const mine = me ? state.standings.find((s) => s.name === me) : null
-  const sub = mine ? `Platz ${mine.rank} · ${fmtPts(mine.total)} Pkt.` : state.standings[0] ? `${done ? 'Sieger' : 'Vorn'}: ${state.standings[0].name}` : ''
+  const sub = mine ? `Platz ${mine.rank}${placeMode(state) ? '' : ` · ${fmtPts(mine.total)} Pkt.`}` : state.standings[0] ? `${done ? 'Sieger' : 'Vorn'}: ${state.standings[0].name}` : ''
   return (
     <RecapLink
       to={`/wettkampf/${id}/rueckblick`}
@@ -422,8 +449,8 @@ export function HeatCard({ heat, state, me, children, plain }: { heat: Heat; sta
       {heat.status === 'done'
         ? heat.order.map((n, i) => {
             const r = results?.get(n)
-            const pts = heat.advancing?.includes(n) ? '↑ weiter' : heat.kind === 'race' && heat.points.has(n) ? `+${fmtPts(heat.points.get(n)!)}` : ''
-            const lines = why === n ? heatPointsExplained(state, heat, n) : []
+            const pts = heat.advancing?.includes(n) ? '↑ weiter' : !placeMode(state) && heat.kind === 'race' && heat.points.has(n) ? `+${fmtPts(heat.points.get(n)!)}` : ''
+            const lines = why === n && !placeMode(state) ? heatPointsExplained(state, heat, n) : []
             return (
               <Fragment key={n}>
                 <button className="entrant entrant-btn" style={teamBar(n)} aria-expanded={why === n} onClick={() => setWhy(why === n ? null : n)}>
@@ -479,7 +506,7 @@ export function HeatCard({ heat, state, me, children, plain }: { heat: Heat; sta
       ) : (
         heat.status !== 'done' && heat.carHint && <span style={{ fontSize: 11, color: 'var(--muted)' }}>{heat.carHint}</span>
       )}
-      {heat.teamPoints && (
+      {heat.teamPoints && !placeMode(state) && (
         <span style={{ fontSize: 12, color: 'var(--text-2)' }}>
           {[...heat.teamPoints].map(([id, p], i) => (
             <span key={id}>
@@ -505,7 +532,7 @@ export function Podium({ state }: { state: EventState }) {
         </span>
         <span style={{ fontWeight: 700, fontSize: place === 1 ? 16 : 14 }}>{s.name}</span>
         <span style={{ color: 'var(--muted)' }}>
-          <Pts value={s.total} size={13} />
+          {placeMode(state) ? <span style={{ fontSize: 12 }}>{placeDetail(state, s.name)}</span> : <Pts value={s.total} size={13} />}
         </span>
         <span style={{ fontSize: 22, fontWeight: 800, color }}>{place}</span>
       </div>
@@ -546,7 +573,7 @@ export function TeamPodium({ state, me }: { state: EventState; me?: string | nul
           ))}
         </span>
         <span style={{ color: 'var(--muted)' }}>
-          <Pts value={t.points} size={13} />
+          <TeamScore state={state} value={t.points} size={13} />
         </span>
         <span style={{ fontSize: 22, fontWeight: 800, color: medal }}>{place}</span>
       </div>
@@ -596,9 +623,21 @@ export function TeamCard({ state, team, me }: { state: EventState; team: TeamSta
           </span>
           <span style={{ fontSize: 12, color: 'var(--muted)' }}>{teamEloText(team, state.teamStandings)}</span>
         </span>
-        <Pts value={team.points} color={color} size={20} />
+        <TeamScore state={state} value={team.points} color={color} size={20} />
       </div>
-      {total > 0 ? (
+      {placeMode(state) ? (
+        <span style={{ fontSize: 13, color: 'var(--text-2)', lineHeight: 1.6 }}>
+          {team.drivers.map((n) => {
+            const st = state.standings.find((x) => x.name === n)
+            return (
+              <span key={n} style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                <b style={{ color: n === me ? 'var(--me)' : undefined }}>{n === me ? 'Du' : n}</b>
+                <span>{st ? `Platz ${st.rank}${placeDetail(state, n) ? ` · ${placeDetail(state, n)}` : ''}` : ''}</span>
+              </span>
+            )
+          })}
+        </span>
+      ) : total > 0 ? (
         <>
           <span className="part-label" style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase', color: 'var(--muted)' }}>
             {byTotal ? 'Punkte der Mitglieder' : 'Punkte in den Teamrennen'}
@@ -645,8 +684,11 @@ export function uncertainty(data: AppData, def: EventDef): string | null {
 export function rulesText(def: EventDef, state: EventState): string[] {
   const sc = def.scoring
   const out: string[] = []
+  const place = sc.method === 'place'
   out.push(
-    sc.method === 'fair'
+    place
+      ? `Wertung nach Platzierung: keine Punkte – es zählt der Platz im letzten Abschnitt, bei Gleichstand die Abschnitte davor.`
+      : sc.method === 'fair'
       ? `Wertung „Fair“: Für jeden geschlagenen Gegner gibt es bis zu ${fmtPts(sc.perBeaten * 2)} Punkte – je stärker der Gegner laut Elo (mit Auto), desto mehr. Gegen einen Gleichstarken ${fmtPts(sc.perBeaten)}. Sieg +${fmtPts(sc.win)}${sc.fairWin ? ', ebenfalls nach Stärke gewichtet (bis doppelt)' : ''}.`
       : `Pro Rennen ${fmtPts(sc.perBeaten)} ${sc.perBeaten === 1 ? 'Punkt' : 'Punkte'} je geschlagenem Gegner, Sieg +${fmtPts(sc.win)}.`,
   )
@@ -666,9 +708,9 @@ export function rulesText(def: EventDef, state: EventState): string[] {
                 : d.format === 'custom'
                   ? 'Punkte addiert; Läufe mit weniger Fahrern werden hochgerechnet'
                   : 'Punkte addiert'
-    out.push(`${d.name} (${FORMAT_LABEL[d.format]}): ${what}${d.weight === 0 ? ' – zählt nur für die Startreihenfolge' : d.weight !== 1 ? ` – zählt ×${fmtPts(d.weight)}` : ''}.`)
+    out.push(`${d.name} (${FORMAT_LABEL[d.format]}): ${place ? what.replace(/;? ?Punkte addiert(; Läufe mit weniger Fahrern werden hochgerechnet)?/, '').replace(/, Punkte addiert/, '') || FORMAT_LABEL[d.format] : what}${d.weight === 0 ? ' – zählt nur für die Startreihenfolge' : !place && d.weight !== 1 ? ` – zählt ×${fmtPts(d.weight)}` : ''}.`)
   }
-  if (sc.finaleFactor > 1) {
+  if (!place && sc.finaleFactor > 1) {
     const last = [...state.sections].reverse().find((s) => s.def.weight > 0 && s.def.format !== 'free')
     if (last) out.push(`Finalbonus: ${last.def.name} zählt ×${fmtPts(sc.finaleFactor)}.`)
   }
@@ -683,9 +725,10 @@ export function rulesText(def: EventDef, state: EventState): string[] {
     sc.personalBest && `neue persönliche Bestzeit${newRules ? ' (im selben Maßstab)' : ''} +${fmtPts(sc.personalBest)}`,
     sc.clean && `je Rennen ohne Abflug +${fmtPts(sc.clean)}`,
   ].filter(Boolean)
-  if (bonus.length) out.push(`Bonus: ${bonus.join(', ')}.`)
+  if (bonus.length && !place) out.push(`Bonus: ${bonus.join(', ')}.`)
   if (newRules && (sc.method === 'fair' || sc.driverOfDay)) out.push('Wer noch in der Einstufung ist, zählt mit seiner Elo vor dem jeweiligen Rennen – so zählen die Ergebnisse statt des Startwerts. Die Autowertung gilt so, wie sie vor dem jeweiligen Rennen feststand.')
-  if (state.separate) out.push('Einzel- und Teamwertung sind getrennt: Einzelrennen zählen für die eigenen Punkte, Teamrennen nur für die Teamwertung (Teampunkte je Lauf: Schnitt der Mitglieder, hochgerechnet).')
+  if (place && def.teams) out.push('Teamwertung: Durchschnittsplatz der Mitglieder – kleiner ist besser.')
+  else if (state.separate) out.push('Einzel- und Teamwertung sind getrennt: Einzelrennen zählen für die eigenen Punkte, Teamrennen nur für die Teamwertung (Teampunkte je Lauf: Schnitt der Mitglieder, hochgerechnet).')
   else if (def.teams) out.push('Teamwertung: Schnitt der Gesamtpunkte der Mitglieder – unterschiedlich große Teams bleiben fair.')
   out.push(def.countInStats ? 'Die Läufe zählen auch für Elo und Saison.' : 'Die Läufe zählen nicht für Elo und Saison.')
   return out

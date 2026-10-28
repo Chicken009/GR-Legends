@@ -76,6 +76,23 @@ describe('Hilfen', () => {
   })
 })
 
+describe('Wertung nach Platzierung', () => {
+  it('Endstand = Platz im letzten Abschnitt, ohne Bonuspunkte; Teams nach Durchschnittsplatz', () => {
+    const sections = [newSection('quali', { id: 'q', maxPerHeat: 1 }), newSection('ladder', { id: 'l', advance: 2 })]
+    const place = def({ sections, scoring: { method: 'place' }, teams: { mode: 'manual', size: 2, teams: [{ name: 'Rot', drivers: ['A', 'F'] }, { name: 'Blau', drivers: ['B', 'E'] }, { name: 'Grün', drivers: ['C', 'D'] }] } } as never)
+    expect(place.scoring.method).toBe('place')
+    const s = playThrough(place, ctx(), 'platz', 10_000)
+    expect(s.complete).toBe(true)
+    const ladder = s.sections[1].ranking.map((r) => r.name)
+    expect(s.standings.map((r) => r.name)).toEqual(ladder)
+    expect(s.standings.every((r) => r.bonuses.length === 0)).toBe(true)
+    // Teams: kleinerer Durchschnittsplatz zuerst
+    const avg = s.teamStandings.map((t) => t.points)
+    expect(avg).toEqual([...avg].sort((x, y) => x - y))
+    expect(s.def.scoring.method).toBe('place')
+  })
+})
+
 describe('normalizeEvent', () => {
   it('ergänzt Standardwerte und prüft das Datum', () => {
     const d = normalizeEvent({ name: 'X', start: '2026-01-01', sections: [{ format: 'quali' }] })

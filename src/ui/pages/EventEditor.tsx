@@ -538,6 +538,12 @@ function ScoringCard({ def, update }: { def: EventDef; update: (p: Partial<Event
   // Wettkämpfe ab RATING.v2From: neue Regeln für die Boni
   const newRules = def.start >= RATING.v2From
   const byCar = newRules && sc.method === 'fair' ? ' – bei „Fair“ gemessen an der typischen Runde des eigenen Autos' : ''
+  // Platzierung passt zu Formaten mit klarer Reihenfolge am Ende (Leiter, K.-o.)
+  const lastSec = [...def.sections].reverse().find((x) => x.weight > 0 && x.format !== 'free')
+  const placeHint =
+    lastSec && !['ladder', 'ko', 'quali'].includes(lastSec.format)
+      ? `Hinweis: Der letzte Abschnitt „${lastSec.name}“ hat keine feste Reihenfolge wie ein Finale – dort ordnet die App intern nach geschlagenen Gegnern. Am klarsten ist „Platzierung“ mit Aufstiegsleiter oder K.-o.-Turnier.`
+      : null
   const bonus: [keyof EventDef['scoring'], string, string][] = [
     ['fastestLap', 'Schnellste Runde', `Schnellste Runde aller Rennen${byCar}`],
     ['pole', 'Pole', `Schnellster im Qualifying${byCar}`],
@@ -554,21 +560,28 @@ function ScoringCard({ def, update }: { def: EventDef; update: (p: Partial<Event
         // Wer „Fair“ wählt, bekommt auch die fairen Einstellungen – solange an der Wertung noch nichts geändert wurde
         onChange={(method) => set(method === 'fair' && untouched(sc) ? { method, fairWin: true } : { method })}
         options={[
-          ['absolute', 'Absolut'],
-          ['fair', 'Fair (nach Elo)'],
+          ['absolute', 'Punkte'],
+          ['fair', 'Fair'],
+          ['place', 'Platzierung'],
         ]}
       />
       <span style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.45 }}>
         {sc.method === 'fair'
           ? 'Fair: Ein Sieg gegen einen stärkeren Gegner (Fahrer + Auto laut Elo) bringt bis zu doppelt so viele Punkte, gegen einen schwächeren entsprechend weniger. So erwartet jeder gleich viele Punkte – Außenseiter haben eine echte Chance, ganz gleich sind die Siegchancen bei wenigen Rennen aber nicht.'
-          : 'Absolut: Punkte nur für die Platzierung – wer vorne ist, bekommt mehr.'}
+          : sc.method === 'place'
+            ? 'Platzierung: keine Punkte. Es zählt der Platz im letzten Abschnitt (z. B. im Finale der Aufstiegsleiter oder im K.-o.-Turnier), bei Gleichstand der Abschnitt davor. Teams nach dem Durchschnittsplatz ihrer Mitglieder.'
+            : 'Punkte: Für jeden Gegner, der hinter dir landet, gibt es Punkte, der Sieger bekommt extra – wer vorne ist, bekommt mehr.'}
       </span>
+      {sc.method === 'place' && placeHint && <span style={{ fontSize: 12, color: 'var(--text-2)', lineHeight: 1.45 }}>{placeHint}</span>}
       {sc.method === 'fair' && (
         <label className="check" style={{ alignSelf: 'flex-start', height: 'auto', minHeight: 34, whiteSpace: 'normal' }}>
           <input type="checkbox" checked={!!sc.fairWin} onChange={(e) => set({ fairWin: e.target.checked || undefined })} />
           Siegbonus fair: auch den Siegbonus nach Stärke gewichten (Sieg gegen Stärkere bis doppelt)
         </label>
       )}
+      {/* Punkte-Einstellungen nur bei „Punkte“ und „Fair“ */}
+      {sc.method !== 'place' && (
+        <>
       <div className="form-grid">
         <Group label="Je geschlagenem Gegner">
           <Stepper label="Punkte je geschlagenem Gegner" value={sc.perBeaten} min={0} max={10} onChange={(perBeaten) => set({ perBeaten })} />
@@ -604,6 +617,8 @@ function ScoringCard({ def, update }: { def: EventDef; update: (p: Partial<Event
           </Group>
         ))}
       </div>
+        </>
+      )}
       <label className="check" style={{ alignSelf: 'flex-start', height: 'auto', minHeight: 34, whiteSpace: 'normal' }}>
         <input type="checkbox" checked={def.countInStats} onChange={(e) => update({ countInStats: e.target.checked })} />
         Läufe zählen auch für Elo und Saison

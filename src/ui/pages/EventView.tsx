@@ -25,6 +25,8 @@ import {
   Ceremony,
   TeamCard,
   EventCharts,
+  placeDetail,
+  placeMode,
   Pts,
   RecapBanner,
   rulesText,
@@ -140,7 +142,7 @@ export function EventView() {
         value={tab}
         onChange={setTab}
         label="Ansicht"
-        options={[['stand', 'Stand'], ...(hasTeams ? [['team', 'Teams'] as [Tab, string]] : []), ['ablauf', 'Ablauf'], ['punkte', 'Punkte']]}
+        options={[['stand', 'Stand'], ...(hasTeams ? [['team', 'Teams'] as [Tab, string]] : []), ['ablauf', 'Ablauf'], ['punkte', placeMode(state) ? 'Wertung' : 'Punkte']]}
       />
 
       {tab === 'stand' &&
@@ -149,7 +151,7 @@ export function EventView() {
             <section className="card" style={{ gap: 2 }}>
               <div className="card-head">
                 <span className="card-title">{state.separate ? 'Einzelwertung' : 'Gesamtwertung'}</span>
-                <span className="hint">{state.separate ? 'nur Einzelrennen' : 'Punkte · Verlauf'}</span>
+                <span className="hint">{placeMode(state) ? 'nach Platzierung' : state.separate ? 'nur Einzelrennen' : 'Punkte · Verlauf'}</span>
               </div>
               <StandingsList state={state} me={me} steps={steps} />
             </section>
@@ -233,12 +235,18 @@ function MyEvent({ state, me, showPlan, lapMs }: { state: EventState; me: string
                       {r.name === me ? 'Du' : r.name}
                     </span>
                   </span>
-                  {r.name !== me && (
-                    <span className="num" style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)' }}>
-                      {gap > 0 ? `${fmtPts(gap)} vor dir` : gap < 0 ? `${fmtPts(-gap)} hinter dir` : 'gleich'}
-                    </span>
+                  {placeMode(state) ? (
+                    <span style={{ fontSize: 12, color: 'var(--muted)' }}>{placeDetail(state, r.name)}</span>
+                  ) : (
+                    <>
+                      {r.name !== me && (
+                        <span className="num" style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)' }}>
+                          {gap > 0 ? `${fmtPts(gap)} vor dir` : gap < 0 ? `${fmtPts(-gap)} hinter dir` : 'gleich'}
+                        </span>
+                      )}
+                      <Pts value={r.total} size={15} />
+                    </>
                   )}
-                  <Pts value={r.total} size={15} />
                 </div>
               )
             })}
@@ -330,15 +338,30 @@ function SectionResult({ sec, state, me }: { sec: EventState['sections'][number]
   const [all, setAll] = useState(false)
   const team = sec.def.format === 'team'
   const f = sectionFactor(state, sec.def.id)
-  const effect = team ? (state.separate ? 'zählt für die Teamwertung' : 'Teampunkte für alle Mitglieder') : f === 0 ? 'bestimmt die Startplätze' : f !== 1 ? `zählt ×${fmtPts(f)}` : 'zählt für die Gesamtwertung'
+  const lastPlaced = [...state.sections].reverse().find((s) => s.def.weight > 0 && s.def.format !== 'free')
+  const effect = placeMode(state)
+    ? lastPlaced?.def.id === sec.def.id
+      ? 'entscheidet den Endstand'
+      : f === 0
+        ? 'bestimmt die Startplätze'
+        : 'bei Gleichstand entscheidend'
+    : team
+      ? state.separate
+        ? 'zählt für die Teamwertung'
+        : 'Teampunkte für alle Mitglieder'
+      : f === 0
+        ? 'bestimmt die Startplätze'
+        : f !== 1
+          ? `zählt ×${fmtPts(f)}`
+          : 'zählt für die Gesamtwertung'
   const rows = team
     ? (sec.teamRanking ?? []).map((r) => {
         const t = state.teams.find((x) => x.id === r.name)
-        return { key: r.name, rank: r.rank, label: t?.name ?? r.name, color: t ? teamColor(t.id, t.name) : undefined, mine: !!me && !!t?.drivers.includes(me), detail: t?.drivers.join(', ') ?? '', points: r.points as number | null }
+        return { key: r.name, rank: r.rank, label: t?.name ?? r.name, color: t ? teamColor(t.id, t.name) : undefined, mine: !!me && !!t?.drivers.includes(me), detail: t?.drivers.join(', ') ?? '', points: placeMode(state) ? null : (r.points as number | null) }
       })
     : sec.ranking.map((r) => {
         const t = state.teams.find((x) => x.drivers.includes(r.name))
-        return { key: r.name, rank: r.rank, label: r.name === me ? `Du · ${r.name}` : r.name, color: t ? teamColor(t.id, t.name) : undefined, mine: r.name === me, detail: r.detail, points: f === 0 ? null : r.points }
+        return { key: r.name, rank: r.rank, label: r.name === me ? `Du · ${r.name}` : r.name, color: t ? teamColor(t.id, t.name) : undefined, mine: r.name === me, detail: r.detail, points: f === 0 || placeMode(state) ? null : r.points }
       })
   const short = rows.length > 5 && !all
   const shown = short ? rows.filter((r, i) => i < 3 || r.mine) : rows
@@ -373,6 +396,46 @@ function SectionResult({ sec, state, me }: { sec: EventState['sections'][number]
   )
 }
 
+/** Wertung nach Platzierung: keine Punkte – was zählt, in welcher Reihenfolge */
+function PlaceRules({ state, note }: { state: EventState; note: string | null }) {
+  const sections = state.sections.filter((s) => s.def.weight > 0 && s.def.format !== 'free')
+  const last = sections[sections.length - 1]
+  const before = sections.slice(0, -1).reverse()
+  const grid = state.sections.filter((s) => s.def.weight === 0 && s.def.format !== 'free')
+  return (
+    <>
+      <section className="card" style={{ gap: 12 }}>
+        <div className="card-head">
+          <span className="card-title">Wertung nach Platzierung</span>
+          <span className="hint">keine Punkte</span>
+        </div>
+        <span style={{ fontSize: 13, color: 'var(--text-2)', lineHeight: 1.5 }}>Es zählt, wie weit du kommst – nicht, wie viele Punkte du sammelst.</span>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+          {last && <RuleChip value="1." label={`${last.def.name} entscheidet`} color={EVENT_ACCENT} />}
+          {before.map((s, i) => (
+            <RuleChip key={s.def.id} value={`${i + 2}.`} label={`bei Gleichstand: ${s.def.name}`} />
+          ))}
+          {grid.map((s) => (
+            <RuleChip key={s.def.id} value="→" label={`${s.def.name}: nur Startplätze`} />
+          ))}
+        </div>
+        {state.teams.length > 0 && <span style={{ fontSize: 12, color: 'var(--muted)' }}>Teams: Durchschnittsplatz der Mitglieder – kleiner ist besser.</span>}
+      </section>
+      <details className="card" style={{ gap: 8 }}>
+        <summary className="card-title" style={{ cursor: 'pointer' }}>
+          Alle Regeln im Detail
+        </summary>
+        <ul style={{ margin: '8px 0 0', paddingLeft: 18, fontSize: 13, color: 'var(--text-2)', lineHeight: 1.6 }}>
+          {rulesText(state.def, state).map((t) => (
+            <li key={t}>{t}</li>
+          ))}
+        </ul>
+        {note && <span style={{ display: 'block', marginTop: 8, fontSize: 12, color: 'var(--muted)', lineHeight: 1.45 }}>{note}</span>}
+      </details>
+    </>
+  )
+}
+
 const BONUS_TEXT = {
   fastestLap: 'Schnellste Runde',
   pole: 'Pole',
@@ -383,6 +446,7 @@ const BONUS_TEXT = {
 
 /** Wofür gibt es Punkte? Als Treppe und Chips, die Regeln im Detail eingeklappt */
 function PointsRules({ state, note }: { state: EventState; note: string | null }) {
+  if (placeMode(state)) return <PlaceRules state={state} note={note} />
   const def = state.def
   const sc = def.scoring
   const raceSizes = state.heats.filter((h) => h.kind === 'race').map((h) => h.entrants.length)

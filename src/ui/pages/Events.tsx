@@ -6,7 +6,7 @@ import { PageHead, useData } from '../components'
 import { useMe } from '../me'
 import { StrokeIcon, TOOL_ICONS } from '../icons'
 import { CarThumb } from '../CarPhoto'
-import { computeFor, dateRange, EVENT_ACCENT, finishedOf, PhasePill, phaseOf, Pts, teamColor } from '../event/shared'
+import { computeFor, dateRange, EVENT_ACCENT, finishedOf, PhasePill, phaseOf, placeMode, Pts, teamColor } from '../event/shared'
 
 /** Sichtbare Wettkämpfe nach Stand: was läuft, was kommt, was vorbei ist (Ergebnis steht fest) */
 function groupEvents(data: ReturnType<typeof useData>, today: string) {
@@ -106,14 +106,14 @@ export function EventCard({ folder, me, children }: { folder: EventFolder; me: s
             <span>
               {finishedOf(folder.def, state) ? 'Sieger' : 'Vorn'}: <b style={{ color: leader.name === me ? 'var(--me)' : 'var(--text)' }}>{leader.name === me ? 'Du' : leader.name}</b>
             </span>
-            <Pts value={leader.total} size={13} />
+            {!placeMode(state) && <Pts value={leader.total} size={13} />}
           </span>
           {mine?.standing && leader.name !== me && (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
               <span>
                 <b style={{ color: 'var(--me)' }}>Du</b>: Platz {mine.standing.rank}
               </span>
-              <Pts value={mine.standing.total} size={13} />
+              {!placeMode(state) && <Pts value={mine.standing.total} size={13} />}
             </span>
           )}
         </span>

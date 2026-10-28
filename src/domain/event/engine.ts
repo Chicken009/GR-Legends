@@ -1156,7 +1156,40 @@ function seedsFor(env: Env, sec: SectionDef, prev: SectionState | null, drivers:
   return [...fromPrev, ...byElo.filter((n) => !fromPrev.includes(n))].map(named)
 }
 
+/** Wertung nach Platzierung? Dann gibt es keine Punkte zu zeigen. */
+export const byPlace = (def: EventDef) => def.scoring.method === 'place'
+
+/**
+ * Wettkampf berechnen. Bei „Platzierung“ wird wie „Punkte“ ohne Bonus und Finalbonus gerechnet (das
+ * ordnet z. B. Rennen in Gruppen); der Endstand folgt dann aber allein dem Platz im letzten Abschnitt,
+ * bei Gleichstand der Reihenfolge davor. Teams nach dem Durchschnittsplatz ihrer Mitglieder.
+ */
 export function computeEvent(def: EventDef, ctx: EventContext): EventState {
+  if (!byPlace(def)) return computeByPoints(def, ctx)
+  const none = { fastestLap: 0, pole: 0, driverOfDay: 0, personalBest: 0, clean: 0, finaleFactor: 1 }
+  const state = computeByPoints({ ...def, scoring: { ...def.scoring, ...none, method: 'absolute', fairWin: undefined } }, ctx)
+  const scoring = state.sections.filter((s) => s.def.weight > 0 && s.def.format !== 'free' && s.ranking.length)
+  const rankIn = (s: SectionState, n: string) => s.ranking.find((r) => r.name === n)?.rank ?? 999
+  // Letzter Abschnitt zuerst, dann die davor; zuletzt die (internen) Punkte
+  const key = (n: string) => [...scoring].reverse().map((s) => rankIn(s, n))
+  const cmp = (a: Standing, b: Standing) => {
+    const ka = key(a.name)
+    const kb = key(b.name)
+    for (let i = 0; i < ka.length; i++) if (ka[i] !== kb[i]) return ka[i] - kb[i]
+    return b.total - a.total || a.name.localeCompare(b.name)
+  }
+  const standings = [...state.standings].sort(cmp)
+  standings.forEach((s, i) => (s.rank = i > 0 && cmp(standings[i - 1], s) === 0 ? standings[i - 1].rank : i + 1))
+  const rankOf = new Map(standings.map((s) => [s.name, s.rank]))
+  // Teams: Durchschnittsplatz (kleiner ist besser), als „points“ gespeichert
+  const teamStandings = state.teamStandings
+    .map((t) => ({ ...t, points: state.started ? Math.round((t.drivers.reduce((a, d) => a + (rankOf.get(d) ?? standings.length), 0) / Math.max(1, t.drivers.length)) * 10) / 10 : 0 }))
+    .sort((a, b) => a.points - b.points || a.name.localeCompare(b.name))
+  teamStandings.forEach((t, i) => (t.rank = i > 0 && teamStandings[i - 1].points === t.points ? teamStandings[i - 1].rank : i + 1))
+  return { ...state, def, standings, teamStandings }
+}
+
+function computeByPoints(def: EventDef, ctx: EventContext): EventState {
   const sessions = [...ctx.sessions].sort((a, b) => a.date.localeCompare(b.date) || a.createdTime.localeCompare(b.createdTime))
   const drivers = def.drivers.length ? def.drivers : [...new Set(sessions.flatMap(driverSet))]
   const manualFor = new Map<string, Session>()
