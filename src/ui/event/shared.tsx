@@ -365,7 +365,25 @@ export function CarChips({ cars, size = 32, label }: { cars: string[]; size?: nu
   )
 }
 
-export function HeatCard({ heat, state, me, children, plain, headless }: { heat: Heat; state: EventState; me: string | null; children?: ReactNode; plain?: boolean; headless?: boolean }) {
+/**
+ * Startplatz wie auf der Bahn markiert: ein aufgemalter Startkasten (offen nach vorn) mit der Nummer –
+ * damit klar ist, dass es der Platz ist, auf den das Auto kommt, und kein Ergebnis. `n = null`: nur der Kasten.
+ */
+export function GridSlot({ n, size = 24 }: { n: number | null; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" role={n == null ? undefined : 'img'} aria-label={n == null ? undefined : `Startplatz ${n}`} aria-hidden={n == null ? true : undefined} style={{ flexShrink: 0 }}>
+      <rect x="1" y="1" width="22" height="22" rx="4" fill="#2A2F38" />
+      <path d="M5 5v14h14V5" fill="none" stroke="#E3E7EB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      {n != null && (
+        <text x="12" y="15.5" textAnchor="middle" fill="#F2F4F5" fontSize={n > 9 ? 8.5 : 10} fontWeight="800">
+          {n}
+        </text>
+      )}
+    </svg>
+  )
+}
+
+export function HeatCard({ heat, state, me, children, plain }: { heat: Heat; state: EventState; me: string | null; children?: ReactNode; plain?: boolean }) {
   const { model } = useData()
   // Team als farbiger Strich am Zeilenanfang (wie der Rand in den Ranglisten)
   const teamBar = (n: string | null) => {
@@ -382,11 +400,16 @@ export function HeatCard({ heat, state, me, children, plain, headless }: { heat:
   return (
     <div className={`heat${heat.status === 'next' ? ' next' : ''}${mine && !plain ? ' mine' : ''}`}>
       <div className="heat-head">
-        {!headless && <b>{heat.label}</b>}
-        {!headless && <span className={`status-chip ${heat.status}`}>{STATUS_TEXT[heat.status]}</span>}
+        <b>{heat.label}</b>
+        <span className={`status-chip ${heat.status}`}>{STATUS_TEXT[heat.status]}</span>
         {heat.manual && <span className="status-chip">per Hand zugeordnet</span>}
         {heatNote(heat, state) && <span style={{ fontSize: 11, color: 'var(--muted)' }}>{heatNote(heat, state)}</span>}
-        {heat.status !== 'done' && heat.gridFrom && <span style={{ fontSize: 11, color: heat.grid ? EVENT_ACCENT : 'var(--muted)' }}>Startaufstellung nach {heat.gridFrom}{heat.grid ? '' : ' folgt'}</span>}
+        {heat.status !== 'done' && heat.gridFrom && (
+          <span style={{ fontSize: 11, color: 'var(--muted)', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+            <GridSlot n={null} size={16} />
+            {heat.grid ? `Startplätze nach ${heat.gridFrom}` : `Startplätze nach ${heat.gridFrom} folgen`}
+          </span>
+        )}
         {inModel && (
           <Link to={`/lauf/${heat.session!.fileId}`} style={{ marginLeft: 'auto', fontSize: 12, color: EVENT_ACCENT }}>
             Details ›
@@ -405,9 +428,18 @@ export function HeatCard({ heat, state, me, children, plain, headless }: { heat:
                     {i + 1}.
                   </span>
                   <span style={{ ...nameStyle(n), flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'left' }}>{n === me ? `Du · ${n}` : n}</span>
-                  <span className="num" style={{ fontWeight: 700, color: heat.advancing?.includes(n) ? EVENT_ACCENT : undefined }}>
-                    {pts}
-                  </span>
+                  {/* Qualifying: die Zeit zählt; Rennen: das Auto als Bild */}
+                  {heat.kind === 'quali' && (r?.validBestLapMs ?? r?.bestLapMs) != null && (
+                    <span className="num" style={{ fontSize: 12, color: 'var(--best)' }}>
+                      {formatTime(r!.validBestLapMs ?? r!.bestLapMs)}
+                    </span>
+                  )}
+                  {heat.kind === 'race' && r?.car && <CarThumb car={r.car} size={24} />}
+                  {pts && (
+                    <span className="num" style={{ minWidth: 30, textAlign: 'right', fontWeight: 700, color: heat.advancing?.includes(n) ? EVENT_ACCENT : undefined }}>
+                      {pts}
+                    </span>
+                  )}
                 </button>
                 {why === n && (
                   <div className="pts-why">
@@ -428,11 +460,7 @@ export function HeatCard({ heat, state, me, children, plain, headless }: { heat:
           })
         : (heat.grid ?? heat.entrants).map((e, i) => (
             <div key={i} className={`entrant${e.name ? '' : ' placeholder'}`} style={teamBar(e.name)}>
-              {heat.grid && (
-                <span className="num" title={`Startplatz ${i + 1}`} style={{ minWidth: 18, color: EVENT_ACCENT, fontWeight: 700 }}>
-                  {i + 1}.
-                </span>
-              )}
+              {heat.grid && <GridSlot n={i + 1} />}
               <span className="entrant-text">
                 <span style={nameStyle(e.name)}>{e.name && e.name === me ? `Du · ${e.label}` : e.label}</span>
                 {e.name && heat.cars[e.name] && <span className="entrant-sub">{heat.cars[e.name]}</span>}
@@ -469,7 +497,9 @@ export function Podium({ state }: { state: EventState }) {
   const step = (s: Standing | undefined, place: number, height: number, color: string) =>
     s ? (
       <div className="step" style={{ minHeight: height, borderTop: `3px solid ${color}` }}>
-        <Avatar name={s.name} size={place === 1 ? 52 : 40} ring={color} />
+        <span className="on-step" style={{ marginTop: -(place === 1 ? 52 : 40) / 2 - 10 }}>
+          <Avatar name={s.name} size={place === 1 ? 52 : 40} ring={color} />
+        </span>
         <span style={{ fontWeight: 700, fontSize: place === 1 ? 16 : 14 }}>{s.name}</span>
         <span style={{ color: 'var(--muted)' }}>
           <Pts value={s.total} size={13} />
@@ -495,14 +525,15 @@ export function TeamPodium({ state, me }: { state: EventState; me?: string | nul
   const step = (t: TeamStanding | undefined, place: number, height: number, medal: string) =>
     t ? (
       <div className="step" style={{ minHeight: height, borderTop: `3px solid ${medal}`, boxShadow: `inset 0 -4px 0 ${teamColor(t.id, t.name)}, var(--sh2)` }}>
-        <span style={{ fontWeight: 800, fontSize: place === 1 ? 15 : 13, color: teamColor(t.id, t.name) }}>{t.name}</span>
-        <span style={{ display: 'flex', justifyContent: 'center' }}>
+        {/* Mitglieder stehen auf dem Podest – Ring in der Farbe des Platzes */}
+        <span className="on-step" style={{ display: 'flex', justifyContent: 'center', marginTop: -(place === 1 ? 40 : 32) / 2 - 10 }}>
           {t.drivers.map((n, i) => (
-            <span key={n} style={{ marginLeft: i ? -8 : 0 }}>
-              <Avatar name={n} size={place === 1 ? 34 : 28} ring={n === me ? 'var(--me)' : undefined} />
+            <span key={n} style={{ marginLeft: i ? -6 : 0 }}>
+              <Avatar name={n} size={place === 1 ? 40 : 32} ring={medal} />
             </span>
           ))}
         </span>
+        <span style={{ fontWeight: 800, fontSize: place === 1 ? 15 : 13, color: teamColor(t.id, t.name) }}>{t.name}</span>
         <span style={{ fontSize: 11, color: 'var(--text-2)', lineHeight: 1.3 }}>
           {t.drivers.map((n, i) => (
             <span key={n}>
@@ -574,8 +605,9 @@ export function TeamCard({ state, team, me }: { state: EventState; team: TeamSta
             center={fmtPts(Math.round(total * 10) / 10)}
             sub="Pkt. gesamt"
             label={`Beiträge im ${team.name}`}
-            size={130}
+            size={150}
             format={fmtPts}
+            labeled
           />
         </>
       ) : (

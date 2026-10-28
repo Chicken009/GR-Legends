@@ -1629,6 +1629,15 @@ select.select:focus {
   align-items: end;
   gap: 8px;
   text-align: center;
+  /* Platz für die Avatare, die auf den Stufen stehen */
+  padding-top: 30px;
+}
+
+/* Avatar über der Oberkante der Stufe, als stünde er auf dem Podest */
+.podium .on-step {
+  display: flex;
+  justify-content: center;
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.5));
 }
 
 .podium .step {
@@ -1870,39 +1879,6 @@ select.select:focus {
 
 .rule-chip b {
   font-size: 13px;
-}
-
-/* Gefahrener Lauf im Ablauf: eine Zeile, aufklappbar */
-.heat-row > summary {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  min-height: 36px;
-  padding: 4px 10px;
-  border-radius: 12px;
-  background: var(--inner-2);
-  cursor: pointer;
-  list-style: none;
-}
-
-.heat-row > summary::-webkit-details-marker {
-  display: none;
-}
-
-.heat-row > summary::after {
-  content: '›';
-  margin-left: 2px;
-  color: var(--faint);
-  transition: transform 0.15s;
-}
-
-.heat-row[open] > summary::after {
-  transform: rotate(90deg);
-}
-
-.heat-row[open] > summary {
-  margin-bottom: 6px;
 }
 
 /* Überschrift einer Gruppe in einer Liste (z. B. Läuft / Geplant / Beendet) */

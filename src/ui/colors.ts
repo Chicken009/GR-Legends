@@ -31,7 +31,7 @@ export function shade(hex: string, step: number): string {
   if (!step) return hex
   const n = parseInt(hex.slice(1), 16)
   const mix = (c: number, t: number, f: number) => Math.round(c + (t - c) * f)
-  const f = Math.min(0.6, 0.22 * Math.ceil(step / 2))
+  const f = Math.min(0.7, 0.38 * Math.ceil(step / 2))
   const target = step % 2 ? 255 : 0
   const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((c) => mix(c, target, f))
   return `#${((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1)}`

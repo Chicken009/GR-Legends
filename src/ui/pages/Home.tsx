@@ -65,7 +65,6 @@ export function Home() {
       </header>
 
       {me && <XpStrip driver={me} />}
-      {me && <NextHeatCard driver={me} />}
       <EventTeaser />
       <SeasonCard />
       <ChallengesCard />
@@ -405,17 +404,33 @@ function NewsIcon({ item }: { item: NewsItem }) {
   )
 }
 
-/** Laufender, bald anstehender (14 Tage) oder gerade beendeter (3 Tage) Wettkampf */
+/**
+ * Laufender, bald anstehender (14 Tage) oder gerade beendeter (3 Tage) Wettkampf. Hast du dort
+ * einen Lauf vor dir, steht „Dein nächster Lauf“ direkt in dieser Karte – so ist klar, wozu er gehört.
+ */
 function EventTeaser() {
-  const { events } = useData()
+  const data = useData()
+  const { events } = data
   const { me } = useMe()
   const today = todayIso()
+  const next = useMemo(() => (me ? findNextHeat(data, me, today) : null), [data, me, today])
   const shown = events.filter((e) => eventVisible(e.def, today))
   const pick =
+    next?.folder ??
     shown.find((e) => e.def.start <= today && today <= lastDay(e.def)) ??
     [...shown].filter((e) => e.def.start > today && e.def.start <= addDays(today, 14)).sort((a, b) => a.def.start.localeCompare(b.def.start))[0] ??
     shown.find((e) => lastDay(e.def) < today && lastDay(e.def) >= addDays(today, -3))
-  return pick ? <EventCard folder={pick} me={me} /> : null
+  if (!pick) return null
+  return (
+    <EventCard folder={pick} me={me}>
+      {next && me && (
+        <div className="card-part" style={{ borderTop: '1px solid var(--line-2)', paddingTop: 12, marginTop: 4 }}>
+          <span className="part-label">Dein nächster Lauf</span>
+          <NextHeatPanel state={next.state} heat={next.wait.heat} me={me} ahead={next.wait.ahead} minutes={next.wait.minutes} day={next.folder.def.start > today ? formatDate(next.folder.def.start) : null} />
+        </div>
+      )}
+    </EventCard>
+  )
 }
 
 /** Erster Wettkampf mit einem geplanten Lauf für den Fahrer, dazu Wartezeit */

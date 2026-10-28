@@ -9,7 +9,7 @@ import { CarThumb } from '../CarPhoto'
 import { recapMoments } from '../../domain/event/progress'
 import { StoryPager } from '../story'
 import { eventCards } from './EventRecap'
-import { Ceremony, EVENT_ACCENT, finishedOf, fmtPts, heatNote, PhasePill, phaseOf, StoryIcon, teamColor, teamEloText, useEventHistory, useEventState } from '../event/shared'
+import { Ceremony, EVENT_ACCENT, GridSlot, finishedOf, fmtPts, heatNote, PhasePill, phaseOf, StoryIcon, teamColor, teamEloText, useEventHistory, useEventState } from '../event/shared'
 
 const REFRESH_MS = 30_000
 const TICKER_MS = 8_000
@@ -110,16 +110,12 @@ export function EventLive() {
                 {heatLength(state.next) ? ` · ${heatLength(state.next)}` : ''}
               </span>
               {heatNote(state.next, state) && <span style={{ color: 'var(--muted)' }}>{heatNote(state.next, state)}</span>}
-              {state.next.grid && <span style={{ color: 'var(--muted)', fontSize: '0.8em' }}>Startaufstellung nach {state.next.gridFrom}</span>}
+              {state.next.grid && <span style={{ color: 'var(--muted)', fontSize: '0.8em' }}>Startplätze nach {state.next.gridFrom}</span>}
               {(state.next.grid ?? state.next.entrants).map((e, i) => {
                 const team = e.name ? state.teams.find((t) => t.drivers.includes(e.name!)) : undefined
                 return (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 14, ...(team ? { borderLeft: `4px solid ${teamColor(team.id, team.name)}`, paddingLeft: 10 } : null) }}>
-                  {state.next!.grid && (
-                    <span className="num" style={{ minWidth: '1.6em', fontWeight: 800, color: EVENT_ACCENT }}>
-                      {i + 1}.
-                    </span>
-                  )}
+                  {state.next!.grid && <GridSlot n={i + 1} size={44} />}
                   {e.name ? <Avatar name={e.name} size={48} /> : <span style={{ width: 48, height: 48, borderRadius: 24, border: '2px dashed var(--faint)' }} />}
                   <span className="big-name" style={e.name ? undefined : { color: 'var(--faint)' }}>
                     {e.label}

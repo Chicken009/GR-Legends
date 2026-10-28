@@ -4,8 +4,7 @@ import { eventProgress, placePoints, sectionFactor, waitFor } from '../../domain
 import { FORMAT_LABEL, heatLength } from '../../domain/event/types'
 import { Avatar, PageHead, Segment, useData, useMyName } from '../components'
 import type { EventState, Heat } from '../../domain/event/engine'
-import { formatDate, formatTime } from '../format'
-import { CarThumb } from '../CarPhoto'
+import { formatDate } from '../format'
 import { useMe } from '../me'
 import { StrokeIcon, TOOL_ICONS } from '../icons'
 import { PointsLadder, RuleChip } from '../PointsLadder'
@@ -299,7 +298,7 @@ function AfterRow({ heat, me }: { heat: Heat; me: string | null }) {
   )
 }
 
-/** Abschnitt im Ablauf als Zeitleiste: gefahrene Läufe einzeilig, der nächste hervorgehoben */
+/** Abschnitt im Ablauf: alle Läufe als Karten, der nächste hervorgehoben */
 function SectionCard({ sec, state, me }: { sec: EventState['sections'][number]; state: EventState; me: string | null }) {
   const done = sec.heats.filter((h) => h.status === 'done')
   return (
@@ -313,7 +312,9 @@ function SectionCard({ sec, state, me }: { sec: EventState['sections'][number]; 
         </span>
       </div>
       {sec.heats.length === 0 && <span style={{ fontSize: 13, color: 'var(--muted)' }}>Noch keine Läufe.</span>}
-      {sec.heats.map((h) => (h.status === 'done' ? <DoneRow key={h.id} heat={h} state={state} me={me} /> : <HeatCard key={h.id} heat={h} state={state} me={me} />))}
+      {sec.heats.map((h) => (
+        <HeatCard key={h.id} heat={h} state={state} me={me} />
+      ))}
       {sec.started && sec.ranking.length > 0 && sec.def.format !== 'team' && (
         <details open={sec.complete}>
           <summary style={{ fontSize: 13, color: 'var(--text-2)', cursor: 'pointer' }}>Wertung {sec.def.name}</summary>
@@ -334,49 +335,6 @@ function SectionCard({ sec, state, me }: { sec: EventState['sections'][number]; 
         </details>
       )}
     </section>
-  )
-}
-
-/** Gefahrener Lauf: Sieger und eigener Platz in einer Zeile, aufklappbar zum ganzen Ergebnis */
-function DoneRow({ heat, state, me }: { heat: Heat; state: EventState; me: string | null }) {
-  const winner = heat.order[0]
-  const mine = me ? heat.order.indexOf(me) + 1 : 0
-  const result = heat.session?.results.find((r) => r.driver === winner)
-  const best = result?.validBestLapMs ?? result?.bestLapMs ?? null
-  const car = result?.car
-  return (
-    <details className="heat-row">
-      <summary>
-        <span style={{ color: 'var(--drivers)', fontWeight: 700 }} aria-hidden="true">
-          ✓
-        </span>
-        <b>{heat.label}</b>
-        {winner && (
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--text-2)', minWidth: 0 }}>
-            <Avatar name={winner} size={22} />
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', ...(winner === me ? { color: 'var(--me)', fontWeight: 700 } : null) }}>{winner === me ? 'Du' : winner}</span>
-          </span>
-        )}
-        {mine > 1 && (
-          <span className="num" style={{ color: 'var(--me)', fontWeight: 700, whiteSpace: 'nowrap' }}>
-            Du: {mine}.
-          </span>
-        )}
-        <span style={{ flex: 1 }} />
-        {/* Qualifying: die Zeit des Schnellsten, Rennen: das Auto des Siegers */}
-        {heat.kind === 'quali' && best != null && (
-          <span className="num" style={{ fontSize: 12, color: 'var(--best)', whiteSpace: 'nowrap' }}>
-            {formatTime(best)}
-          </span>
-        )}
-        {heat.kind === 'race' && car && (
-          <span style={{ display: 'inline-flex' }} title={car}>
-            <CarThumb car={car} size={26} />
-          </span>
-        )}
-      </summary>
-      <HeatCard heat={heat} state={state} me={me} headless />
-    </details>
   )
 }
 

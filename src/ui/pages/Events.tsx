@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import type { EventFolder } from '../../data/events'
 import { driverInsight, eventFinished, eventPhase, eventVisible, todayIso } from '../../domain/event/insights'
@@ -71,7 +71,8 @@ export function EventList() {
   )
 }
 
-export function EventCard({ folder, me }: { folder: EventFolder; me: string | null }) {
+/** Karte eines Wettkampfs; `children` erscheint als eigener Abschnitt darunter (z. B. „Dein nächster Lauf“ auf der Startseite) */
+export function EventCard({ folder, me, children }: { folder: EventFolder; me: string | null; children?: ReactNode }) {
   const data = useData()
   const state = useMemo(() => computeFor(data, folder.def, folder.id), [data, folder])
   const phase = phaseOf(folder.def, state)
@@ -123,7 +124,8 @@ export function EventCard({ folder, me }: { folder: EventFolder; me: string | nu
           </span>
         )
       )}
-      {cars.length > 0 && (
+      {children}
+      {!children && cars.length > 0 && (
         <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }} aria-label={`Autos: ${cars.join(', ')}`}>
           {cars.slice(0, 8).map((c) => (
             <CarThumb key={c} car={c} size={30} />
