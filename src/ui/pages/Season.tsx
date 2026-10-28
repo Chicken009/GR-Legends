@@ -53,7 +53,7 @@ export function Season() {
       <div className="filters">
         <Segment value={year} onChange={(y) => navigate(`/saison/${y}`, { replace: true })} label="Jahr" small options={model.years.map((y) => [y, y] as [string, string])} />
       </div>
-      <Segment value={tab} onChange={setTab} label="Ansicht" options={[['fahrer', 'Fahrer'], ['autos', 'Autos'], ['awards', 'Awards'], ['challenges', 'Challenges']]} />
+      <Segment value={tab} onChange={setTab} label="Ansicht" options={[['fahrer', 'Fahrer'], ['autos', 'Autos'], ['challenges', 'Challenges'], ['awards', 'Awards']]} />
       {tab === 'fahrer' && <DriverStandings year={year} />}
       {tab === 'autos' && <Constructors year={year} />}
       {tab === 'awards' && <Awards year={year} running={running} />}
@@ -83,41 +83,17 @@ function DriverStandings({ year }: { year: string }) {
       <section className="card" style={{ gap: 2 }}>
         <div className="card-head">
           <span className="card-title">Fahrerwertung</span>
-          <span className="hint">Punkte · Renntage</span>
+          <span className="hint">Punkte · gewertete Rennen</span>
         </div>
         {rows.map((r) => (
           <StandingRow key={r.name} row={r} me={me} bg={location} />
         ))}
         <div className="legend" style={{ marginTop: 6 }}>
           <span>
-            <span className="day-chip">8</span> gewertet
+            <span className="day-chip">1,4</span> gewertetes Rennen
           </span>
           <span>
-            <span className="day-chip dropped">3</span> gestrichen
-          </span>
-          <span>
-            <span className="day-chip">
-              8<sup>F</sup>
-            </span>{' '}
-            schnellste Runde
-          </span>
-          <span>
-            <span className="day-chip">
-              8<sup>P</sup>
-            </span>{' '}
-            Pole
-          </span>
-          <span>
-            <span className="day-chip">
-              8<sup>B</sup>
-            </span>{' '}
-            Bestzeit
-          </span>
-          <span>
-            <span className="day-chip">
-              8<sup>2/3</sup>
-            </span>{' '}
-            2 von 3 Rennen gewertet
+            <span className="day-chip challenge-chip">★ 3</span> geschaffte Challenges
           </span>
         </div>
       </section>
@@ -128,7 +104,7 @@ function DriverStandings({ year }: { year: string }) {
             <span className="hint">Punkte antippen</span>
           </div>
           <PointsChart dates={dates} series={shown.map((n) => ({ name: n, color: colors.get(n) ?? '#9AA3AD', values: rows.find((r) => r.name === n)?.progress ?? [] }))} label={`Punkteverlauf der Saison ${year}`} />
-          <span style={{ fontSize: 11, color: 'var(--muted)' }}>Punktestand nach jedem Renntag (beste {SEASON_POINTS.countedRaces} Rennen bis dahin).</span>
+          <span style={{ fontSize: 11, color: 'var(--muted)' }}>Punktestand nach jedem Renntag (beste {SEASON_POINTS.countedRaces} Rennen und Challenges bis dahin).</span>
         </section>
       )}
       {dates.length >= 2 && (
@@ -161,9 +137,7 @@ function SeasonRules() {
         <RuleChip value={`${sp.countedRaces}`} label="beste Rennen der Saison" color={AREA.season} />
         <RuleChip value={`max. ${sp.racesPerDay}`} label="Rennen je Renntag" />
         <RuleChip value={`max. ${sp.maxBeaten}`} label="Gegner je Rennen" />
-        <RuleChip value={`⚡ +${sp.fastestLap}`} label="Schnellste Runde" color="var(--gold)" />
-        <RuleChip value={`P +${sp.pole}`} label="Pole" color="var(--gold)" />
-        <RuleChip value={`B +${sp.personalBest}`} label="Neue Bestzeit" color="var(--gold)" />
+        <RuleChip value={`★ +${sp.perChallenge}`} label="je geschaffte Challenge" color="var(--gold)" />
       </div>
       <details>
         <summary style={{ cursor: 'pointer', fontSize: 13, color: 'var(--muted)' }}>Wie genau?</summary>
@@ -172,12 +146,8 @@ function SeasonRules() {
             Für jeden Gegner hinter dir gibt es {fmtPts(fixed)} Pkt. fest plus bis zu {fmtPts(most - fixed)} Pkt. nach Stärke laut Elo mit Auto vor dem Rennen. Gegen einen gleich Starken
             ist das {fmtPts(sp.perBeaten)} Pkt. So zählt ein Sieg gegen Stärkere mehr, und wer schneller wird, holt mehr Punkte. Einen Siegbonus gibt es nicht.
           </li>
-          <li>Schnellste Runde und Pole zählen im Verhältnis zur typischen Runde des eigenen Autos auf der Strecke – mit einem langsameren Auto hat man genauso eine Chance.</li>
-          <li>Neue persönliche Bestzeit auf der Strecke: +{fmtPts(sp.personalBest)} Pkt. am Renntag (ab der zweiten gefahrenen Zeit).</li>
-          <li>
-            Es zählen deine besten {sp.countedRaces} Rennen der Saison, höchstens {sp.racesPerDay} pro Renntag – wer an mehreren Tagen fährt, kann mehr Rennen werten. Die Boni eines Tages zählen,
-            wenn dort ein Rennen gewertet wird.
-          </li>
+          <li>Es zählen deine besten {sp.countedRaces} Rennen der Saison, höchstens {sp.racesPerDay} pro Renntag – wer an mehreren Tagen fährt, kann mehr Rennen werten.</li>
+          <li>Jede geschaffte Saison-Challenge bringt +{fmtPts(sp.perChallenge)} Pkt. (Tab „Challenges“). Pole und schnellste Runde bringen keine Punkte mehr, zählen aber für Challenges.</li>
           <li>Je Rennen zählen höchstens die {sp.maxBeaten} wertvollsten geschlagenen Gegner – ein großes Feld bringt also nicht mehr als ein Rennen zu viert.</li>
         </ul>
       </details>
@@ -187,7 +157,7 @@ function SeasonRules() {
 
 function StandingRow({ row: r, me, bg }: { row: SeasonStanding; me: string | null; bg: ReturnType<typeof useLocation> }) {
   return (
-    <Link to={driverPath(r.name)} state={{ bg }} className={`row${r.name === me ? ' me-row' : ''}`} style={{ padding: '8px', alignItems: 'flex-start' }}>
+    <Link to={driverPath(r.name)} state={{ bg }} className={`row${r.name === me ? ' me-row' : ''}`} style={{ padding: '8px', alignItems: 'flex-start', flexWrap: 'wrap', rowGap: 6 }}>
       <span className={`rank${r.rank <= 3 ? ` r${r.rank}` : ''}`} style={{ minWidth: 22, fontSize: 16, paddingTop: 6 }}>
         {r.rank}
       </span>
@@ -199,25 +169,6 @@ function StandingRow({ row: r, me, bg }: { row: SeasonStanding; me: string | nul
           {r.poles ? ` · ${r.poles} Pole` : ''}
           {r.fastestLaps ? ` · ${r.fastestLaps}× schnellste Runde` : ''}
         </span>
-        <span style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-          {r.days.map((d) => (
-            <span
-              key={d.date}
-              className={`day-chip${d.counted ? '' : ' dropped'}`}
-              title={`${formatDate(d.date)}: ${d.counted ? `${fmtPts(d.contribution)} Punkte gewertet (${d.countedRaces} von ${d.races} Rennen` : `${fmtPts(d.points)} Punkte, nicht gewertet (${d.races} Rennen`}${d.fastestLap ? ', schnellste Runde' : ''}${d.pole ? ', Pole' : ''}${d.personalBest ? ', neue Bestzeit' : ''})`}
-            >
-              {fmtPts(d.counted ? d.contribution : d.points)}
-              {d.fastestLap && <sup>F</sup>}
-              {d.pole && <sup>P</sup>}
-              {d.personalBest && <sup>B</sup>}
-              {d.counted && d.countedRaces < d.races && (
-                <sup>
-                  {d.countedRaces}/{d.races}
-                </sup>
-              )}
-            </span>
-          ))}
-        </span>
       </span>
       <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', paddingTop: 4 }}>
         <Amount kind="pts" value={r.points} size={18} />
@@ -225,6 +176,21 @@ function StandingRow({ row: r, me, bg }: { row: SeasonStanding; me: string | nul
       <span style={{ paddingTop: 8 }}>
         <Sparkline values={r.progress} color={r.name === me ? ME : '#8A94A0'} label={`Punkteverlauf ${r.name}`} />
       </span>
+      {/* gewertete Rennen über die ganze Breite, eingerückt bis zum Namen */}
+      {(r.counted.length > 0 || r.challenges > 0) && (
+        <span style={{ display: 'flex', flexWrap: 'wrap', gap: 4, flexBasis: '100%', paddingLeft: 72 }}>
+          {r.counted.map((race) => (
+            <span key={race.fileId} className="day-chip" title={`${formatDate(race.date)} · ${race.label}: ${fmtPts(race.points)} Pkt.`}>
+              {fmtPts(race.points)}
+            </span>
+          ))}
+          {r.challenges > 0 && (
+            <span className="day-chip challenge-chip" title={`${r.challenges} ${r.challenges === 1 ? 'Challenge' : 'Challenges'} geschafft: +${fmtPts(r.challengePoints)} Pkt.`}>
+              ★ {r.challenges}
+            </span>
+          )}
+        </span>
+      )}
     </Link>
   )
 }

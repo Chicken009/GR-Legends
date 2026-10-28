@@ -399,14 +399,16 @@ describe('Saisonwertung mit Punkten', () => {
   // Läufe: Reihenfolge = Platzierung, Runden gleich; Rundenzeit steigt mit dem Platz (Platz 1 am schnellsten)
   const r = (id: string, date: string, order: string[], type = 'Rennen') => ({ ...race(id, date, order.map((n) => [n, 'X', 10] as [string, string, number])), type })
 
-  it('gibt Punkte je geschlagenem Gegner, Bonus für schnellste Runde und Pole', () => {
+  it('gibt Punkte je geschlagenem Gegner; Pole und schnellste Runde nur als Statistik', () => {
     const st = seasonStandings([r('q', '2026-01-10', ['Ben', 'Anna'], 'Qualifikation'), r('a', '2026-01-10', ['Anna', 'Ben', 'Cleo', 'Dora'])])
     const anna = st.find((x) => x.name === 'Anna')!
     const ben = st.find((x) => x.name === 'Ben')!
-    // gleich stark: je Gegner 1 Punkt, kein Siegbonus. Anna: 3 + schnellste Runde 2 = 5, Ben: 2 + Pole 1 = 3
-    expect(anna.days[0]).toMatchObject({ points: 5, fastestLap: true, counted: true, countedRaces: 1 })
-    expect(anna.points).toBe(5)
-    expect(ben.points).toBe(3)
+    // gleich stark: je Gegner 1 Punkt, kein Siegbonus und keine Tagesboni
+    expect(anna.days[0]).toMatchObject({ points: 3, fastestLap: true, counted: true, countedRaces: 1 })
+    expect(anna.points).toBe(3)
+    expect(anna.counted).toEqual([{ fileId: 'a', date: '2026-01-10', label: 'Rennen 1', points: 3 }])
+    expect(ben.points).toBe(2)
+    expect(ben.poles).toBe(1)
     expect(anna.rank).toBe(1)
   })
 
@@ -440,30 +442,27 @@ describe('Saisonwertung mit Punkten', () => {
     expect(st.find((x) => x.name === 'Anna')!.fastestLaps).toBe(0)
   })
 
-  it('gibt einen Bonus für eine neue persönliche Bestzeit', () => {
-    const st = seasonStandings([r('a', '2026-01-10', ['Anna', 'Ben'])], { personalBest: (n) => n === 'Ben' })
-    expect(st.find((x) => x.name === 'Ben')!.days[0]).toMatchObject({ points: SEASON_POINTS.personalBest, personalBest: true })
-  })
-
   it('wertet die besten 5 Rennen der Saison, höchstens 3 pro Renntag', () => {
     const sessions = [
-      // Tag 1: 4 Rennen, Anna gewinnt alle (je 1 Punkt) → nur 3 zählen = 3, + schnellste Runde 2 = 5
+      // Tag 1: 4 Rennen, Anna gewinnt alle (je 1 Punkt) → nur 3 zählen
       ...['a', 'b', 'c', 'd'].map((id) => r(id, '2026-01-10', ['Anna', 'Ben'])),
-      // Tage 2–6: je ein Rennen, Ben gewinnt → je 1 + schnellste Runde 2 = 3
+      // Tage 2–6: je ein Rennen, Ben gewinnt → je 1
       ...[2, 3, 4, 5].map((m) => r(`m${m}`, `2026-0${m}-10`, ['Ben', 'Anna'])),
       r('dez', '2026-12-10', ['Ben', 'Anna']),
     ]
     const st = seasonStandings(sessions)
     const anna = st.find((x) => x.name === 'Anna')!
     const ben = st.find((x) => x.name === 'Ben')!
-    expect(anna.days[0]).toMatchObject({ points: 5, countedRaces: 3, contribution: 5 })
-    // Anna: höchstens 3 Rennen vom ersten Tag = 3 + Bonus 2; die übrigen Rennen bringen nichts
-    expect(anna.points).toBe(5)
-    // Ben: die 5 Tage mit Sieg (je 3), der erste Tag (0 Punkte) bleibt ungewertet
-    expect(ben.points).toBe(15)
+    expect(anna.days[0]).toMatchObject({ points: 3, countedRaces: 3 })
+    // Anna: höchstens 3 Rennen vom ersten Tag; die übrigen Rennen bringen nichts
+    expect(anna.points).toBe(3)
+    expect(anna.counted).toHaveLength(3)
+    // Ben: die 5 Rennen mit Sieg, der erste Tag (0 Punkte) bleibt ungewertet
+    expect(ben.points).toBe(5)
+    expect(ben.counted.map((x) => x.date)).toEqual(['2026-02-10', '2026-03-10', '2026-04-10', '2026-05-10', '2026-12-10'])
     expect(ben.days.filter((d) => d.counted)).toHaveLength(5)
     expect(ben.progress).toHaveLength(6)
-    expect(ben.progress[1]).toBe(3)
+    expect(ben.progress[1]).toBe(1)
   })
 
   it('zählt je Rennen höchstens die 3 wertvollsten geschlagenen Gegner', () => {
@@ -471,6 +470,19 @@ describe('Saisonwertung mit Punkten', () => {
     expect(st.find((x) => x.name === 'Anna')!.days[0].racePoints).toBe(3)
     expect(st.find((x) => x.name === 'Ben')!.days[0].racePoints).toBe(3)
     expect(st.find((x) => x.name === 'Dora')!.days[0].racePoints).toBe(2)
+  })
+
+  it('gibt je geschaffter Challenge einen Punkt, im Verlauf ab dem Tag', () => {
+    const sessions = [r('a', '2026-01-10', ['Anna', 'Ben']), r('b', '2026-02-10', ['Ben', 'Anna']), r('c', '2026-03-10', ['Anna', 'Ben'])]
+    const model = buildModel(sessions)
+    for (const st of model.season('2026')) {
+      const done = model.challenges(st.name, '2026').filter((c) => c.done).length
+      expect(st.challenges).toBe(done)
+      expect(st.points).toBeCloseTo(st.racePoints + done * SEASON_POINTS.perChallenge, 5)
+      expect(st.progress.at(-1)).toBeCloseTo(st.points, 5)
+    }
+    // mindestens eine Challenge (z. B. erster Sieg) ist geschafft
+    expect(model.season('2026').some((st) => st.challenges > 0)).toBe(true)
   })
 
   it('zählt die Konstrukteurswertung über alle Rennen', () => {

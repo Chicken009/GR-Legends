@@ -12,11 +12,11 @@ import { RATING } from './rating'
  *   es zählen höchstens die `maxBeaten` wertvollsten geschlagenen Gegner – große Felder bringen so
  *   nicht mehr als ein 4er-Feld
  * - kein Siegbonus
- * - Bonus pro Renntag: schnellste Runde und Pole, beide gemessen an der typischen Runde des eigenen
- *   Autos auf der Strecke; neue persönliche Bestzeit
- * - Es zählen die besten `countedRaces` Rennen der Saison, höchstens `racesPerDay` pro Renntag (mit
- *   den Boni der Tage, an denen ein Rennen zählt). Wer nur einen Tag da war und dort gut fuhr, wird
- *   so nicht übergewichtet – wer öfter kommt, kann mehr Rennen werten.
+ * - Es zählen die besten `countedRaces` Rennen der Saison, höchstens `racesPerDay` pro Renntag. Wer
+ *   nur einen Tag da war und dort gut fuhr, wird so nicht übergewichtet – wer öfter kommt, kann mehr
+ *   Rennen werten.
+ * - Dazu `perChallenge` Punkte je geschaffter Saison-Challenge (rechnet das Modell dazu). Pole und
+ *   schnellste Runde werden nur noch gezählt, bringen aber keine Punkte.
  */
 export const SEASON_POINTS = {
   perBeaten: 1,
@@ -28,36 +28,47 @@ export const SEASON_POINTS = {
   racesPerDay: 3,
   /** so viele Rennen zählen in der Saison */
   countedRaces: 5,
-  fastestLap: 2,
-  pole: 1,
-  personalBest: 1,
+  /** Punkte je geschaffter Saison-Challenge */
+  perChallenge: 1,
+}
+
+/** Punkte eines Rennens in der Saisonwertung */
+export interface SeasonRace {
+  fileId: string
+  date: string
+  /** „Rennen 2“ */
+  label: string
+  points: number
 }
 
 export interface SeasonDay {
   date: string
-  /** Punkte des Tages inkl. Bonus (beste `racesPerDay` Rennen) */
+  /** Punkte der besten `racesPerDay` Rennen des Tages */
   points: number
-  /** Punkte der besten Rennen des Tages (ohne Bonus) */
+  /** = points (Rennpunkte des Tages) */
   racePoints: number
   races: number
-  /** Punkte je Rennen, absteigend */
-  raceList: number[]
+  /** Rennen des Tages, beste zuerst */
+  raceList: SeasonRace[]
   /** Davon in der Saison gewertete Rennen */
   countedRaces: number
-  /** Was der Tag zur Saison beiträgt (gewertete Rennen plus Bonus) */
-  contribution: number
-  /** Tagesbonus (schnellste Runde, Pole, Bestzeit) */
-  bonus: number
   fastestLap: boolean
   pole: boolean
-  personalBest: boolean
   /** mindestens ein Rennen des Tages zählt */
   counted: boolean
 }
 
 export interface SeasonStanding {
   name: string
+  /** Rennpunkte plus Challenge-Punkte */
   points: number
+  /** Punkte der gewerteten Rennen */
+  racePoints: number
+  /** Gewertete Rennen in zeitlicher Folge */
+  counted: SeasonRace[]
+  /** Geschaffte Saison-Challenges und ihre Punkte (setzt das Modell) */
+  challenges: number
+  challengePoints: number
   /** Punkte, wenn alle Renntage (je beste `racesPerDay` Rennen) zählten */
   gross: number
   days: SeasonDay[]
@@ -84,8 +95,6 @@ export interface ConstructorStanding {
 export interface SeasonContext {
   /** Stärke im Lauf: Elo vor dem Lauf plus Autowertung; ohne gelten alle als gleich stark */
   strength?: (driver: string, car: string, s: Session) => number
-  /** Neue persönliche Bestzeit an diesem Tag (es gab schon eine frühere) */
-  personalBest?: (driver: string, date: string) => boolean
   /** Alle Läufe (auch frühere Jahre) für die typische Runde eines Autos; sonst nur die des Jahres */
   history?: Session[]
 }
@@ -137,45 +146,17 @@ function fastest(sessions: Session[], carLap: (track: string, car: string) => nu
   return best?.name ?? null
 }
 
-/**
- * Gewertete Rennen wählen: die besten `countedRaces` Rennen der Saison, höchstens `racesPerDay` je
- * Renntag; der Bonus eines Tages zählt, wenn dort ein Rennen gewertet wird. Durchprobiert werden die
- * Tage, die mitzählen (je ein Rennen), die übrigen Plätze füllen die besten weiteren Rennen dieser Tage.
- */
-function countRaces(days: SeasonDay[], cfg: typeof SEASON_POINTS): number {
-  const usable = days.map((d, i) => ({ d, i })).filter((x) => x.d.raceList.length > 0)
-  let best = { pts: 0, take: new Map<number, number>() }
-  const pick: number[] = []
-  const tryPick = () => {
-    const extra = usable
-      .filter((x) => pick.includes(x.i))
-      .flatMap((x) => x.d.raceList.slice(1, cfg.racesPerDay).map((p) => ({ i: x.i, p })))
-      .sort((a, b) => b.p - a.p)
-      .slice(0, cfg.countedRaces - pick.length)
-    const pts = pick.reduce((a, i) => a + days[i].raceList[0] + days[i].bonus, 0) + extra.reduce((a, e) => a + e.p, 0)
-    if (pts > best.pts + 1e-9) {
-      const take = new Map(pick.map((i) => [i, 1]))
-      for (const e of extra) take.set(e.i, take.get(e.i)! + 1)
-      best = { pts, take }
-    }
+/** Gewertete Rennen: je Renntag die besten `racesPerDay`, davon die besten `countedRaces` der Saison */
+function countRaces(st: SeasonStanding, cfg: typeof SEASON_POINTS): number {
+  const pool = st.days.flatMap((d) => d.raceList.slice(0, cfg.racesPerDay))
+  // Rennen ohne Punkte zählen nicht als gewertet (bringen nichts und wären nur leere Chips)
+  const best = pool.filter((r) => r.points > 0).sort((a, b) => b.points - a.points || a.date.localeCompare(b.date)).slice(0, cfg.countedRaces)
+  for (const d of st.days) {
+    d.countedRaces = best.filter((r) => r.date === d.date).length
+    d.counted = d.countedRaces > 0
   }
-  const walk = (from: number) => {
-    if (pick.length) tryPick()
-    if (pick.length === cfg.countedRaces) return
-    for (let k = from; k < usable.length; k++) {
-      pick.push(usable[k].i)
-      walk(k + 1)
-      pick.pop()
-    }
-  }
-  walk(0)
-  days.forEach((d, i) => {
-    const n = best.take.get(i) ?? 0
-    d.countedRaces = n
-    d.counted = n > 0
-    d.contribution = n ? round1(d.raceList.slice(0, n).reduce((a, b) => a + b, 0) + d.bonus) : 0
-  })
-  return round1(best.pts)
+  st.counted = [...best].sort((a, b) => a.date.localeCompare(b.date) || a.label.localeCompare(b.label, 'de', { numeric: true }))
+  return round1(best.reduce((a, r) => a + r.points, 0))
 }
 
 /** Saisonwertung für die Läufe eines Jahres (beliebige Reihenfolge). */
@@ -194,7 +175,7 @@ export function seasonStandings(sessions: Session[], ctx: SeasonContext = {}, cf
   const byDriver = new Map<string, SeasonStanding>()
   const get = (name: string) =>
     byDriver.get(name) ??
-    (byDriver.set(name, { name, points: 0, gross: 0, days: [], races: 0, wins: 0, podiums: 0, poles: 0, fastestLaps: 0, rank: 0, progress: [] }), byDriver.get(name)!)
+    (byDriver.set(name, { name, points: 0, racePoints: 0, counted: [], challenges: 0, challengePoints: 0, gross: 0, days: [], races: 0, wins: 0, podiums: 0, poles: 0, fastestLaps: 0, rank: 0, progress: [] }), byDriver.get(name)!)
 
   for (const date of dates) {
     const day = sessions.filter((s) => s.date === date)
@@ -210,12 +191,13 @@ export function seasonStandings(sessions: Session[], ctx: SeasonContext = {}, cf
       }
       return laps.get(key)!
     }
-    const pts = new Map<string, number[]>()
+    const pts = new Map<string, SeasonRace[]>()
     for (const s of races) {
       const strength = (driver: string, car: string) => ctx.strength?.(driver, car, s) ?? RATING.start
       for (const r of s.results) {
         if (isGuest(r.driver)) continue
-        pts.set(r.driver, [...(pts.get(r.driver) ?? []), racePoints(s, r.position, strength, cfg)])
+        const race: SeasonRace = { fileId: s.fileId, date, label: `${s.type} ${s.heat}`, points: round1(racePoints(s, r.position, strength, cfg)) }
+        pts.set(r.driver, [...(pts.get(r.driver) ?? []), race])
         const st = get(r.driver)
         st.races++
         if (r.position === 1 && s.results.length > 1) st.wins++
@@ -226,26 +208,30 @@ export function seasonStandings(sessions: Session[], ctx: SeasonContext = {}, cf
     const pole = qualis.length ? fastest(qualis, carLap) : null
     const present = new Set([...pts.keys(), ...qualis.flatMap((s) => s.results.map((r) => r.driver)).filter((n) => !isGuest(n))])
     for (const name of present) {
-      const list = (pts.get(name) ?? []).sort((a, b) => b - a)
-      const racePts = list.slice(0, cfg.racesPerDay).reduce((a, b) => a + b, 0)
-      const pb = ctx.personalBest?.(name, date) ?? false
-      const bonus = (name === fl ? cfg.fastestLap : 0) + (name === pole ? cfg.pole : 0) + (pb ? cfg.personalBest : 0)
+      const list = (pts.get(name) ?? []).sort((a, b) => b.points - a.points)
+      const racePts = round1(list.slice(0, cfg.racesPerDay).reduce((a, r) => a + r.points, 0))
       const st = get(name)
       if (name === fl) st.fastestLaps++
       if (name === pole) st.poles++
-      st.days.push({ date, points: round1(racePts + bonus), racePoints: round1(racePts), races: list.length, raceList: list, countedRaces: 0, contribution: 0, bonus, fastestLap: name === fl, pole: name === pole, personalBest: pb, counted: false })
+      st.days.push({ date, points: racePts, racePoints: racePts, races: list.length, raceList: list, countedRaces: 0, fastestLap: name === fl, pole: name === pole, counted: false })
     }
     // Zwischenstand nach diesem Renntag (beste Rennen bis hierhin)
-    for (const st of byDriver.values()) st.progress.push(st.days.length ? countRaces(st.days, cfg) : null)
+    for (const st of byDriver.values()) st.progress.push(st.days.length ? countRaces(st, cfg) : null)
   }
 
   const out = [...byDriver.values()]
   for (const st of out) {
-    st.points = countRaces(st.days, cfg)
+    st.racePoints = countRaces(st, cfg)
+    st.points = st.racePoints
     st.gross = round1(st.days.reduce((a, d) => a + d.points, 0))
     // fehlende frühere Renntage im Verlauf auffüllen (Fahrer erst später dazu)
     while (st.progress.length < dates.length) st.progress.unshift(null)
   }
+  return rankStandings(out)
+}
+
+/** Sortiert nach Punkten, Siegen, Punkten aller Tage und Name und vergibt die Plätze */
+export function rankStandings(out: SeasonStanding[]): SeasonStanding[] {
   out.sort((a, b) => b.points - a.points || b.wins - a.wins || b.gross - a.gross || a.name.localeCompare(b.name))
   out.forEach((st, i) => {
     const prev = out[i - 1]

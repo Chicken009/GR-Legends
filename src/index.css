@@ -1372,7 +1372,7 @@ table.dt tr.me-row td.st1 {
   transition: width 0.2s, background 0.2s;
 }
 
-/* Saisonwertung: Punkte je Renntag */
+/* Saisonwertung: Punkte je gewertetem Rennen */
 .day-chip {
   display: inline-flex;
   align-items: baseline;
@@ -1392,13 +1392,7 @@ table.dt tr.me-row td.st1 {
   margin-left: 1px;
   color: var(--accent);
 }
-.day-chip.dropped {
-  background: none;
-  border-style: dashed;
-  color: var(--faint);
-  text-decoration: line-through;
-}
-.day-chip.joker {
+.day-chip.challenge-chip {
   border-color: #E5A51A;
   color: #F6C83C;
 }

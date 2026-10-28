@@ -6,7 +6,7 @@ import { carTraits, radarAxes, type RadarAxis } from './carProfile'
 export type { RadarAxis } from './carProfile'
 import { quantile, SPLIT_LAPS } from './laps'
 import { buildSplits, fmtMark, markNext, markReached, SPLIT_REWARDS_FROM, splitKey, type Splits } from './splits'
-import { constructorStandings, seasonStandings, type ConstructorStanding, type SeasonStanding } from './season'
+import { constructorStandings, rankStandings, SEASON_POINTS, seasonStandings, type ConstructorStanding, type SeasonStanding } from './season'
 import { CHALLENGE_XP, seasonChallenges, type Challenge } from './challenges'
 import { carKey, carValue, computeRatings, isQuali, RATING, sortSessions, type RatingEvent, type RatingResult } from './rating'
 
@@ -683,29 +683,31 @@ export function buildModel(input: Session[]): Model {
   const eloBefore = new Map(rating.events.map((e) => [`${e.fileId}\u0000${e.driver}`, e.before]))
   const seasonContext = {
     strength: (driver: string, car: string, s: Session) => (eloBefore.get(`${s.fileId}\u0000${driver}`) ?? RATING.start) + carValue(rating.carsBefore(s), s.track, car),
-    personalBest: (driver: string, date: string) => pbEvents.some((p) => p.driver === driver && p.date === date && p.prevExisted),
     history: sessions,
   }
-  const seasonCache = new Map<string, SeasonStanding[]>()
-  const season = (year: string): SeasonStanding[] => {
-    if (!seasonCache.has(year)) seasonCache.set(year, seasonStandings(inYear(year), seasonContext))
-    return seasonCache.get(year)!
+  // Rennpunkte allein; die Challenge-Punkte kommen in `season` dazu
+  const baseCache = new Map<string, SeasonStanding[]>()
+  const seasonBase = (year: string): SeasonStanding[] => {
+    if (!baseCache.has(year)) baseCache.set(year, seasonStandings(inYear(year), seasonContext))
+    return baseCache.get(year)!
   }
   const constructors = (year: string) => constructorStandings(inYear(year))
   const challengeCache = new Map<string, Challenge[]>()
-  const challenges = (driver: string, year: string): Challenge[] => {
-    const key = `${driver}|${year}`
+  /** Saison-Challenges eines Fahrers, mit `upTo` nur mit den Läufen bis zu diesem Tag */
+  const challenges = (driver: string, year: string, upTo = `${year}-12-31`): Challenge[] => {
+    const key = `${driver}|${year}|${upTo}`
     if (!challengeCache.has(key)) {
-      const st = season(year).find((r) => r.name === driver)
+      const until = (date: string) => date.startsWith(year) && date <= upTo
+      const days = seasonBase(year).find((r) => r.name === driver)?.days.filter((d) => d.date <= upTo) ?? []
       const carsBefore = new Set(sessions.filter((x) => x.date < `${year}-01-01`).flatMap((x) => x.results.filter((r) => r.driver === driver).map((r) => r.car)))
       challengeCache.set(
         key,
         seasonChallenges(year, {
-          sessions: inYear(year),
+          sessions: sessions.filter((x) => until(x.date)),
           driver,
-          personalBests: pbEvents.filter((p) => p.driver === driver && p.prevExisted && p.date.startsWith(year)).map((p) => ({ car: p.car })),
-          dayBonus: st ? st.poles + st.fastestLaps : 0,
-          upsetWins: rating.events.filter((e) => e.driver === driver && e.date.startsWith(year) && e.position === 1 && e.upsetExpectation != null && e.upsetExpectation < 0.35).length,
+          personalBests: pbEvents.filter((p) => p.driver === driver && p.prevExisted && until(p.date)).map((p) => ({ car: p.car })),
+          dayBonus: days.filter((d) => d.pole || d.fastestLap).reduce((n, d) => n + Number(d.pole) + Number(d.fastestLap), 0),
+          upsetWins: rating.events.filter((e) => e.driver === driver && until(e.date) && e.position === 1 && e.upsetExpectation != null && e.upsetExpectation < 0.35).length,
           carsBefore,
           splits: (() => {
             const track = splitTrack(driver, `${year}-12-31`)
@@ -716,7 +718,7 @@ export function buildModel(input: Session[]): Model {
               return {
                 n, pbBefore,
                 mark: pbBefore != null && step ? markReached(pbBefore, step) : null,
-                times: splits.entries.filter((e) => e.driver === driver && e.track === track && e.n === n && e.date.startsWith(year)).map((e) => ({ ms: e.ms, prevBest: e.prevBest })),
+                times: splits.entries.filter((e) => e.driver === driver && e.track === track && e.n === n && until(e.date)).map((e) => ({ ms: e.ms, prevBest: e.prevBest })),
               }
             })
           })(),
@@ -724,6 +726,27 @@ export function buildModel(input: Session[]): Model {
       )
     }
     return challengeCache.get(key)!
+  }
+  const seasonCache = new Map<string, SeasonStanding[]>()
+  /** Saisonwertung: gewertete Rennen plus `perChallenge` Punkte je geschaffter Challenge (auch im Verlauf) */
+  const season = (year: string): SeasonStanding[] => {
+    if (!seasonCache.has(year)) {
+      const dates = [...new Set(inYear(year).map((x) => x.date))].sort()
+      const done = (driver: string, upTo?: string) => challenges(driver, year, upTo).filter((c) => c.done).length
+      const rows = seasonBase(year).map((st) => {
+        const count = done(st.name)
+        const challengePoints = count * SEASON_POINTS.perChallenge
+        return {
+          ...st,
+          challenges: count,
+          challengePoints,
+          points: Math.round((st.racePoints + challengePoints) * 10) / 10,
+          progress: st.progress.map((p, i) => (p == null ? null : Math.round((p + done(st.name, dates[i]) * SEASON_POINTS.perChallenge) * 10) / 10)),
+        }
+      })
+      seasonCache.set(year, rankStandings(rows))
+    }
+    return seasonCache.get(year)!
   }
 
   // ---- Karriere-Level ---------------------------------------------------------------------
