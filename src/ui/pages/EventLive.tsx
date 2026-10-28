@@ -9,7 +9,7 @@ import { CarThumb } from '../CarPhoto'
 import { recapMoments } from '../../domain/event/progress'
 import { StoryPager } from '../story'
 import { eventCards } from './EventRecap'
-import { EVENT_ACCENT, finishedOf, fmtPts, heatNote, PhasePill, phaseOf, Podium, StoryIcon, teamColor, teamEloText, useEventHistory, useEventState } from '../event/shared'
+import { Ceremony, EVENT_ACCENT, finishedOf, fmtPts, heatNote, PhasePill, phaseOf, StoryIcon, teamColor, teamEloText, useEventHistory, useEventState } from '../event/shared'
 
 const REFRESH_MS = 30_000
 const TICKER_MS = 8_000
@@ -100,9 +100,8 @@ export function EventLive() {
                 Siegerehrung
               </span>
               <div className="pop">
-                <Podium state={state} />
+                <Ceremony state={state} me={null} />
               </div>
-              {state.teamStandings[0] && <span style={{ textAlign: 'center' }}>Bestes Team: <b style={{ color: teamColor(state.teamStandings[0].id, state.teamStandings[0].name) }}>{state.teamStandings[0].name}</b></span>}
             </section>
           ) : showPlan && state.next ? (
             <section className="card" style={{ borderColor: EVENT_ACCENT }}>

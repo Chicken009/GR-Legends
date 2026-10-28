@@ -3,7 +3,7 @@ import type { Result, Session } from '../../types'
 import { computeEvent, type EventContext } from './engine'
 import { withoutTeams } from './insights'
 import { normalizeEvent } from './normalize'
-import { eventProgress, heatPointsExplained, myRecap, placePoints, pointsHistory, recapFacts, recapMoments, waitFor } from './progress'
+import { eventKind, eventProgress, teamContributions, heatPointsExplained, myRecap, placePoints, pointsHistory, recapFacts, recapMoments, waitFor } from './progress'
 import { newSection } from './templates'
 
 const ELO: Record<string, number> = { A: 700, B: 650, C: 600, D: 550 }
@@ -97,5 +97,20 @@ describe('Punkteverlauf und Rückblick', () => {
     expect(withoutTeams('Team Rot gegen Team Blau · Aufstellung 1 von 2 · Durchgang 2', teams)).toBe('Aufstellung 1 von 2 · Durchgang 2')
     expect(withoutTeams('Einsatz 2 von 3: Team Rot gegen Team Blau', teams)).toBe('Einsatz 2 von 3')
     expect(withoutTeams('Top 2 steigen auf', teams)).toBe('Top 2 steigen auf')
+  })
+
+  it('erkennt Einzel-, Team- und gemischte Wettkämpfe und zählt Beiträge im Team', () => {
+    expect(eventKind(computeEvent(def, ctx()))).toBe('single')
+    const teams = { mode: 'manual' as const, size: 2, teams: [{ name: 'Rot', drivers: ['A', 'D'] }, { name: 'Blau', drivers: ['B', 'C'] }] }
+    const teamDef = normalizeEvent({ name: 'T', start: '2026-06-01', drivers: ['A', 'B', 'C', 'D'], maxPerHeat: 4, teams, sections: [newSection('team', { id: 't' })] })
+    const empty = computeEvent(teamDef, ctx())
+    expect(eventKind(empty)).toBe('team')
+    const names = empty.heats[0].entrants.map((e) => e.name!)
+    const done = computeEvent(teamDef, ctx([race(['A', 'B', 'C', 'D'].filter((n) => names.includes(n)))]))
+    const rot = teamContributions(done, done.teams.find((t) => t.name === 'Rot')!.id)
+    expect(rot.map((r) => r.name)).toEqual(['A', 'D'])
+    expect(rot[0].points).toBeGreaterThan(rot[1].points)
+    const mixed = normalizeEvent({ ...teamDef, sections: [newSection('races', { id: 'r', rounds: 1 }), newSection('team', { id: 't' })] })
+    expect(eventKind(computeEvent(mixed, ctx()))).toBe('mixed')
   })
 })

@@ -1,7 +1,7 @@
 import { useNavigate, useParams } from 'react-router-dom'
 import type { EventState } from '../../domain/event/engine'
 import { driverInsight } from '../../domain/event/insights'
-import { eventNumbers, myRecap, recapFacts, type ProgressStep } from '../../domain/event/progress'
+import { eventKind, eventNumbers, myRecap, recapFacts, type ProgressStep } from '../../domain/event/progress'
 import { BumpChart } from '../charts/StatsCharts'
 import { ME, seriesColors } from '../colors'
 import { Avatar, useData, useMyName } from '../components'
@@ -9,7 +9,7 @@ import { formatTime } from '../format'
 import { NAV_ICONS, PATHS, ShareIcon } from '../icons'
 import { useMe } from '../me'
 import { CarHero, Group, Huge, Line, StatTile, StoryPager, type CardDef } from '../story'
-import { EVENT_ACCENT, finishedOf, fmtPts, Podium, teamColor, useEventHistory, useEventState } from '../event/shared'
+import { EVENT_ACCENT, finishedOf, fmtPts, Podium, teamColor, TeamPodium, useEventHistory, useEventState } from '../event/shared'
 
 const fmtSec = (ms: number) => `${(ms / 1000).toLocaleString('de-DE', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} s`
 const ROCKET = 'M12 2c3 2 5 6 5 10l-2 4H9l-2-4c0-4 2-8 5-10zM9 16l-3 3M15 16l3 3M12 9.5a1.5 1.5 0 1 0 0 .01'
@@ -36,32 +36,41 @@ export function eventCards(state: EventState, steps: ProgressStep[], me: string 
   const f = recapFacts(state, steps)
   const nums = eventNumbers(state)
   const cards: CardDef[] = []
-  const team = state.teamStandings[0]
-  const teamLeads = team && state.teamStandings.some((t) => t.points !== 0)
-
-  cards.push({
-    key: 'sieger',
-    kicker: done ? def.name : `${def.name} · bisher`,
-    icon: NAV_ICONS.events,
-    confetti: done,
-    body: (
-      <>
-        <span style={{ fontSize: 30, fontWeight: 800, lineHeight: 1.1 }}>{done ? 'Die Sieger' : 'Der Stand'}</span>
-        <Podium state={state} />
-        {teamLeads && (
-          <div className="row" style={{ borderLeft: `4px solid ${teamColor(team.id, team.name)}`, background: 'rgba(255,255,255,0.05)' }}>
-            <span className="grow">
-              <span className="name">{team.name}</span>
-              <span className="sub">{done ? 'gewinnt die Teamwertung' : 'führt die Teamwertung'}</span>
-            </span>
-            <span className="num" style={{ fontSize: 20, fontWeight: 800, color: teamColor(team.id, team.name) }}>
-              {fmtPts(team.points)}
-            </span>
-          </div>
-        )}
-      </>
-    ),
-  })
+  // Siegerkarte(n) je nach Art: Einzel = Fahrerpodest, Team = Teampodest mit allen Mitgliedern, gemischt = beide
+  const kind = eventKind(state)
+  const teamsScored = state.teamStandings.some((t) => t.points !== 0)
+  if (kind !== 'single' && teamsScored) {
+    const winner = state.teamStandings[0]
+    cards.push({
+      key: 'teamsieger',
+      kicker: `${def.name}${done ? '' : ' · bisher'} · Teams`,
+      icon: NAV_ICONS.events,
+      confetti: done,
+      body: (
+        <>
+          <Group gap={4}>
+            <span style={{ fontSize: 30, fontWeight: 800, lineHeight: 1.1, color: teamColor(winner.id, winner.name) }}>{winner.name}</span>
+            <Line>{done ? 'gewinnt die Teamwertung' : 'führt die Teamwertung'}</Line>
+          </Group>
+          <TeamPodium state={state} me={me} />
+        </>
+      ),
+    })
+  }
+  if (kind !== 'team') {
+    cards.push({
+      key: 'sieger',
+      kicker: `${def.name}${done ? '' : ' · bisher'}${kind === 'mixed' ? ' · Einzel' : ''}`,
+      icon: NAV_ICONS.events,
+      confetti: done && kind === 'single',
+      body: (
+        <>
+          <span style={{ fontSize: 30, fontWeight: 800, lineHeight: 1.1 }}>{done ? 'Die Sieger' : 'Der Stand'}</span>
+          <Podium state={state} />
+        </>
+      ),
+    })
+  }
 
   const mine = me ? state.standings.find((s) => s.name === me) : null
   if (me && mine) {

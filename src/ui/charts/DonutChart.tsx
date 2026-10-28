@@ -8,7 +8,7 @@ export interface DonutPart {
 }
 
 /** Ringdiagramm für wenige Teile eines Ganzen, Legende mit Werten daneben */
-export function DonutChart({ parts, center, sub, label, size = 150 }: { parts: DonutPart[]; center: string; sub: string; label: string; size?: number }) {
+export function DonutChart({ parts, center, sub, label, size = 150, format = String }: { parts: DonutPart[]; center: string; sub: string; label: string; size?: number; format?: (v: number) => string }) {
   const root = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useTipState<number>(root)
   const total = parts.reduce((a, p) => a + p.value, 0)
@@ -31,14 +31,14 @@ export function DonutChart({ parts, center, sub, label, size = 150 }: { parts: D
   const shown = open != null ? parts[open] : null
   return (
     <div ref={root} style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-      <svg width={size} height={size} role="img" aria-label={`${label}: ${parts.map((p) => `${p.label} ${p.value}`).join(', ')}`} style={{ flexShrink: 0 }}>
+      <svg width={size} height={size} role="img" aria-label={`${label}: ${parts.map((p) => `${p.label} ${format(p.value)}`).join(', ')}`} style={{ flexShrink: 0 }}>
         {arcs.map(({ d, p }, i) =>
           p.value > 0 ? (
             <path key={p.label} d={d} data-tip-target fill="none" stroke={p.color} strokeWidth={open === i ? 22 : 18} style={{ cursor: 'pointer', transition: 'stroke-width .15s' }} onClick={() => setOpen(open === i ? null : i)} onPointerEnter={(e) => e.pointerType === 'mouse' && setOpen(i)} onPointerLeave={(e) => e.pointerType === 'mouse' && setOpen(null)} />
           ) : null,
         )}
         <text x={cx} y={cy + 2} textAnchor="middle" fill="#F2F4F5" fontSize="24" fontWeight="800">
-          {shown ? shown.value : center}
+          {shown ? format(shown.value) : center}
         </text>
         <text x={cx} y={cy + 20} textAnchor="middle" fill="#9AA3AD" fontSize="11">
           {shown ? `${Math.round((shown.value / total) * 100)} % · ${shown.label.length > 14 ? shown.label.slice(0, 13) + '…' : shown.label}` : sub}
@@ -49,7 +49,7 @@ export function DonutChart({ parts, center, sub, label, size = 150 }: { parts: D
           <button key={p.label} data-tip-target onClick={() => setOpen(open === i ? null : i)} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', padding: 0, textAlign: 'left', color: 'inherit', font: 'inherit', cursor: 'pointer', minWidth: 0 }}>
             <span style={{ width: 10, height: 10, borderRadius: 3, background: p.color, flexShrink: 0 }} />
             <span style={{ fontSize: 12, color: open === i ? 'var(--text)' : 'var(--text-2)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.label}</span>
-            <span className="num" style={{ fontSize: 12, color: 'var(--muted)', marginLeft: 'auto' }}>{p.value}</span>
+            <span className="num" style={{ fontSize: 12, color: 'var(--muted)', marginLeft: 'auto' }}>{format(p.value)}</span>
           </button>
         ))}
       </div>

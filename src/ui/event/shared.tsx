@@ -5,13 +5,14 @@ import { eventSessions } from '../../data/useRaceDays'
 import type { EventFolder } from '../../data/events'
 import { carScale } from '../../data/settings'
 import { eventCars, eventContext, typicalLapMs } from '../../domain/event/context'
-import { computeEvent, type EventState, type Heat, type Standing } from '../../domain/event/engine'
+import { computeEvent, type EventState, type Heat, type Standing, type TeamStanding } from '../../domain/event/engine'
 import { eventFinished, eventPhase, lastDay, todayIso, withoutTeams, type EventPhase, type Story } from '../../domain/event/insights'
-import { heatPointsExplained, pointsHistory, type ProgressStep } from '../../domain/event/progress'
+import { eventKind, heatPointsExplained, pointsHistory, teamContributions, type ProgressStep } from '../../domain/event/progress'
 import { FORMAT_LABEL, type EventDef } from '../../domain/event/types'
 import { RATING } from '../../domain/rating'
-import { AREA, ME, SERIES, seriesColors } from '../colors'
+import { AREA, ME, SERIES, seriesColors, shade } from '../colors'
 import { PointsChart } from '../charts/PointsChart'
+import { DonutChart } from '../charts/DonutChart'
 import { Sparkline } from '../charts/Sparkline'
 import { BumpChart } from '../charts/StatsCharts'
 import { Avatar, driverPath, Segment, useData } from '../components'
@@ -227,49 +228,6 @@ export function TeamList({ state }: { state: EventState }) {
             </span>
           </div>
         ))}
-    </section>
-  )
-}
-
-export function TeamStandings({ state, me }: { state: EventState; me?: string | null }) {
-  if (!state.teamStandings.length) return null
-  const max = Math.max(1, ...state.teamStandings.map((t) => t.points))
-  // Bei getrennter Wertung gibt es Teampunkte erst mit dem ersten Teamrennen
-  const started = state.teamStandings.some((t) => t.points !== 0)
-  return (
-    <section className="card" style={{ gap: 4 }}>
-      <div className="card-head">
-        <span className="card-title">Teamwertung</span>
-        <span className="hint">{!started ? 'noch kein Teamrennen gefahren' : state.separate ? 'nur Teamrennen' : 'Schnitt der Mitglieder'}</span>
-      </div>
-      {state.teamStandings.map((t) => {
-        const color = teamColor(t.id, t.name)
-        const mine = !!me && t.drivers.includes(me)
-        return (
-          <div key={t.id} className={`row${mine ? ' me-row' : ''}`} style={{ padding: 8, borderLeft: `4px solid ${color}`, flexWrap: 'wrap', rowGap: 6 }}>
-            <span className={`rank${started && t.rank <= 3 ? ` r${t.rank}` : ''}`} style={{ minWidth: 22, fontSize: 16 }}>
-              {started ? t.rank : '–'}
-            </span>
-            <span className="grow">
-              <span className="name" style={{ color }}>
-                {t.name}
-                {mine ? ' · dein Team' : ''}
-              </span>
-              <span className="sub">
-                {t.drivers.join(', ')} · {teamEloText(t, state.teamStandings)}
-              </span>
-            </span>
-            {started && (
-              <>
-                <Pts value={t.points} color={color} />
-                <span aria-hidden="true" style={{ flexBasis: '100%', height: 4, borderRadius: 2, background: 'var(--line-2)', overflow: 'hidden' }}>
-                  <span style={{ display: 'block', height: '100%', width: `${(Math.max(0, t.points) / max) * 100}%`, background: color, borderRadius: 2 }} />
-                </span>
-              </>
-            )}
-          </div>
-        )
-      })}
     </section>
   )
 }
@@ -512,6 +470,103 @@ export function Podium({ state }: { state: EventState }) {
       {step(a, 1, 160, 'var(--gold)')}
       {step(c, 3, 110, 'var(--bronze)')}
     </div>
+  )
+}
+
+/** Podest der Teams: Teamname in Teamfarbe, alle Mitglieder mit Avatar und Namen, Teampunkte */
+export function TeamPodium({ state, me }: { state: EventState; me?: string | null }) {
+  const [a, b, c] = state.teamStandings
+  if (!a) return null
+  const step = (t: TeamStanding | undefined, place: number, height: number, medal: string) =>
+    t ? (
+      <div className="step" style={{ minHeight: height, borderTop: `3px solid ${medal}`, boxShadow: `inset 0 -4px 0 ${teamColor(t.id, t.name)}, var(--sh2)` }}>
+        <span style={{ fontWeight: 800, fontSize: place === 1 ? 15 : 13, color: teamColor(t.id, t.name) }}>{t.name}</span>
+        <span style={{ display: 'flex', justifyContent: 'center' }}>
+          {t.drivers.map((n, i) => (
+            <span key={n} style={{ marginLeft: i ? -8 : 0 }}>
+              <Avatar name={n} size={place === 1 ? 34 : 28} ring={n === me ? 'var(--me)' : undefined} />
+            </span>
+          ))}
+        </span>
+        <span style={{ fontSize: 11, color: 'var(--text-2)', lineHeight: 1.3 }}>
+          {t.drivers.map((n, i) => (
+            <span key={n}>
+              {i > 0 && ', '}
+              <span style={n === me ? { color: 'var(--me)', fontWeight: 700 } : undefined}>{n === me ? 'Du' : n}</span>
+            </span>
+          ))}
+        </span>
+        <span style={{ color: 'var(--muted)' }}>
+          <Pts value={t.points} size={13} />
+        </span>
+        <span style={{ fontSize: 22, fontWeight: 800, color: medal }}>{place}</span>
+      </div>
+    ) : (
+      <div />
+    )
+  return (
+    <div className="podium">
+      {step(b, 2, 150, 'var(--silver)')}
+      {step(a, 1, 180, 'var(--gold)')}
+      {step(c, 3, 130, 'var(--bronze)')}
+    </div>
+  )
+}
+
+/** Siegerehrung je nach Art: Einzel = Fahrerpodest, Team = Teampodest, gemischt = beide */
+export function Ceremony({ state, me }: { state: EventState; me: string | null }) {
+  const kind = eventKind(state)
+  if (kind === 'single') return <Podium state={state} />
+  if (kind === 'team') return <TeamPodium state={state} me={me} />
+  return (
+    <>
+      <div className="card-part">
+        <span className="part-label">Teamwertung</span>
+        <TeamPodium state={state} me={me} />
+      </div>
+      <div className="card-part">
+        <span className="part-label">Einzelwertung</span>
+        <Podium state={state} />
+      </div>
+    </>
+  )
+}
+
+/** Alles zu einem Team: Platz, Punkte und wer wie viel beigetragen hat (Ringdiagramm) */
+export function TeamCard({ state, team, me }: { state: EventState; team: TeamStanding; me: string | null }) {
+  const color = teamColor(team.id, team.name)
+  const parts = teamContributions(state, team.id)
+  const total = parts.reduce((a, p) => a + p.points, 0)
+  const byTotal = eventKind(state) === 'mixed' && !state.separate
+  return (
+    <section className={`card${me && team.drivers.includes(me) ? ' me-row' : ''}`} style={{ gap: 10, borderLeft: `4px solid ${color}` }}>
+      <div className="card-head">
+        <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+          <span className="card-title" style={{ color }}>
+            {team.rank}. {team.name}
+          </span>
+          <span style={{ fontSize: 12, color: 'var(--muted)' }}>{teamEloText(team, state.teamStandings)}</span>
+        </span>
+        <Pts value={team.points} color={color} size={20} />
+      </div>
+      {total > 0 ? (
+        <>
+          <span className="part-label" style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase', color: 'var(--muted)' }}>
+            {byTotal ? 'Punkte der Mitglieder' : 'Punkte in den Teamrennen'}
+          </span>
+          <DonutChart
+            parts={parts.map((p, i) => ({ label: p.name === me ? 'Du' : p.name, value: p.points, color: shade(color, i) }))}
+            center={fmtPts(Math.round(total * 10) / 10)}
+            sub="Pkt. gesamt"
+            label={`Beiträge im ${team.name}`}
+            size={130}
+            format={fmtPts}
+          />
+        </>
+      ) : (
+        <span style={{ fontSize: 13, color: 'var(--muted)' }}>{team.drivers.map((n) => (n === me ? 'Du' : n)).join(', ')} – noch keine Punkte.</span>
+      )}
+    </section>
   )
 }
 

@@ -151,6 +151,35 @@ export function placePoints(def: EventDef, n: number): number[] {
   return Array.from({ length: Math.max(0, n) }, (_, i) => (n - 1 - i) * sc.perBeaten + (i === 0 && n > 1 ? sc.win : 0))
 }
 
+// ---- Teams -----------------------------------------------------------------------------------
+
+/** single = ohne Teams · team = nur Teamrennen zählen · mixed = Einzel- und Teamwertung */
+export type EventKind = 'single' | 'team' | 'mixed'
+
+export function eventKind(state: EventState): EventKind {
+  if (!state.teams.length) return 'single'
+  const scoring = state.sections.filter((s) => s.def.weight > 0 && s.def.format !== 'free')
+  return scoring.length > 0 && scoring.every((s) => s.def.format === 'team') ? 'team' : 'mixed'
+}
+
+/**
+ * Wer hat seinem Team wie viel beigetragen? Zählt die Teamwertung den Schnitt der Gesamtpunkte, ist
+ * es die Gesamtpunktzahl jedes Mitglieds; sonst die Punkte, die es in den Teamrennen geholt hat.
+ */
+export function teamContributions(state: EventState, teamId: string): { name: string; points: number }[] {
+  const team = state.teams.find((t) => t.id === teamId)
+  if (!team) return []
+  const byTotal = eventKind(state) === 'mixed' && !state.separate
+  const teamSections = new Set(state.sections.filter((s) => s.def.format === 'team').map((s) => s.def.id))
+  const heats = state.heats.filter((h) => h.status === 'done' && teamSections.has(h.sectionId))
+  return team.drivers
+    .map((name) => {
+      const raw = byTotal ? (state.standings.find((s) => s.name === name)?.total ?? 0) : heats.reduce((a, h) => a + (h.points.get(name) ?? 0), 0)
+      return { name, points: Math.round(raw * 10) / 10 }
+    })
+    .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name))
+}
+
 // ---- Rückblick -------------------------------------------------------------------------------
 
 /** Alleiniger Führender eines Stands (null bei Gleichstand oder ohne Punkte) */

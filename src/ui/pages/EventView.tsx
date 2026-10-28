@@ -22,7 +22,8 @@ import {
   PhasePill,
   phaseOf,
   finishedOf,
-  Podium,
+  Ceremony,
+  TeamCard,
   ProgressChart,
   Pts,
   RankChart,
@@ -31,14 +32,13 @@ import {
   StandingsList,
   teamColor,
   TeamList,
-  TeamStandings,
   uncertainty,
   useEventHistory,
   useEventState,
   useLapMs,
 } from '../event/shared'
 
-type Tab = 'stand' | 'ablauf' | 'punkte'
+type Tab = 'stand' | 'team' | 'ablauf' | 'punkte'
 
 export function EventView() {
   const { id = '' } = useParams()
@@ -68,7 +68,8 @@ export function EventView() {
   const showPlan = planVisible(def, today)
   const inEvent = !!me && state.drivers.includes(me)
   const progress = eventProgress(state, lapMs)
-  const tab: Tab = stored === 'ablauf' || stored === 'punkte' ? stored : 'stand'
+  const hasTeams = state.teams.length > 0
+  const tab: Tab = stored === 'ablauf' || stored === 'punkte' || (stored === 'team' && hasTeams) ? stored : 'stand'
   return (
     <div className="page" style={{ ['--accent' as string]: EVENT_ACCENT }}>
       <PageHead title={def.name} kicker={`Wettkampf · ${dateRange(def)}`} color={EVENT_ACCENT} back={{ to: '/wettkampf', label: 'Alle Wettkämpfe' }}>
@@ -126,7 +127,7 @@ export function EventView() {
         <>
           <section className="card" style={{ gap: 14 }}>
             <span className="card-title">Siegerehrung</span>
-            <Podium state={state} />
+            <Ceremony state={state} me={me} />
           </section>
           <RecapBanner id={id} state={state} me={me} done />
         </>
@@ -140,11 +141,7 @@ export function EventView() {
         value={tab}
         onChange={setTab}
         label="Ansicht"
-        options={[
-          ['stand', 'Stand'],
-          ['ablauf', 'Ablauf'],
-          ['punkte', 'Punkte'],
-        ]}
+        options={[['stand', 'Stand'], ...(hasTeams ? [['team', 'Teams'] as [Tab, string]] : []), ['ablauf', 'Ablauf'], ['punkte', 'Punkte']]}
       />
 
       {tab === 'stand' &&
@@ -157,7 +154,6 @@ export function EventView() {
               </div>
               <StandingsList state={state} me={me} steps={steps} />
             </section>
-            <TeamStandings state={state} me={me} />
             <ProgressChart state={state} steps={steps} me={me} />
             <RankChart state={state} steps={steps} me={me} />
             {!finished && <RecapBanner id={id} state={state} me={me} done={false} />}
@@ -167,6 +163,17 @@ export function EventView() {
             <TeamList state={state} />
             <Entrants state={state} me={me} />
           </>
+        ))}
+
+      {tab === 'team' &&
+        (state.started ? (
+          <>
+            {state.teamStandings.map((t) => (
+              <TeamCard key={t.id} state={state} team={t} me={me} />
+            ))}
+          </>
+        ) : (
+          <TeamList state={state} />
         ))}
 
       {tab === 'ablauf' &&
