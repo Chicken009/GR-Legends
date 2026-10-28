@@ -5,7 +5,7 @@ import { fixtureIds, readFixture } from '../test-utils'
 import type { Result, Session } from '../types'
 import { estimateCars, fitCars, type CarObs } from './carModel'
 import { CHALLENGE_POOL, CHALLENGES_PER_SEASON, NEW_PER_SEASON, seasonChallengeIds, seasonChallenges, TIME_POOL } from './challenges'
-import { constructorStandings, seasonStandings } from './season'
+import { constructorStandings, SEASON_POINTS, seasonStandings } from './season'
 import { classifyIncidents, hasTankFunction, splitTime } from './laps'
 import { buildSplits, fmtMark, markNext, markReached, markStep, splitKey } from './splits'
 import { buildModel, positionTrace } from './model'
@@ -399,33 +399,72 @@ describe('Saisonwertung mit Punkten', () => {
   // Läufe: Reihenfolge = Platzierung, Runden gleich; Rundenzeit steigt mit dem Platz (Platz 1 am schnellsten)
   const r = (id: string, date: string, order: string[], type = 'Rennen') => ({ ...race(id, date, order.map((n) => [n, 'X', 10] as [string, string, number])), type })
 
-  it('gibt Punkte je geschlagenem Gegner, Siegbonus und Bonus für schnellste Runde und Pole', () => {
+  it('gibt Punkte je geschlagenem Gegner, Bonus für schnellste Runde und Pole, bester Renntag doppelt', () => {
     const st = seasonStandings([r('q', '2026-01-10', ['Ben', 'Anna'], 'Qualifikation'), r('a', '2026-01-10', ['Anna', 'Ben', 'Cleo', 'Dora'])])
     const anna = st.find((x) => x.name === 'Anna')!
     const ben = st.find((x) => x.name === 'Ben')!
-    // Anna: 3 geschlagen + Sieg 1 + schnellste Runde 2 = 6; Ben: 2 geschlagen + Pole 1 = 3
-    expect(anna.points).toBe(6)
-    expect(ben.points).toBe(3)
+    // gleich stark: je Gegner 1 Punkt, kein Siegbonus. Anna: 3 + schnellste Runde 2 = 5, Ben: 2 + Pole 1 = 3; einziger Tag = Joker ×2
+    expect(anna.days[0]).toMatchObject({ points: 5, fastestLap: true, joker: true })
+    expect(anna.points).toBe(10)
+    expect(ben.points).toBe(6)
     expect(anna.rank).toBe(1)
   })
 
-  it('wertet pro Renntag die besten 3 Rennen und die besten 5 Renntage, Finale im Dezember doppelt', () => {
+  it('gewichtet geschlagene Gegner nach Stärke: gegen Stärkere mehr', () => {
+    const sessions = [r('a', '2026-01-10', ['Ben', 'Anna', 'Cleo'])]
+    const elo: Record<string, number> = { Anna: 700, Ben: 500, Cleo: 500 }
+    const st = seasonStandings(sessions, { strength: (n) => elo[n] })
+    const p = (beaten: number) => 1 - SEASON_POINTS.fairShare + SEASON_POINTS.fairShare * 2 * (1 - 1 / (1 + 10 ** ((beaten - 500) / RATING.scale)))
+    const ben = st.find((x) => x.name === 'Ben')!
+    // Ben schlägt die stärkere Anna (mehr als 1) und die gleich starke Cleo (genau 1)
+    expect(ben.days[0].racePoints).toBeCloseTo(Math.round((p(700) + 1) * 10) / 10, 5)
+    expect(p(700)).toBeGreaterThan(1.3)
+    // Anna schlägt nur die schwächere Cleo: weniger als 1
+    const anna = st.find((x) => x.name === 'Anna')!
+    expect(anna.days[0].racePoints).toBeLessThan(1)
+    expect(anna.days[0].racePoints).toBeGreaterThanOrEqual(1 - SEASON_POINTS.fairShare)
+  })
+
+  it('misst schnellste Runde an der typischen Runde des eigenen Autos', () => {
+    const s = race('a', '2026-01-10', [['Anna', 'Schnell', 10], ['Ben', 'Langsam', 10]])
+    // Anna fährt absolut die schnellste Runde, aber nur knapp unter dem Schnitt ihres schnellen Autos
+    s.results[0].lapTimes = s.results[0].lapTimes.map((l, k) => ({ ...l, ms: 9000 + (k % 2) * 100 }))
+    s.results[0].validBestLapMs = 8990
+    s.results[1].lapTimes = s.results[1].lapTimes.map((l, k) => ({ ...l, ms: 11_000 + (k % 2) * 100 }))
+    s.results[1].validBestLapMs = 10_500
+    const history = [race('h1', '2026-01-03', [['Anna', 'Schnell', 20]]), race('h2', '2026-01-03', [['Ben', 'Langsam', 20]])]
+    history[0].results[0].lapTimes = history[0].results[0].lapTimes.map((l) => ({ ...l, ms: 9050 }))
+    history[1].results[0].lapTimes = history[1].results[0].lapTimes.map((l) => ({ ...l, ms: 11_050 }))
+    const st = seasonStandings([s], { history: [...history, s] })
+    expect(st.find((x) => x.name === 'Ben')!.fastestLaps).toBe(1)
+    expect(st.find((x) => x.name === 'Anna')!.fastestLaps).toBe(0)
+  })
+
+  it('gibt einen Bonus für eine neue persönliche Bestzeit', () => {
+    const st = seasonStandings([r('a', '2026-01-10', ['Anna', 'Ben'])], { personalBest: (n) => n === 'Ben' })
+    expect(st.find((x) => x.name === 'Ben')!.days[0]).toMatchObject({ points: SEASON_POINTS.personalBest, personalBest: true })
+  })
+
+  it('wertet pro Renntag die besten 3 Rennen und die besten 5 Renntage, der beste davon zählt doppelt', () => {
     const sessions = [
-      // Tag 1: 4 Rennen, Anna gewinnt alle (je 2 Punkte) → nur 3 zählen = 6, + schnellste Runde 2 = 8
+      // Tag 1: 4 Rennen, Anna gewinnt alle (je 1 Punkt) → nur 3 zählen = 3, + schnellste Runde 2 = 5
       ...['a', 'b', 'c', 'd'].map((id) => r(id, '2026-01-10', ['Anna', 'Ben'])),
-      // Tage 2–6: je ein Rennen, Ben gewinnt → je 2 + 2 = 4
+      // Tage 2–6: je ein Rennen, Ben gewinnt → je 1 + 2 = 3
       ...[2, 3, 4, 5].map((m) => r(`m${m}`, `2026-0${m}-10`, ['Ben', 'Anna'])),
       r('dez', '2026-12-10', ['Ben', 'Anna']),
     ]
     const st = seasonStandings(sessions)
     const anna = st.find((x) => x.name === 'Anna')!
     const ben = st.find((x) => x.name === 'Ben')!
-    expect(anna.days[0].points).toBe(8)
-    expect(ben.days.find((d) => d.finale)!.points).toBe(8)
-    // Ben: 6 Renntage (Tag 1 mit 0 Punkten wird gestrichen): 4·4 + 8 = 24
+    expect(anna.days[0].points).toBe(5)
+    // Ben: 6 Renntage (Tag 1 mit 0 Punkten wird gestrichen): 5·3 + Joker 3 = 18
     expect(ben.days.filter((d) => !d.counted)).toHaveLength(1)
-    expect(ben.points).toBe(24)
+    expect(ben.days.filter((d) => d.joker)).toHaveLength(1)
+    expect(ben.points).toBe(18)
+    // Anna: 5 + 4·0 + Joker 5 = 10
+    expect(anna.points).toBe(10)
     expect(ben.progress).toHaveLength(6)
+    expect(ben.progress[1]).toBe(6)
   })
 
   it('zählt die Konstrukteurswertung über alle Rennen', () => {

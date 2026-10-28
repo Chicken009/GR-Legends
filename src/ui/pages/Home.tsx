@@ -217,7 +217,7 @@ function SeasonCard() {
       {top.map(line)}
       {mine && !top.includes(mine) && line(mine)}
       <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--muted)', lineHeight: 1.45 }}>
-        Punkte pro Rennen für jeden geschlagenen Gegner, Bonus für Sieg, schnellste Runde und Pole. Es zählen die besten {SEASON_POINTS.countedDays} Renntage.
+        Punkte für jeden geschlagenen Gegner – gegen Stärkere mehr. Bonus für schnellste Runde, Pole und neue Bestzeit. Es zählen die besten {SEASON_POINTS.countedDays} Renntage, der beste doppelt.
       </p>
     </section>
   )

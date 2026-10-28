@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react'
 import { AREA } from './colors'
 import { NAV_ICONS, StrokeIcon } from './icons'
+import { fmtPts } from './format'
 
 /**
  * Drei Wertungen, die man nicht verwechseln soll – jede mit fester Farbe, Symbol und Einheit:
@@ -24,7 +25,7 @@ export function CurrencyIcon({ kind, size = 14, color }: { kind: Currency; size?
   return <StrokeIcon d={CURRENCY[kind].icon} size={size} color={color ?? CURRENCY[kind].color} width={2.2} />
 }
 
-const fmt = (v: number) => Math.round(v).toLocaleString('de-DE')
+const fmt = (v: number, kind: Currency) => (kind === 'pts' ? fmtPts(Math.round(v * 10) / 10) : Math.round(v).toLocaleString('de-DE'))
 
 /**
  * Zahl mit Symbol und Einheit, z. B. „⏱ 609 Elo“, „🏆 41 Pkt.“, „★ +20 XP“.
@@ -32,7 +33,7 @@ const fmt = (v: number) => Math.round(v).toLocaleString('de-DE')
  */
 export function Amount({ kind, value, signed, size = 14, plain, unit = true, style }: { kind: Currency; value: number; signed?: boolean; size?: number; plain?: boolean; unit?: boolean; style?: CSSProperties }) {
   const c = CURRENCY[kind]
-  const text = signed ? `${value > 0 ? '+' : value < 0 ? '−' : '±'}${fmt(Math.abs(value))}` : fmt(value)
+  const text = signed ? `${value > 0 ? '+' : value < 0 ? '−' : '±'}${fmt(Math.abs(value), kind)}` : fmt(value, kind)
   return (
     <span className="amount num" style={{ display: 'inline-flex', alignItems: 'center', gap: Math.max(3, size * 0.25), fontSize: size, fontWeight: 800, color: plain ? undefined : c.color, whiteSpace: 'nowrap', ...style }} aria-label={`${text} ${c.name}`}>
       <CurrencyIcon kind={kind} size={Math.round(size * 0.95)} />

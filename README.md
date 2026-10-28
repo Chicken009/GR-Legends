@@ -324,14 +324,18 @@ dem Schnitt (≈ 0,75 % langsamer).
 auf der Strecke über alle Läufe. Gewicht 0,3 eines Laufs, nur als Bonus (nie Abzug). Werden alle
 schneller, steigen alle – die Wertung spiegelt so auch echte Verbesserung wider.
 
-**Saisonwertung** (Seite „Saison“): Punkte statt Elo.
-- pro Rennen 1 Punkt je geschlagenem Gegner, Sieg +1 – ein Sieg gegen 5 zählt mehr als gegen 1
+**Saisonwertung** (Seite „Saison“): Punkte statt Elo. So abgestimmt, dass nicht immer der
+Schnellste mit großem Abstand vorne liegt, er aber Favorit bleibt (abgeglichen an simulierten Saisons).
+- pro Rennen je geschlagenem Gegner im Schnitt 1 Punkt: 0,4 fest plus 0 bis 1,2 nach Stärke laut Elo
+  mit Auto vor dem Rennen – gegen Stärkere mehr, gegen Schwächere weniger; kein Siegbonus
 - pro Renntag zählen die besten 3 Rennen (Abende mit 9 Rennen bringen nicht dreimal so viel)
-- Bonus pro Renntag: schnellste Runde +2, Pole (Schnellster im Qualifying) +1
-- der letzte Renntag im Dezember ist das Saisonfinale und zählt doppelt
+- Bonus pro Renntag: schnellste Runde +2, Pole (Schnellster im Qualifying) +1, beide gemessen an der
+  typischen Runde des eigenen Autos auf der Strecke; neue persönliche Bestzeit auf der Strecke +1
 - Streichresultate: Es zählen die besten 5 Renntage – wer mal nicht kann, verliert nichts
+- Joker: Der beste gewertete Renntag zählt doppelt (früher das Finale im Dezember – das hat
+  benachteiligt, wer am letzten Renntag nicht konnte). Gilt rückwirkend für alle Jahre.
 
-Dazu: Konstrukteurswertung (Autos sammeln die Rennpunkte ihrer Fahrer), Saison-Awards für
+Dazu: Konstrukteurswertung (Autos sammeln je Rennen 1 Punkt je geschlagenem Gegner, Sieg +1), Saison-Awards für
 abgeschlossene Jahre (Saisonsieger, Rookie, Aufsteiger, Jahresschnellster, Saubermann, Außenseiter),
 Saison-Challenges (je +20 Karriere-XP; jede Saison 7 zufällig aus einem Pool von 20, für alle gleich, mindestens 3 neue gegenüber dem Vorjahr) und ein Jahresrückblick („Wrapped“) pro Fahrer.
 

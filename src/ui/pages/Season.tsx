@@ -10,7 +10,7 @@ import { PointsLadder, RuleChip } from '../PointsLadder'
 import { RecapLink } from '../story'
 import { AREA, ME, seriesColors } from '../colors'
 import { Avatar, carPath, driverPath, PageHead, Segment, useData, useMyName } from '../components'
-import { formatDate } from '../format'
+import { fmtPts, formatDate } from '../format'
 import { MedalBadge } from '../Medal'
 import { useChallengePopup, useMedalPopup } from '../MedalPopup'
 import { useStored } from '../useStored'
@@ -79,7 +79,7 @@ function DriverStandings({ year }: { year: string }) {
   const colors = seriesColors(shown, me)
   return (
     <>
-      {mine && <RecapLink to={`/wrapped/${year}/${encodeURIComponent(mine.name)}`} mine title={`Dein Jahr ${year}`} sub={`Platz ${mine.rank} · ${mine.points} Pkt. – zum Rückblick`} />}
+      {mine && <RecapLink to={`/wrapped/${year}/${encodeURIComponent(mine.name)}`} mine title={`Dein Jahr ${year}`} sub={`Platz ${mine.rank} · ${fmtPts(mine.points)} Pkt. – zum Rückblick`} />}
       <section className="card" style={{ gap: 2 }}>
         <div className="card-head">
           <span className="card-title">Fahrerwertung</span>
@@ -108,7 +108,16 @@ function DriverStandings({ year }: { year: string }) {
             Pole
           </span>
           <span>
-            <span className="day-chip finale">16</span> Finale ×2
+            <span className="day-chip">
+              8<sup>B</sup>
+            </span>{' '}
+            Bestzeit
+          </span>
+          <span>
+            <span className="day-chip joker">
+              8<sup>×2</sup>
+            </span>{' '}
+            Joker
           </span>
         </div>
       </section>
@@ -128,25 +137,47 @@ function DriverStandings({ year }: { year: string }) {
           <BumpChart dates={dates} series={shown.map((n) => ({ name: n, ranks: perDay.map((m) => m.get(n) ?? null) }))} colors={colors} me={me} />
         </section>
       )}
-      <section className="card" style={{ gap: 14 }}>
-        <div className="card-head">
-          <span className="card-title">So wird gewertet</span>
-          <span className="hint">Rennen mit 4 Fahrern</span>
-        </div>
-        <PointsLadder points={[3 * SEASON_POINTS.perBeaten + SEASON_POINTS.win, 2 * SEASON_POINTS.perBeaten, SEASON_POINTS.perBeaten, 0]} color={AREA.season} label="Saisonpunkte je Platz bei 4 Fahrern" />
-        <span style={{ fontSize: 13, color: 'var(--text-2)' }}>
-          Je Gegner hinter dir {SEASON_POINTS.perBeaten} Pkt., Sieg +{SEASON_POINTS.win}
-        </span>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-          <RuleChip value={`${SEASON_POINTS.racesPerDay}`} label="beste Rennen je Renntag" />
-          <RuleChip value={`${SEASON_POINTS.countedDays}`} label="beste Renntage zählen" />
-          <RuleChip value={`×${SEASON_POINTS.finaleFactor}`} label="Finale im Dezember" color={AREA.season} />
-          <RuleChip value={`⚡ +${SEASON_POINTS.fastestLap}`} label="Schnellste Runde" color="var(--gold)" />
-          <RuleChip value={`P +${SEASON_POINTS.pole}`} label="Pole" color="var(--gold)" />
-        </div>
-        <span style={{ fontSize: 12, color: 'var(--muted)' }}>Wer mal nicht kann, verliert nichts – es zählen nur die besten Renntage.</span>
-      </section>
+      <SeasonRules />
     </>
+  )
+}
+
+/** Regeln der Saisonwertung: Treppe bei gleich starken Gegnern, Bausteine als Chips, Details eingeklappt */
+function SeasonRules() {
+  const sp = SEASON_POINTS
+  const fixed = sp.perBeaten * (1 - sp.fairShare)
+  const most = sp.perBeaten * (1 + sp.fairShare)
+  return (
+    <section className="card" style={{ gap: 14 }}>
+      <div className="card-head">
+        <span className="card-title">So wird gewertet</span>
+        <span className="hint">4 gleich starke Fahrer</span>
+      </div>
+      <PointsLadder points={[3, 2, 1, 0].map((n) => n * sp.perBeaten)} color={AREA.season} label="Saisonpunkte je Platz bei 4 gleich starken Fahrern" />
+      <span style={{ fontSize: 13, color: 'var(--text-2)' }}>
+        Je Gegner hinter dir {fmtPts(fixed)}–{fmtPts(most)} Pkt. – gegen Stärkere mehr
+      </span>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        <RuleChip value={`${sp.racesPerDay}`} label="beste Rennen je Renntag" />
+        <RuleChip value={`${sp.countedDays}`} label="beste Renntage zählen" />
+        <RuleChip value={`×${sp.jokerFactor}`} label="Joker: bester Renntag" color={AREA.season} />
+        <RuleChip value={`⚡ +${sp.fastestLap}`} label="Schnellste Runde" color="var(--gold)" />
+        <RuleChip value={`P +${sp.pole}`} label="Pole" color="var(--gold)" />
+        <RuleChip value={`B +${sp.personalBest}`} label="Neue Bestzeit" color="var(--gold)" />
+      </div>
+      <details>
+        <summary style={{ cursor: 'pointer', fontSize: 13, color: 'var(--muted)' }}>Wie genau?</summary>
+        <ul style={{ margin: '8px 0 0', paddingLeft: 18, fontSize: 13, color: 'var(--text-2)', lineHeight: 1.6 }}>
+          <li>
+            Für jeden Gegner hinter dir gibt es {fmtPts(fixed)} Pkt. fest plus bis zu {fmtPts(most - fixed)} Pkt. nach Stärke laut Elo mit Auto vor dem Rennen. Gegen einen gleich Starken
+            ist das {fmtPts(sp.perBeaten)} Pkt. So zählt ein Sieg gegen Stärkere mehr, und wer schneller wird, holt mehr Punkte. Einen Siegbonus gibt es nicht.
+          </li>
+          <li>Schnellste Runde und Pole zählen im Verhältnis zur typischen Runde des eigenen Autos auf der Strecke – mit einem langsameren Auto hat man genauso eine Chance.</li>
+          <li>Neue persönliche Bestzeit auf der Strecke: +{fmtPts(sp.personalBest)} Pkt. am Renntag (ab der zweiten gefahrenen Zeit).</li>
+          <li>Der beste der {sp.countedDays} gewerteten Renntage zählt doppelt. Wer mal nicht kann, verliert nichts – auch nicht am letzten Renntag.</li>
+        </ul>
+      </details>
+    </section>
   )
 }
 
@@ -168,12 +199,14 @@ function StandingRow({ row: r, me, bg }: { row: SeasonStanding; me: string | nul
           {r.days.map((d) => (
             <span
               key={d.date}
-              className={`day-chip${d.counted ? '' : ' dropped'}${d.finale ? ' finale' : ''}`}
-              title={`${formatDate(d.date)}: ${d.points} Punkte (${d.races} Rennen${d.fastestLap ? ', schnellste Runde' : ''}${d.pole ? ', Pole' : ''}${d.finale ? ', Finale ×2' : ''})${d.counted ? '' : ' – gestrichen'}`}
+              className={`day-chip${d.counted ? '' : ' dropped'}${d.joker ? ' joker' : ''}`}
+              title={`${formatDate(d.date)}: ${fmtPts(d.points)} Punkte (${d.races} Rennen${d.fastestLap ? ', schnellste Runde' : ''}${d.pole ? ', Pole' : ''}${d.personalBest ? ', neue Bestzeit' : ''})${d.joker ? ' – Joker, zählt doppelt' : d.counted ? '' : ' – gestrichen'}`}
             >
-              {d.points}
+              {fmtPts(d.points)}
               {d.fastestLap && <sup>F</sup>}
               {d.pole && <sup>P</sup>}
+              {d.personalBest && <sup>B</sup>}
+              {d.joker && <sup>×2</sup>}
             </span>
           ))}
         </span>
