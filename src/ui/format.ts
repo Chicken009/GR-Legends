@@ -42,6 +42,8 @@ const nf = (digits = 0) => new Intl.NumberFormat('de-DE', { minimumFractionDigit
 export const fmtInt = (v: number | null | undefined) => (v == null ? '–' : nf(0).format(Math.round(v)))
 export const fmtNum = (v: number | null | undefined, digits = 1) => (v == null ? '–' : nf(digits).format(v))
 export const fmtPct = (share: number | null | undefined, digits = 0) => (share == null ? '–' : `${nf(digits).format(share * 100)} %`)
+/** Punkte: ganze Zahl oder eine Nachkommastelle („12“, „12,4“) */
+export const fmtPts = (v: number) => fmtNum(v, Number.isInteger(v) ? 0 : 1)
 export const fmtElo = (v: number | null | undefined) => fmtInt(v)
 export const fmtDelta = (v: number) => {
   const r = Math.round(v)

@@ -17,7 +17,7 @@ import { Sparkline } from '../charts/Sparkline'
 import { BumpChart } from '../charts/StatsCharts'
 import { Avatar, driverPath, Segment, useData } from '../components'
 import { RecapLink } from '../story'
-import { fmtElo, fmtNum, formatDate, formatTime } from '../format'
+import { fmtElo, fmtPts, formatDate, formatTime } from '../format'
 import { Bolt, Crown, PoleFlag, Rocket, Sword, Trophy } from '../icons'
 import { CarThumb } from '../CarPhoto'
 
@@ -87,7 +87,7 @@ export function dateRange(def: EventDef) {
   return def.end ? `${formatDate(def.start)} – ${formatDate(lastDay(def))}` : formatDate(def.start)
 }
 
-export const fmtPts = (v: number) => fmtNum(v, Number.isInteger(v) ? 0 : 1)
+export { fmtPts }
 
 export function PhasePill({ phase }: { phase: EventPhase }) {
   const color = phase === 'running' ? EVENT_ACCENT : phase === 'done' ? 'var(--muted)' : 'var(--text-2)'

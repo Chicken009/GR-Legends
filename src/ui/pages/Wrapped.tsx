@@ -10,7 +10,7 @@ import { RadarChart } from '../charts/RadarChart'
 import { AREA, ME, SERIES } from '../colors'
 import { Avatar, driverPath, useData, useMyName } from '../components'
 import { Amount, CurrencyIcon } from '../currency'
-import { fmtElo, fmtNum, formatDate, formatTime } from '../format'
+import { fmtElo, fmtNum, fmtPts, formatDate, formatTime } from '../format'
 import { ChevronLeft, NAV_ICONS, PATHS, ShareIcon, StrokeIcon } from '../icons'
 import { MedalBadge } from '../Medal'
 import { useChallengePopup, useMedalPopup } from '../MedalPopup'
@@ -223,7 +223,7 @@ function buildCards(w: WrappedData, you: boolean, seasonDates: string[]): CardDe
             <Amount kind="pts" value={bd.points} size={22} />
           </Group>
           <Reveal>
-            <MiniBars items={w.season.days.map((d) => ({ label: formatDate(d.date), value: d.points, text: `${d.points} Punkte${d.date === bd.date ? ' – bester Abend' : ''}` }))} color={AREA.season} height={110} label="Punkte je Renntag" />
+            <MiniBars items={w.season.days.map((d) => ({ label: formatDate(d.date), value: d.points, text: `${fmtPts(d.points)} Punkte${d.date === bd.date ? ' – bester Abend' : ''}` }))} color={AREA.season} height={110} label="Punkte je Renntag" />
             <Hint>Punkte je Renntag</Hint>
           </Reveal>
           <Line>
@@ -647,7 +647,7 @@ async function shareImage(w: WrappedData, you: boolean): Promise<void> {
     [String(w.races), 'Rennen', '#FFFFFF'],
     [String(w.wins), w.wins === 1 ? 'Sieg' : 'Siege', '#F6C83C'],
     [w.km != null ? fmtNum(w.km, 1) : String(w.laps), w.km != null ? 'Kilometer' : 'Runden', '#FFFFFF'],
-    [w.season ? `P${w.season.rank}` : String(w.days), w.season ? `Saison · ${w.season.points} Pkt.` : 'Renntage', AREA.season],
+    [w.season ? `P${w.season.rank}` : String(w.days), w.season ? `Saison · ${fmtPts(w.season.points)} Pkt.` : 'Renntage', AREA.season],
     [w.eloEnd != null ? fmtElo(w.eloEnd) : '–', 'Elo', AREA.drivers],
     [w.bestLap ? formatTime(w.bestLap.ms) : '–', 'Schnellste Runde', ME],
   ]

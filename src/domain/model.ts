@@ -8,7 +8,7 @@ import { quantile, SPLIT_LAPS } from './laps'
 import { buildSplits, fmtMark, markNext, markReached, SPLIT_REWARDS_FROM, splitKey, type Splits } from './splits'
 import { constructorStandings, seasonStandings, type ConstructorStanding, type SeasonStanding } from './season'
 import { CHALLENGE_XP, seasonChallenges, type Challenge } from './challenges'
-import { carKey, computeRatings, isQuali, RATING, sortSessions, type RatingEvent, type RatingResult } from './rating'
+import { carKey, carValue, computeRatings, isQuali, RATING, sortSessions, type RatingEvent, type RatingResult } from './rating'
 
 /** „all“ oder ein Jahr wie „2025“ */
 export type Period = string
@@ -679,9 +679,16 @@ export function buildModel(input: Session[]): Model {
 
   // ---- Saisonwertung ---------------------------------------------------------------------
   const inYear = (year: string) => sessions.filter((x) => x.date.startsWith(year))
+  // Stärke im Lauf: Elo vor dem Lauf (Gäste: Startwert) plus Autowertung, wie sie vor dem Lauf feststand
+  const eloBefore = new Map(rating.events.map((e) => [`${e.fileId}\u0000${e.driver}`, e.before]))
+  const seasonContext = {
+    strength: (driver: string, car: string, s: Session) => (eloBefore.get(`${s.fileId}\u0000${driver}`) ?? RATING.start) + carValue(rating.carsBefore(s), s.track, car),
+    personalBest: (driver: string, date: string) => pbEvents.some((p) => p.driver === driver && p.date === date && p.prevExisted),
+    history: sessions,
+  }
   const seasonCache = new Map<string, SeasonStanding[]>()
   const season = (year: string): SeasonStanding[] => {
-    if (!seasonCache.has(year)) seasonCache.set(year, seasonStandings(inYear(year)))
+    if (!seasonCache.has(year)) seasonCache.set(year, seasonStandings(inYear(year), seasonContext))
     return seasonCache.get(year)!
   }
   const constructors = (year: string) => constructorStandings(inYear(year))
