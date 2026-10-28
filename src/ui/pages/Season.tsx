@@ -137,7 +137,7 @@ function SeasonRules() {
         <RuleChip value={`${sp.countedRaces}`} label="beste Rennen der Saison" color={AREA.season} />
         <RuleChip value={`max. ${sp.racesPerDay}`} label="Rennen je Renntag" />
         <RuleChip value={`max. ${sp.maxBeaten}`} label="Gegner je Rennen" />
-        <RuleChip value={`★ +${sp.perChallenge}`} label="je geschaffte Challenge" color="var(--gold)" />
+        <RuleChip value={`★ +${sp.perChallenge}`} label="je geschaffte Challenge" color={AREA.season} />
       </div>
       <details>
         <summary style={{ cursor: 'pointer', fontSize: 13, color: 'var(--muted)' }}>Wie genau?</summary>

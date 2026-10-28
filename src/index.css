@@ -1393,8 +1393,8 @@ table.dt tr.me-row td.st1 {
   color: var(--accent);
 }
 .day-chip.challenge-chip {
-  border-color: #E5A51A;
-  color: #F6C83C;
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 /* Medaillen-Pop-up: kurz aufploppen */
