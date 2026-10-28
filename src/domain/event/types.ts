@@ -51,6 +51,12 @@ export interface Scoring {
   finaleFactor: number
   /** Nur bei fair: auch den Siegbonus nach Stärke gewichten */
   fairWin?: boolean
+  /**
+   * Knapp verloren zählt (Punkte und Fair): Wer im Rennen weniger als CLOSE_LOSS_LAPS Runden hinter
+   * einem Gegner ankommt, bekommt anteilig, was ein Sieg gegen ihn gebracht hätte – gleichauf die
+   * Hälfte. Der Sieger behält seine Punkte.
+   */
+  closeLoss?: boolean
 }
 
 export interface TeamDef {

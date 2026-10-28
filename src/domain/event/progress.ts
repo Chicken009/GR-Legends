@@ -1,5 +1,5 @@
 import { isGuest } from '../drivers'
-import { computeEvent, type EventContext, type EventState, type Heat } from './engine'
+import { CLOSE_LOSS_LAPS, computeEvent, type EventContext, type EventState, type Heat } from './engine'
 import { endSentence, type Story } from './insights'
 import { changeoverMinutes, heatDriveMs } from './simulate'
 import type { EventDef } from './types'
@@ -194,11 +194,13 @@ export function heatPointsExplained(state: EventState, heat: Heat, name: string)
   const beaten = heat.order.length - 1 - pos
   const won = pos === 0 && heat.order.length > 1 && sc.win > 0
   const fair = sc.method === 'fair'
-  const sum = [`${beaten} Gegner${fair ? '' : ` × ${fmt1(sc.perBeaten)}`}`, won ? `Sieg ${fmt1(sc.win)}` : null].filter(Boolean).join(' + ')
+  const close = heat.close?.get(name) ?? 0
+  const sum = [beaten || !close ? `${beaten} Gegner${fair ? '' : ` × ${fmt1(sc.perBeaten)}`}` : null, won ? `Sieg ${fmt1(sc.win)}` : null, close ? `knapp dran ${fmt1(close)}` : null].filter(Boolean).join(' + ')
   const out = [`${sum} = ${fmt1(pts)} Pkt.`]
+  if (close) out.push(`Knapp verloren: je knapper hinter dem Vordermann, desto mehr (gleichauf die Hälfte, ab ${CLOSE_LOSS_LAPS} Runden nichts).`)
   const biggest = Math.max(0, ...(sec?.heats.filter((h) => h.kind === heat.kind).map((h) => h.entrants.length) ?? []))
-  const raw = beaten * sc.perBeaten + (won ? sc.win : 0)
-  if (fair) out.push('Gegen Stärkere mehr, gegen Schwächere weniger.')
+  const raw = beaten * sc.perBeaten + (won ? sc.win : 0) + close
+  if (fair && !close) out.push('Gegen Stärkere mehr, gegen Schwächere weniger.')
   else if (raw > 0 && Math.abs(raw - pts) > 0.05) out.push(`Hochgerechnet auf ${biggest} Fahrer.`)
   if (sec?.def.format === 'team') out.push(state.separate ? 'Zählt nur für die Teamwertung.' : 'Zählt als Teampunkte (Schnitt im Team).')
   else {

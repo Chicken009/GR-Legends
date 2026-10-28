@@ -4,7 +4,7 @@ import { eventSessions } from '../../data/useRaceDays'
 import { carScale } from '../../data/settings'
 import { isGuest } from '../../domain/drivers'
 import { eventCars, eventContext, typicalLapMs } from '../../domain/event/context'
-import { carCap, TEAMS_BY_AVERAGE_FROM, teamsAsDefs, teamSplit, type Heat, type TeamPlan, type TeamState } from '../../domain/event/engine'
+import { carCap, CLOSE_LOSS_LAPS, TEAMS_BY_AVERAGE_FROM, teamsAsDefs, teamSplit, type Heat, type TeamPlan, type TeamState } from '../../domain/event/engine'
 import { todayIso } from '../../domain/event/insights'
 import { RATING } from '../../domain/rating'
 import { eventSlug, normalizeEvent, serializeEvent } from '../../domain/event/normalize'
@@ -577,6 +577,12 @@ function ScoringCard({ def, update }: { def: EventDef; update: (p: Partial<Event
         <label className="check" style={{ alignSelf: 'flex-start', height: 'auto', minHeight: 34, whiteSpace: 'normal' }}>
           <input type="checkbox" checked={!!sc.fairWin} onChange={(e) => set({ fairWin: e.target.checked || undefined })} />
           Siegbonus fair: auch den Siegbonus nach Stärke gewichten (Sieg gegen Stärkere bis doppelt)
+        </label>
+      )}
+      {sc.method !== 'place' && (
+        <label className="check" style={{ alignSelf: 'flex-start', height: 'auto', minHeight: 34, whiteSpace: 'normal' }}>
+          <input type="checkbox" checked={!!sc.closeLoss} onChange={(e) => set({ closeLoss: e.target.checked || undefined })} />
+          Knapp verloren zählt: weniger als {CLOSE_LOSS_LAPS} Runden hinter einem Gegner gibt anteilig Punkte (gleichauf die Hälfte eines Siegs gegen ihn)
         </label>
       )}
       {/* Punkte-Einstellungen nur bei „Punkte“ und „Fair“ */}

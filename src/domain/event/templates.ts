@@ -71,7 +71,8 @@ export function newEvent(today: string, template = TEMPLATES[0]): EventDef {
     showPlan: 'now',
     maxPerHeat: 4,
     cars: { ...DEFAULT_CARS },
-    scoring: { ...DEFAULT_SCORING, ...t.scoring },
+    // Neue Wettkämpfe: knapp verloren zählt (bestehende behalten ihre Wertung)
+    scoring: { ...DEFAULT_SCORING, closeLoss: true, ...t.scoring },
     teams: t.teams,
     countInStats: true,
     seed: Math.random().toString(36).slice(2, 8),

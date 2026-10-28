@@ -275,6 +275,34 @@ describe('Rennen, K.-o. und Teams', () => {
     expect(normal.standings[0].total).toBeLessThan(0.5)
   })
 
+  it('Knapp verloren zählt: anteilig nach Abstand, ab 2 Runden nichts, Sieger behält alles', () => {
+    const race = (gap: Result['gap'], lapsB = 10): Session => {
+      const s = run('race', ['A', 'G'])
+      s.results[0].lapTimes = Array.from({ length: 10 }, (_, k) => ({ number: k + 1, ms: 10000, status: 'normal' as const }))
+      s.results[1] = { ...s.results[1], gap, laps: lapsB, lapTimes: Array.from({ length: lapsB }, (_, k) => ({ number: k + 1, ms: 10500, status: 'normal' as const })) }
+      return s
+    }
+    const sc = { perBeaten: 1, win: 0, fastestLap: 0, pole: 0, driverOfDay: 0, personalBest: 0, closeLoss: true }
+    const abs = def({ drivers: ['A', 'G'], scoring: { method: 'absolute', ...sc }, sections: [newSection('races', { id: 'r', rounds: 1 })] } as never)
+    const pts = (d: EventDef, s: Session) => computeEvent(d, ctx([s])).heats[0].points
+    // Punkte: gleichauf ½, eine Runde (10 s) Rückstand ¼, ab 2 Runden nichts; der Sieger behält 1
+    expect(pts(abs, race({ kind: 'time', ms: 0 })).get('G')).toBe(0.5)
+    expect(pts(abs, race({ kind: 'time', ms: 10000 })).get('G')).toBe(0.3)
+    expect(pts(abs, race({ kind: 'time', ms: 25000 })).get('G')).toBe(0)
+    expect(pts(abs, race({ kind: 'time', ms: 0 })).get('A')).toBe(1)
+    // „+1 Runde(n)“: Abstand aus den Rundenzeiten (9 × 0,5 s = 4,5 s)
+    expect(pts(abs, race({ kind: 'laps', laps: 1 }, 9)).get('G')).toBe(0.4)
+    // Ohne Haken wie bisher
+    expect(pts(normalizeEvent({ ...abs, scoring: { ...abs.scoring, closeLoss: undefined } }), race({ kind: 'time', ms: 0 })).get('G')).toBe(0)
+    // Fair (300 Elo Unterschied): gleichauf die Hälfte dessen, was ein Sieg gebracht hätte – der Schwächere bekommt mehr
+    const fair = normalizeEvent({ ...abs, scoring: { ...abs.scoring, method: 'fair' } })
+    const tie = pts(fair, race({ kind: 'time', ms: 0 }))
+    expect(tie.get('G')).toBe(1)
+    const flipped = run('race', ['G', 'A'])
+    flipped.results[1].gap = { kind: 'time', ms: 0 }
+    expect(pts(fair, flipped).get('A')).toBeLessThan(0.2)
+  })
+
   it('lässt bei Positionsduellen den Schwächsten eines kleineren Teams doppelt fahren', () => {
     const d = def({ drivers: ['A', 'B', 'C', 'D', 'E'], maxPerHeat: 4, teams: { mode: 'manual', size: 3, teams: [{ name: 'X', drivers: ['A', 'B', 'C'] }, { name: 'Y', drivers: ['D', 'E'] }] }, sections: [newSection('team', { id: 't' })] })
     const s = computeEvent(d, ctx())

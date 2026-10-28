@@ -124,6 +124,7 @@ export function normalizeEvent(raw: unknown, fallbackName = ''): EventDef {
       clean: num(scoring.clean, DEFAULT_SCORING.clean, 0, 100),
       finaleFactor: num(scoring.finaleFactor, DEFAULT_SCORING.finaleFactor, 1, 5),
       ...(scoring.fairWin === true ? { fairWin: true } : {}),
+      ...(scoring.closeLoss === true ? { closeLoss: true } : {}),
     },
     teams: normalizeTeams(raw.teams),
     countInStats: raw.countInStats !== false,

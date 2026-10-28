@@ -5,7 +5,7 @@ import { eventSessions } from '../../data/useRaceDays'
 import type { EventFolder } from '../../data/events'
 import { carScale } from '../../data/settings'
 import { eventCars, eventContext, typicalLapMs } from '../../domain/event/context'
-import { byPlace, computeEvent, type EventState, type Heat, type Standing, type TeamStanding } from '../../domain/event/engine'
+import { byPlace, CLOSE_LOSS_LAPS, computeEvent, type EventState, type Heat, type Standing, type TeamStanding } from '../../domain/event/engine'
 import { eventFinished, eventPhase, lastDay, todayIso, withoutTeams, type EventPhase, type Story } from '../../domain/event/insights'
 import { eventKind, heatPointsExplained, pointsHistory, stages, teamContributions, type ProgressStep, type Stage } from '../../domain/event/progress'
 import { FORMAT_LABEL, type EventDef } from '../../domain/event/types'
@@ -692,6 +692,7 @@ export function rulesText(def: EventDef, state: EventState): string[] {
       ? `Wertung „Fair“: Für jeden geschlagenen Gegner gibt es bis zu ${fmtPts(sc.perBeaten * 2)} Punkte – je stärker der Gegner laut Elo (mit Auto), desto mehr. Gegen einen Gleichstarken ${fmtPts(sc.perBeaten)}. Sieg +${fmtPts(sc.win)}${sc.fairWin ? ', ebenfalls nach Stärke gewichtet (bis doppelt)' : ''}.`
       : `Pro Rennen ${fmtPts(sc.perBeaten)} ${sc.perBeaten === 1 ? 'Punkt' : 'Punkte'} je geschlagenem Gegner, Sieg +${fmtPts(sc.win)}.`,
   )
+  if (!place && sc.closeLoss) out.push(`Knapp verloren zählt: Wer weniger als ${CLOSE_LOSS_LAPS} Runden hinter einem Gegner ins Ziel kommt, bekommt anteilig, was ein Sieg gegen ihn gebracht hätte – gleichauf die Hälfte, je größer der Abstand, desto weniger. Der Sieger behält seine Punkte.`)
   for (const s of state.sections) {
     const d = s.def
     const what =

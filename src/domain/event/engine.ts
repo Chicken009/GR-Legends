@@ -1,4 +1,4 @@
-import type { Session } from '../../types'
+import type { Result, Session } from '../../types'
 import { isGuest } from '../drivers'
 import { isQuali, RATING } from '../rating'
 import { hashString, shuffle } from './random'
@@ -61,6 +61,8 @@ export interface Heat {
   points: Map<string, number>
   /** Teamrennen: Punkte je Team */
   teamPoints: Map<string, number> | null
+  /** „Knapp verloren zählt“: in `points` enthaltene Punkte für knappe Niederlagen */
+  close: Map<string, number> | null
   /** Aufstiegsleiter / K.-o.: wer aus diesem Lauf weiterkommt (Punkte gibt es hier erst für den Endstand) */
   advancing: string[] | null
   /** Rundenzahl laut Plan */
@@ -299,7 +301,7 @@ interface Env {
 const strengthOf = (env: Env, name: string, car?: string, at?: Session) => env.ctx.elo(name, at) + (car ? env.ctx.car(car, at) : 0)
 
 /** Punkte für eine Reihenfolge: je geschlagenem Gegner + Sieg; fair: gegen Stärkere mehr */
-function orderPoints(env: Env, order: string[], strength: (n: string) => number): Map<string, number> {
+function orderPoints(env: Env, order: string[], strength: (n: string) => number, closeness?: (behind: string, ahead: string) => number, close?: Map<string, number>): Map<string, number> {
   const sc = env.def.scoring
   const pts = new Map<string, number>()
   order.forEach((name, i) => {
@@ -308,10 +310,54 @@ function orderPoints(env: Env, order: string[], strength: (n: string) => number)
       if (sc.method === 'fair') p += 2 * (1 - winProb(strength(name), strength(order[j]))) * sc.perBeaten
       else p += sc.perBeaten
     }
+    // Knapp verloren: anteilig, was ein Sieg gegen den Vordermann gebracht hätte (kein Abzug für den Sieger)
+    if (closeness && sc.closeLoss) {
+      let c = 0
+      for (let j = 0; j < i; j++) c += closeness(name, order[j]) * (sc.method === 'fair' ? 2 * (1 - winProb(strength(name), strength(order[j]))) : 1) * sc.perBeaten
+      c = Math.round(c * 10) / 10
+      if (c > 0) {
+        p += c
+        close?.set(name, c)
+      }
+    }
     if (i === 0 && order.length > 1) p += winBonus(env, name, order.slice(1), strength)
     pts.set(name, Math.round(p * 10) / 10)
   })
   return pts
+}
+
+/** Ab so vielen Runden Rückstand auf den Vordermann gibt es keine Punkte für eine knappe Niederlage */
+export const CLOSE_LOSS_LAPS = 2
+
+/**
+ * Wie knapp `behind` hinter `ahead` ins Ziel kam: ½ bei gleichauf, linear bis 0 bei CLOSE_LOSS_LAPS
+ * Runden Rückstand (Maß ist die schnellste Runde des Vordermanns). Der Abstand kommt aus der Spalte
+ * „Abstand“; fehlt er oder steht dort „+1 Runde(n)“, aus den Rundenzeiten: Zeit, die `behind` für seine
+ * Runden brauchte, minus die Zeit, die `ahead` für gleich viele Runden brauchte.
+ */
+export function closenessIn(session: Session): (behind: string, ahead: string) => number {
+  const row = new Map(session.results.map((r) => [r.driver, r]))
+  const timeGap = (n: string) => {
+    const g = row.get(n)?.gap
+    return g?.kind === 'leader' ? 0 : g?.kind === 'time' ? g.ms : null
+  }
+  const byLaps = (b: Result, a: Result) => {
+    const n = b.lapTimes.length
+    if (!n || a.lapTimes.length < n) return null
+    const sum = (r: Result) => r.lapTimes.slice(0, n).reduce((x, l) => x + l.ms, 0)
+    return sum(b) - sum(a)
+  }
+  return (behind, ahead) => {
+    const b = row.get(behind)
+    const a = row.get(ahead)
+    if (!a || !b) return 0
+    const lap = a.validBestLapMs ?? a.bestLapMs
+    const tb = timeGap(behind)
+    const ta = timeGap(ahead)
+    const gap = tb != null && ta != null ? tb - ta : byLaps(b, a)
+    if (!lap || gap == null || gap < 0) return 0
+    return 0.5 * Math.max(0, 1 - gap / (CLOSE_LOSS_LAPS * lap))
+  }
 }
 
 /** Siegbonus; mit „Siegbonus fair“ nach Stärke gewichtet wie die Duelle (gegen Stärkere bis doppelt) */
@@ -468,6 +514,7 @@ function addHeat(
     order: [],
     points: new Map(),
     teamPoints: null,
+    close: null,
     advancing: null,
     grid: null,
     gridFrom: null,
@@ -483,7 +530,9 @@ function addHeat(
     heat.status = 'done'
     heat.order = finishOrder(session, heat.kind)
     const driven = new Map(session.results.map((r) => [r.driver, r.car]))
-    heat.points = orderPoints(env, heat.order, (n) => strengthOf(env, n, driven.get(n), session))
+    const close = new Map<string, number>()
+    heat.points = orderPoints(env, heat.order, (n) => strengthOf(env, n, driven.get(n), session), heat.kind === 'race' ? closenessIn(session) : undefined, close)
+    heat.close = close.size ? close : null
     // Gefahrene Besetzung gilt (auch wenn jemand eingesprungen ist)
     heat.entrants = heat.order.map(named)
   }
@@ -1167,7 +1216,7 @@ export const byPlace = (def: EventDef) => def.scoring.method === 'place'
 export function computeEvent(def: EventDef, ctx: EventContext): EventState {
   if (!byPlace(def)) return computeByPoints(def, ctx)
   const none = { fastestLap: 0, pole: 0, driverOfDay: 0, personalBest: 0, clean: 0, finaleFactor: 1 }
-  const state = computeByPoints({ ...def, scoring: { ...def.scoring, ...none, method: 'absolute', fairWin: undefined } }, ctx)
+  const state = computeByPoints({ ...def, scoring: { ...def.scoring, ...none, method: 'absolute', fairWin: undefined, closeLoss: undefined } }, ctx)
   const scoring = state.sections.filter((s) => s.def.weight > 0 && s.def.format !== 'free' && s.ranking.length)
   const rankIn = (s: SectionState, n: string) => s.ranking.find((r) => r.name === n)?.rank ?? 999
   // Letzter Abschnitt zuerst, dann die davor; zuletzt die (internen) Punkte

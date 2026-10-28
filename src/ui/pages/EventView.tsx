@@ -462,7 +462,7 @@ function PointsRules({ state, note }: { state: EventState; note: string | null }
         </div>
         <PointsLadder points={placePoints(def, n)} color={EVENT_ACCENT} label={`Punkte je Platz bei ${n} Fahrern`} />
         <span style={{ fontSize: 13, color: 'var(--text-2)' }}>
-          {sc.method === 'fair' ? `Je Gegner hinter dir ${fmtPts(sc.perBeaten)} Pkt. – gegen Stärkere bis ${fmtPts(sc.perBeaten * 2)}` : `Je Gegner hinter dir ${fmtPts(sc.perBeaten)} Pkt.`}, Sieg +{fmtPts(sc.win)}
+          {sc.method === 'fair' ? `Je Gegner hinter dir ${fmtPts(sc.perBeaten)} Pkt. – gegen Stärkere bis ${fmtPts(sc.perBeaten * 2)}` : `Je Gegner hinter dir ${fmtPts(sc.perBeaten)} Pkt.`}, Sieg +{fmtPts(sc.win)}{sc.closeLoss ? ', knapp verloren anteilig' : ''}
         </span>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <span style={{ fontSize: 12, color: 'var(--muted)' }}>So zählen die Abschnitte</span>
