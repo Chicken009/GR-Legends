@@ -8,12 +8,15 @@ export function BumpChart({
   colors,
   me,
   axis,
+  short = (n: string) => shortName(n).slice(0, 10),
 }: {
   dates: string[]
   series: { name: string; ranks: (number | null)[] }[]
   colors: Map<string, string>
   me: string | null
   axis?: string[]
+  /** Kurzname für die Beschriftung rechts (Teams: ganzer Name) */
+  short?: (name: string) => string
 }) {
   const [ref, width] = useWidth<HTMLDivElement>()
   const maxRank = Math.max(4, ...series.flatMap((s) => s.ranks.filter((r): r is number => r != null)))
@@ -59,7 +62,7 @@ export function BumpChart({
         })}
         {labels.map((l, i) => (
           <text key={l.s.name} x={width - labelW + 12} y={labelY[i] + 4} fill={colors.get(l.s.name)} fontSize="11" fontWeight={l.s.name === me ? 700 : 600}>
-            {l.rank} {l.s.name === me ? 'Du' : shortName(l.s.name).slice(0, 10)}
+            {l.rank} {l.s.name === me ? 'Du' : short(l.s.name)}
           </text>
         ))}
         {tickIdx.map((i) => (

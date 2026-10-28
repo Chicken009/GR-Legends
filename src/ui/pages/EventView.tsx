@@ -24,9 +24,8 @@ import {
   finishedOf,
   Ceremony,
   TeamCard,
-  ProgressChart,
+  EventCharts,
   Pts,
-  RankChart,
   RecapBanner,
   rulesText,
   StandingsList,
@@ -154,8 +153,7 @@ export function EventView() {
               </div>
               <StandingsList state={state} me={me} steps={steps} />
             </section>
-            <ProgressChart state={state} steps={steps} me={me} />
-            <RankChart state={state} steps={steps} me={me} />
+            <EventCharts state={state} steps={steps} me={me} />
             {!finished && <RecapBanner id={id} state={state} me={me} done={false} />}
           </>
         ) : (
@@ -171,6 +169,7 @@ export function EventView() {
             {state.teamStandings.map((t) => (
               <TeamCard key={t.id} state={state} team={t} me={me} />
             ))}
+            <EventCharts state={state} steps={steps} me={me} teamsFirst />
           </>
         ) : (
           <TeamList state={state} />

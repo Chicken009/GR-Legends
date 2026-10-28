@@ -3,7 +3,7 @@ import type { Result, Session } from '../../types'
 import { computeEvent, type EventContext } from './engine'
 import { withoutTeams } from './insights'
 import { normalizeEvent } from './normalize'
-import { eventKind, eventProgress, teamContributions, heatPointsExplained, myRecap, placePoints, pointsHistory, recapFacts, recapMoments, waitFor } from './progress'
+import { eventKind, eventProgress, stages, teamContributions, heatPointsExplained, myRecap, placePoints, pointsHistory, recapFacts, recapMoments, waitFor } from './progress'
 import { newSection } from './templates'
 
 const ELO: Record<string, number> = { A: 700, B: 650, C: 600, D: 550 }
@@ -112,5 +112,16 @@ describe('Punkteverlauf und Rückblick', () => {
     expect(rot[0].points).toBeGreaterThan(rot[1].points)
     const mixed = normalizeEvent({ ...teamDef, sections: [newSection('races', { id: 'r', rounds: 1 }), newSection('team', { id: 't' })] })
     expect(eventKind(computeEvent(mixed, ctx()))).toBe('mixed')
+  })
+
+  it('fasst den Verlauf zu Etappen zusammen', () => {
+    const sessions = play(['D', 'C', 'B', 'A'], 4)
+    const state = computeEvent(def, ctx(sessions))
+    const st = stages(state, pointsHistory(def, ctx(sessions)))
+    expect(st.map((x) => x.short)).toEqual(['Start', 'R1', 'R'])
+    expect(st[1].label).toBe('Rennen: jeder 1× gefahren')
+    // Läuft noch: der aktuelle Stand kommt als „jetzt“ dazu
+    const three = play(['D', 'C', 'B', 'A'], 3)
+    expect(stages(computeEvent(def, ctx(three)), pointsHistory(def, ctx(three))).map((x) => x.short)).toEqual(['Start', 'R1', 'jetzt'])
   })
 })

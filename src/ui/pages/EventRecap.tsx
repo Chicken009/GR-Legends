@@ -1,7 +1,7 @@
 import { useNavigate, useParams } from 'react-router-dom'
 import type { EventState } from '../../domain/event/engine'
 import { driverInsight } from '../../domain/event/insights'
-import { eventKind, eventNumbers, myRecap, recapFacts, type ProgressStep } from '../../domain/event/progress'
+import { eventKind, eventNumbers, myRecap, recapFacts, stages, type ProgressStep } from '../../domain/event/progress'
 import { BumpChart } from '../charts/StatsCharts'
 import { ME, seriesColors } from '../colors'
 import { Avatar, useData, useMyName } from '../components'
@@ -117,6 +117,9 @@ export function eventCards(state: EventState, steps: ProgressStep[], me: string 
 
   if (f.leaders.length >= 3) {
     const names = state.standings.map((s) => s.name)
+    // Viele Läufe: Platz nach jeder Etappe statt nach jedem Lauf
+    const st = stages(state, steps).slice(1)
+    const path = st.length >= 2 && steps.length > 8 ? st : steps.slice(1).map((s, i) => ({ ...s, short: String(i + 1) }))
     cards.push({
       key: 'spitze',
       kicker: 'Das Rennen um die Spitze',
@@ -143,9 +146,9 @@ export function eventCards(state: EventState, steps: ProgressStep[], me: string 
             </Line>
           </Group>
           <BumpChart
-            dates={steps.slice(1).map((s, i) => s.heatId ?? String(i))}
-            axis={steps.slice(1).map((_, i) => `${i + 1}`)}
-            series={names.map((n) => ({ name: n, ranks: steps.slice(1).map((s) => s.ranks.get(n) ?? null) }))}
+            dates={path.map((s, i) => s.heatId ?? String(i))}
+            axis={path.map((s) => s.short)}
+            series={names.map((n) => ({ name: n, ranks: path.map((s) => s.ranks.get(n) ?? null) }))}
             colors={seriesColors(names, me)}
             me={me}
           />

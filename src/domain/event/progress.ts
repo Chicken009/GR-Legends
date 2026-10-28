@@ -13,6 +13,8 @@ const fmtSec = (ms: number, digits = 3) => `${(ms / 1000).toLocaleString('de-DE'
 export interface ProgressStep {
   /** Lauf, nach dem dieser Stand gilt (null = Start) */
   heatId: string | null
+  /** Alle Läufe, die mit diesem Stand fertig wurden (zusammengefasste Läufe ohne Punkteänderung eingeschlossen) */
+  heatIds: string[]
   label: string
   totals: Map<string, number>
   ranks: Map<string, number>
@@ -20,9 +22,10 @@ export interface ProgressStep {
   teams: Map<string, number>
 }
 
-function stepOf(state: EventState, heat: Heat | null): ProgressStep {
+function stepOf(state: EventState, heat: Heat | null, heatIds: string[] = []): ProgressStep {
   return {
     heatId: heat?.id ?? null,
+    heatIds,
     label: heat ? heat.label : 'Start',
     totals: new Map(state.standings.map((s) => [s.name, s.total])),
     ranks: new Map(state.standings.map((s) => [s.name, s.rank])),
@@ -47,14 +50,75 @@ export function pointsHistory(def: EventDef, ctx: EventContext): ProgressStep[] 
     if (!fresh.length) continue
     if (!steps.length) steps.push(stepOf(computeEvent(def, { ...ctx, sessions: [] }), null))
     done = new Set(nowDone.map((h) => h.id))
-    const step = stepOf(state, fresh[fresh.length - 1])
+    const step = stepOf(state, fresh[fresh.length - 1], fresh.map((h) => h.id))
     // Läufe ohne Punkteänderung (z. B. Qualifying, das nur die Startreihenfolge festlegt) zusammenfassen
     const prev = steps[steps.length - 1]
     const same = [...step.totals].every(([n, v]) => prev.totals.get(n) === v) && [...step.teams].every(([n, v]) => prev.teams.get(n) === v)
     if (!same) steps.push(step)
-    else if (steps.length > 1) steps[steps.length - 1] = { ...step, ranks: prev.ranks }
+    else if (steps.length > 1) steps[steps.length - 1] = { ...step, ranks: prev.ranks, heatIds: [...prev.heatIds, ...step.heatIds] }
   }
   return steps
+}
+
+/** Stand an einem Etappenpunkt; `short` für die Achse („Q“, „T2“), `label` für den Tooltip */
+export interface Stage extends ProgressStep {
+  short: string
+}
+
+const abbr = (name: string) =>
+  name
+    .split(/[\s-]+/)
+    .filter(Boolean)
+    .map((w) => w[0].toUpperCase())
+    .join('')
+    .slice(0, 2)
+
+/**
+ * Etappen statt einzelner Läufe: ein Stand, wenn ein Abschnitt fertig ist („nach Qualifying“), und
+ * innerhalb eines Abschnitts, sobald alle Beteiligten gleich oft gefahren sind („Teamrennen: jeder
+ * 2×“) – so vergleicht man nur Stände, an denen niemand einen Lauf mehr hat. Läuft der Wettkampf
+ * noch, kommt der aktuelle Stand als „jetzt“ dazu.
+ */
+export function stages(state: EventState, steps: ProgressStep[]): Stage[] {
+  if (steps.length < 2) return []
+  const heatById = new Map(state.heats.map((h) => [h.id, h]))
+  const sectionName = new Map(state.sections.map((s) => [s.def.id, s.def.name]))
+  const sectionHeats = new Map(state.sections.map((s) => [s.def.id, s.heats]))
+  const done = new Set<string>()
+  const counts = new Map<string, Map<string, number>>()
+  const lastEqual = new Map<string, number>()
+  const out: Stage[] = [{ ...steps[0], short: 'Start' }]
+  steps.slice(1).forEach((step, k) => {
+    let hit: { label: string; short: string } | null = null
+    for (const id of step.heatIds) {
+      done.add(id)
+      const h = heatById.get(id)
+      if (!h) continue
+      const c = counts.get(h.sectionId) ?? new Map<string, number>()
+      for (const n of h.order) c.set(n, (c.get(n) ?? 0) + 1)
+      counts.set(h.sectionId, c)
+    }
+    for (const sid of new Set(step.heatIds.map((id) => heatById.get(id)?.sectionId).filter((x): x is string => !!x))) {
+      const name = sectionName.get(sid) ?? ''
+      const heats = sectionHeats.get(sid) ?? []
+      if (heats.length && heats.every((h) => done.has(h.id))) {
+        hit = { label: `nach ${name}`, short: abbr(name) }
+        continue
+      }
+      const c = counts.get(sid)!
+      const people = new Set(heats.flatMap((h) => [...h.order, ...h.entrants.map((e) => e.name).filter((n): n is string => !!n)]))
+      const values = [...people].map((n) => c.get(n) ?? 0)
+      const n = values[0] ?? 0
+      if (n > 0 && values.every((v) => v === n) && n > (lastEqual.get(sid) ?? 0)) {
+        lastEqual.set(sid, n)
+        hit ??= { label: `${name}: jeder ${n}× gefahren`, short: `${abbr(name)}${n}` }
+      }
+    }
+    const last = k === steps.length - 2
+    if (hit) out.push({ ...step, ...hit })
+    else if (last && !state.complete) out.push({ ...step, label: `jetzt (nach ${step.label})`, short: 'jetzt' })
+  })
+  return out
 }
 
 // ---- Wann bin ich dran? ----------------------------------------------------------------------

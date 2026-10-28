@@ -7,10 +7,10 @@ import { carScale } from '../../data/settings'
 import { eventCars, eventContext, typicalLapMs } from '../../domain/event/context'
 import { computeEvent, type EventState, type Heat, type Standing, type TeamStanding } from '../../domain/event/engine'
 import { eventFinished, eventPhase, lastDay, todayIso, withoutTeams, type EventPhase, type Story } from '../../domain/event/insights'
-import { eventKind, heatPointsExplained, pointsHistory, teamContributions, type ProgressStep } from '../../domain/event/progress'
+import { eventKind, heatPointsExplained, pointsHistory, stages, teamContributions, type ProgressStep, type Stage } from '../../domain/event/progress'
 import { FORMAT_LABEL, type EventDef } from '../../domain/event/types'
 import { RATING } from '../../domain/rating'
-import { AREA, ME, SERIES, seriesColors, shade } from '../colors'
+import { AREA, ME, SERIES, shade } from '../colors'
 import { PointsChart } from '../charts/PointsChart'
 import { DonutChart } from '../charts/DonutChart'
 import { Sparkline } from '../charts/Sparkline'
@@ -232,65 +232,80 @@ export function TeamList({ state }: { state: EventState }) {
   )
 }
 
-/** Punkteverlauf: Stand nach jedem Lauf – alle Fahrer (du in Grün) oder Teams in Teamfarben */
-export function ProgressChart({ state, steps, me }: { state: EventState; steps: ProgressStep[]; me: string | null }) {
-  const [view, setView] = useState<'fahrer' | 'teams'>('fahrer')
-  if (steps.length < 3) return null
-  const teams = state.teamStandings.length > 0
-  const shown = view === 'teams' && teams ? 'teams' : 'fahrer'
-  const names = state.standings.map((s) => s.name)
-  let i = 0
-  const series =
-    shown === 'teams'
-      ? state.teamStandings.map((t) => ({ name: t.name, color: teamColor(t.id, t.name), values: steps.map((s) => s.teams.get(t.id) ?? 0) }))
-      : names.map((n) => ({ name: n, color: n === me ? ME : SERIES[i++ % SERIES.length], values: steps.map((s) => s.totals.get(n) ?? 0) }))
-  return (
-    <section className="card" style={{ gap: 8 }}>
-      <div className="card-head">
-        <span className="card-title">Punkteverlauf</span>
-        <span className="hint">{shown === 'teams' ? 'Teams' : 'alle Fahrer'} · nach jedem Lauf</span>
-      </div>
-      {teams && (
-        <Segment
-          small
-          value={shown}
-          onChange={setView}
-          label="Verlauf für"
-          options={[
-            ['fahrer', 'Fahrer'],
-            ['teams', 'Teams'],
-          ]}
-        />
-      )}
-      <PointsChart
-        dates={steps.map((s, k) => s.heatId ?? `start-${k}`)}
-        axis={steps.map((_, k) => (k === 0 ? 'Start' : String(k)))}
-        tips={steps.map((s) => (s.heatId ? `nach ${s.label}` : 'zu Beginn'))}
-        series={series}
-        label={`Punkteverlauf ${state.def.name}`}
-      />
-    </section>
-  )
+/** Plätze aus Punkten (gleiche Punkte = gleicher Platz) */
+function ranksOf(points: Map<string, number>): Map<string, number> {
+  const sorted = [...points].sort((a, b) => b[1] - a[1])
+  const out = new Map<string, number>()
+  sorted.forEach(([id, p], i) => out.set(id, i > 0 && sorted[i - 1][1] === p ? out.get(sorted[i - 1][0])! : i + 1))
+  return out
 }
 
-/** Rangverlauf: Platz nach jedem Lauf, alle Fahrer (wie in der Saison) */
-export function RankChart({ state, steps, me }: { state: EventState; steps: ProgressStep[]; me: string | null }) {
+/**
+ * Verlauf in einer Karte: Punkte oder Platz, Fahrer oder Teams, je Etappe oder je Lauf. Etappen
+ * (nach jedem Abschnitt, „jeder 2× gefahren“) sind Voreinstellung, sobald es viele Läufe sind – dann
+ * vergleicht man nur Stände, an denen niemand einen Lauf mehr hat.
+ */
+export function EventCharts({ state, steps, me, teamsFirst }: { state: EventState; steps: ProgressStep[]; me: string | null; teamsFirst?: boolean }) {
+  const [metric, setMetric] = useState<'punkte' | 'platz'>('punkte')
+  const [who, setWho] = useState<'fahrer' | 'teams'>(teamsFirst ? 'teams' : 'fahrer')
+  const st = stages(state, steps)
+  const canStage = st.length >= 3 && st.length < steps.length
+  const [by, setBy] = useState<'etappen' | 'laeufe'>(canStage && steps.length > 7 ? 'etappen' : 'laeufe')
   if (steps.length < 3) return null
-  const names = state.standings.map((s) => s.name)
-  const played = steps.slice(1)
+  const teams = state.teamStandings.length > 0 && state.teamStandings.some((t) => t.points !== 0)
+  const shownWho = who === 'teams' && teams ? 'teams' : 'fahrer'
+  const useStages = by === 'etappen' && canStage
+  const points: Stage[] = useStages ? st : steps.map((x, k) => ({ ...x, short: k === 0 ? 'Start' : String(k), label: x.heatId ? `nach ${x.label}` : 'zu Beginn' }))
+  const keys = points.map((x, k) => x.heatId ?? `start-${k}`)
+  const names = state.standings.map((x) => x.name)
+  let i = 0
+  const driverColor = new Map(names.map((n) => [n, n === me ? ME : SERIES[i++ % SERIES.length]]))
   return (
-    <section className="card" style={{ gap: 8 }}>
+    <section className="card" style={{ gap: 10 }}>
       <div className="card-head">
-        <span className="card-title">Rangverlauf</span>
-        <span className="hint">Platz nach jedem Lauf</span>
+        <span className="card-title">Verlauf</span>
+        <span className="hint">{useStages ? 'je Etappe' : 'je Lauf'} · antippen</span>
       </div>
-      <BumpChart
-        dates={played.map((s, k) => s.heatId ?? String(k))}
-        axis={played.map((_, k) => String(k + 1))}
-        series={names.map((n) => ({ name: n, ranks: played.map((s) => s.ranks.get(n) ?? null) }))}
-        colors={seriesColors(names, me)}
-        me={me}
-      />
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <Segment small value={metric} onChange={setMetric} label="Wert" options={[['punkte', 'Punkte'], ['platz', 'Platz']]} />
+        {teams && <Segment small value={shownWho} onChange={setWho} label="Für" options={[['fahrer', 'Fahrer'], ['teams', 'Teams']]} />}
+      </div>
+      {metric === 'punkte' ? (
+        <PointsChart
+          dates={keys}
+          axis={points.map((x) => x.short)}
+          tips={points.map((x) => x.label)}
+          series={
+            shownWho === 'teams'
+              ? state.teamStandings.map((t) => ({ name: t.name, color: teamColor(t.id, t.name), values: points.map((x) => x.teams.get(t.id) ?? 0) }))
+              : names.map((n) => ({ name: n, color: driverColor.get(n)!, values: points.map((x) => x.totals.get(n) ?? 0) }))
+          }
+          label={`Punkteverlauf ${state.def.name}`}
+          short={shownWho === 'teams' ? (n) => n : undefined}
+        />
+      ) : (
+        <BumpChart
+          dates={keys.slice(1)}
+          axis={points.slice(1).map((x) => x.short)}
+          series={
+            shownWho === 'teams'
+              ? state.teamStandings.map((t) => ({ name: t.name, ranks: points.slice(1).map((x) => ranksOf(x.teams).get(t.id) ?? null) }))
+              : names.map((n) => ({ name: n, ranks: points.slice(1).map((x) => x.ranks.get(n) ?? null) }))
+          }
+          colors={shownWho === 'teams' ? new Map(state.teamStandings.map((t) => [t.name, teamColor(t.id, t.name)])) : driverColor}
+          me={shownWho === 'teams' ? null : me}
+          short={shownWho === 'teams' ? (n) => n : undefined}
+        />
+      )}
+      {canStage && <Segment small value={by} onChange={setBy} label="Einteilung" options={[['etappen', 'Je Etappe'], ['laeufe', 'Je Lauf']]} />}
+      {useStages && (
+        <span style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.4 }}>
+          {points
+            .slice(1)
+            .map((x) => `${x.short} = ${x.label}`)
+            .join(' · ')}
+        </span>
+      )}
     </section>
   )
 }
