@@ -604,7 +604,14 @@ export function TeamCard({ state, team, me }: { state: EventState; team: TeamSta
             {byTotal ? 'Punkte der Mitglieder' : 'Punkte in den Teamrennen'}
           </span>
           <DonutChart
-            parts={parts.map((p, i) => ({ label: p.name === me ? 'Du' : p.name, value: p.points, color: shade(color, i) }))}
+            parts={parts.map((p, i) => ({
+              label: p.name === me ? 'Du' : p.name,
+              value: p.points,
+              color: shade(color, i),
+              // Ohne Punkte: kleiner, blasser Abschnitt – so fehlt niemand
+              note: p.points > 0 ? undefined : p.races ? `0 Pkt. aus ${p.races} ${p.races === 1 ? 'Lauf' : 'Läufen'}` : 'noch nicht gefahren',
+            }))}
+            minShare={0.06}
             center={fmtPts(Math.round(total * 10) / 10)}
             sub="Pkt. gesamt"
             label={`Beiträge im ${team.name}`}
@@ -612,14 +619,6 @@ export function TeamCard({ state, team, me }: { state: EventState; team: TeamSta
             format={fmtPts}
             labeled
           />
-          {/* Ohne Punkte hat ein Mitglied keinen Abschnitt im Ring – es soll trotzdem nicht fehlen */}
-          {parts
-            .filter((p) => p.points <= 0)
-            .map((p) => (
-              <span key={p.name} style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center' }}>
-                <b style={{ color: p.name === me ? 'var(--me)' : 'var(--text-2)' }}>{p.name === me ? 'Du' : p.name}</b>: {p.races ? `0 Pkt. aus ${p.races} ${p.races === 1 ? 'Lauf' : 'Läufen'}` : 'noch nicht gefahren'}
-              </span>
-            ))}
         </>
       ) : (
         <span style={{ fontSize: 13, color: 'var(--muted)' }}>{team.drivers.map((n) => (n === me ? 'Du' : n)).join(', ')} – noch keine Punkte.</span>

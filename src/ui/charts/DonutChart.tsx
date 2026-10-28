@@ -5,14 +5,18 @@ export interface DonutPart {
   label: string
   value: number
   color: string
+  /** Zweite Zeile der Beschriftung statt „Wert · Anteil“ (z. B. „noch nicht gefahren“) */
+  note?: string
 }
 
-/** Ringdiagramm für wenige Teile eines Ganzen, Legende mit Werten daneben */
 /**
+ * Ringdiagramm für wenige Teile eines Ganzen, Legende mit Werten daneben.
  * `labeled`: Ring mittig, Name und Wert direkt neben dem jeweiligen Abschnitt statt einer Legende –
  * gut für wenige Teile (z. B. die Mitglieder eines Teams).
+ * `minShare`: Teile mit 0 bekommen trotzdem einen kleinen, blassen Abschnitt (Anteil am Ring), damit
+ * niemand fehlt; die angezeigten Prozente bleiben die echten.
  */
-export function DonutChart({ parts, center, sub, label, size = 150, format = String, labeled = false }: { parts: DonutPart[]; center: string; sub: string; label: string; size?: number; format?: (v: number) => string; labeled?: boolean }) {
+export function DonutChart({ parts, center, sub, label, size = 150, format = String, labeled = false, minShare = 0 }: { parts: DonutPart[]; center: string; sub: string; label: string; size?: number; format?: (v: number) => string; labeled?: boolean; minShare?: number }) {
   const root = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useTipState<number>(root)
   const total = parts.reduce((a, p) => a + p.value, 0)
@@ -21,13 +25,18 @@ export function DonutChart({ parts, center, sub, label, size = 150, format = Str
   // Mit Beschriftung: links und rechts Platz für Namen
   const side = labeled ? 96 : 0
   const cx = size / 2 + side
-  const cy = size / 2 + (labeled ? 10 : 0)
+  // Oben und unten Platz für Beschriftungen über bzw. unter dem Ring
+  const cy = size / 2 + (labeled ? 30 : 0)
   const svgW = size + side * 2
-  const svgH = size + (labeled ? 20 : 0)
+  const svgH = size + (labeled ? 60 : 0)
+  // Anteil am Ring: Nullen bekommen minShare, der Rest teilt sich den übrigen Platz nach Wert
+  const zeros = minShare > 0 ? parts.filter((p) => p.value <= 0).length : 0
+  const share = (p: DonutPart) => (p.value <= 0 ? (zeros ? minShare : 0) : (p.value / total) * (1 - zeros * minShare))
+  const drawn = (p: DonutPart) => p.value > 0 || zeros > 0
   let a0 = -Math.PI / 2
   const arcs = parts.map((p) => {
-    const a1 = a0 + (p.value / total) * Math.PI * 2
-    const gap = parts.filter((x) => x.value > 0).length > 1 ? (labeled ? 0.05 : 0.03) : 0
+    const a1 = a0 + share(p) * Math.PI * 2
+    const gap = parts.filter(drawn).length > 1 ? (labeled ? 0.05 : 0.03) : 0
     const s0 = a0 + gap
     const s1 = Math.max(s0 + 0.001, a1 - gap)
     const pt = (a: number) => [cx + Math.cos(a) * r, cy + Math.sin(a) * r]
@@ -41,15 +50,16 @@ export function DonutChart({ parts, center, sub, label, size = 150, format = Str
     <div ref={root} style={{ display: 'flex', alignItems: 'center', justifyContent: labeled ? 'center' : undefined, gap: 14, flexWrap: 'wrap' }}>
       <svg width={svgW} height={svgH} viewBox={`0 0 ${svgW} ${svgH}`} style={{ flexShrink: 0, maxWidth: '100%', height: 'auto' }} role="img" aria-label={`${label}: ${parts.map((p) => `${p.label} ${format(p.value)}`).join(', ')}`}>
         {arcs.map(({ d, p }, i) =>
-          p.value > 0 ? (
-            <path key={p.label} d={d} data-tip-target fill="none" stroke={p.color} strokeWidth={open === i ? 22 : 18} style={{ cursor: 'pointer', transition: 'stroke-width .15s' }} onClick={() => setOpen(open === i ? null : i)} onPointerEnter={(e) => e.pointerType === 'mouse' && setOpen(i)} onPointerLeave={(e) => e.pointerType === 'mouse' && setOpen(null)} />
+          drawn(p) ? (
+            <path key={p.label} d={d} data-tip-target fill="none" stroke={p.color} opacity={p.value > 0 ? 1 : 0.7} strokeWidth={open === i ? 22 : 18} style={{ cursor: 'pointer', transition: 'stroke-width .15s' }} onClick={() => setOpen(open === i ? null : i)} onPointerEnter={(e) => e.pointerType === 'mouse' && setOpen(i)} onPointerLeave={(e) => e.pointerType === 'mouse' && setOpen(null)} />
           ) : null,
         )}
         {labeled &&
           arcs.map(({ p, mid }) => {
-            if (p.value <= 0) return null
+            if (!drawn(p)) return null
             const lx = cx + Math.cos(mid) * (r + 18)
-            const ly = cy + Math.sin(mid) * (r + 18)
+            // Über dem Ring zweizeilig nach oben ausweichen, damit die zweite Zeile den Ring nicht berührt
+            const ly = cy + Math.sin(mid) * (r + 18) + (Math.sin(mid) < -0.6 ? -12 : Math.sin(mid) > 0.6 ? 8 : 0)
             const anchor = Math.cos(mid) > 0.25 ? 'start' : Math.cos(mid) < -0.25 ? 'end' : 'middle'
             const short = p.label.length > 13 ? p.label.slice(0, 12) + '…' : p.label
             return (
@@ -58,7 +68,7 @@ export function DonutChart({ parts, center, sub, label, size = 150, format = Str
                   {short}
                 </text>
                 <text x={lx} y={ly + 12} textAnchor={anchor} fill="#9AA3AD" fontSize="11">
-                  {format(p.value)} · {Math.round((p.value / total) * 100)} %
+                  {p.note ?? `${format(p.value)} · ${Math.round((p.value / total) * 100)} %`}
                 </text>
               </g>
             )
