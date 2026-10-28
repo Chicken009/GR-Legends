@@ -2,14 +2,16 @@ import { useNavigate, useParams } from 'react-router-dom'
 import type { EventState } from '../../domain/event/engine'
 import { driverInsight } from '../../domain/event/insights'
 import { eventKind, eventNumbers, myRecap, recapFacts, stages, type ProgressStep } from '../../domain/event/progress'
-import { BumpChart } from '../charts/StatsCharts'
+import { BarList, BumpChart } from '../charts/StatsCharts'
 import { ME, seriesColors } from '../colors'
 import { Avatar, useData, useMyName } from '../components'
-import { formatTime } from '../format'
+import { fmtNum, formatTime } from '../format'
 import { NAV_ICONS, PATHS, ShareIcon } from '../icons'
 import { useMe } from '../me'
 import { CarHero, Group, Huge, Line, StatTile, StoryPager, type CardDef } from '../story'
-import { EVENT_ACCENT, finishedOf, fmtPts, Podium, teamColor, TeamPodium, useEventHistory, useEventState } from '../event/shared'
+import { MiniBars } from '../charts/Mini'
+import { RuleChip } from '../PointsLadder'
+import { BONUS_ICON, EVENT_ACCENT, finishedOf, fmtPts, Podium, teamColor, TeamPodium, useEventHistory, useEventState } from '../event/shared'
 
 const fmtSec = (ms: number) => `${(ms / 1000).toLocaleString('de-DE', { minimumFractionDigits: 3, maximumFractionDigits: 3 })} s`
 const ROCKET = 'M12 2c3 2 5 6 5 10l-2 4H9l-2-4c0-4 2-8 5-10zM9 16l-3 3M15 16l3 3M12 9.5a1.5 1.5 0 1 0 0 .01'
@@ -76,7 +78,11 @@ export function eventCards(state: EventState, steps: ProgressStep[], me: string 
   if (me && mine) {
     const r = myRecap(state, steps, me)
     const ranks = r.ranks.filter((x): x is number => x != null)
-    const tips = driverInsight(state, me).tips.slice(0, 2)
+    const tips = driverInsight(state, me).tips.slice(0, 1)
+    // Rennen mit Punkten (Leiter/K.-o.: Punkte erst am Ende – dort zählt der Platz)
+    const bars = r.heats
+      .filter((h) => h.heat.kind === 'race')
+      .map((h) => ({ label: h.heat.label, value: h.points ?? 0, text: `Platz ${h.place} von ${h.of}${h.points != null ? ` · +${fmtPts(h.points)} Pkt.` : h.heat.advancing?.includes(me) ? ' · weiter' : ''}` }))
     cards.push({
       key: 'du',
       kicker: done ? 'Dein Wettkampf' : 'Dein Wettkampf bisher',
@@ -89,16 +95,30 @@ export function eventCards(state: EventState, steps: ProgressStep[], me: string 
               von {state.standings.length} · {fmtPts(mine.total)} Pkt. · {mine.wins} {mine.wins === 1 ? 'Sieg' : 'Siege'}
             </Line>
           </Group>
-          {ranks.length > 1 && (
-            <Group>
-              <span style={{ fontSize: 12, color: 'var(--muted)' }}>Dein Platz nach jedem Lauf</span>
-              <RankPath ranks={ranks} />
+          {bars.length > 1 && (
+            <Group gap={6}>
+              <span style={{ fontSize: 12, color: 'var(--muted)' }}>Punkte je Lauf – antippen</span>
+              <MiniBars items={bars} color={ME} height={70} label="Deine Punkte je Lauf" />
+              {r.best && (
+                <span style={{ fontSize: 13, color: 'var(--text-2)' }}>
+                  Bester Lauf: <b>{r.best.heat.label}</b> – Platz {r.best.place} von {r.best.of}
+                  {r.best.points != null ? `, +${fmtPts(r.best.points)} Pkt.` : ''}
+                </span>
+              )}
             </Group>
           )}
-          {r.best && (
-            <Line>
-              Bester Lauf: <b>{r.best.heat.label}</b>, Platz {r.best.place} von {r.best.of}
-            </Line>
+          {mine.bonuses.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {mine.bonuses.map((b, i) => (
+                <RuleChip key={i} value={`${BONUS_ICON[b.kind]} +${fmtPts(b.points)}`} label={b.label} color="var(--gold)" />
+              ))}
+            </div>
+          )}
+          {ranks.length > 1 && (
+            <Group gap={4}>
+              <span style={{ fontSize: 12, color: 'var(--muted)' }}>Dein Platz in der Wertung nach jedem Lauf</span>
+              <RankPath ranks={ranks} />
+            </Group>
           )}
           {tips.length > 0 && (
             <Group gap={4}>
@@ -241,44 +261,43 @@ export function eventCards(state: EventState, steps: ProgressStep[], me: string 
     })
   }
 
+  const pole = state.standings.find((x) => x.bonuses.some((b) => b.kind === 'pole'))
   const awards = [
-    f.driverOfDay && { label: 'Fahrer des Tages', names: [f.driverOfDay.name], value: `+${fmtPts(Math.round(f.driverOfDay.over * 10) / 10)} Plätze` },
-    f.mostWins && { label: 'Meiste Siege', names: [f.mostWins.name], value: `${f.mostWins.wins} Siege` },
-    f.personalBests.length > 0 && { label: 'Neue Bestzeit', names: f.personalBests, value: 'PB' },
-    f.clean.length > 0 && { label: 'Ohne Abflug', names: f.clean, value: '✓' },
-  ].filter((x): x is { label: string; names: string[]; value: string } => !!x)
+    f.driverOfDay && { icon: '★', label: 'Fahrer des Tages', names: [f.driverOfDay.name], value: `+${fmtPts(Math.round(f.driverOfDay.over * 10) / 10)} Plätze über Erwartung` },
+    f.mostWins && { icon: '♛', label: 'Meiste Siege', names: [f.mostWins.name], value: `${f.mostWins.wins} Laufsiege` },
+    pole && { icon: 'P', label: 'Pole', names: [pole.name], value: 'Schnellster im Qualifying' },
+    f.personalBests.length > 0 && { icon: 'PB', label: 'Neue Bestzeit', names: f.personalBests, value: f.personalBests.length === 1 ? 'auf dieser Strecke' : `${f.personalBests.length} Fahrer` },
+    f.clean.length > 0 && { icon: '✓', label: 'Ohne Abflug', names: f.clean, value: 'in allen Rennen' },
+  ].filter((x): x is { icon: string; label: string; names: string[]; value: string } => !!x)
   if (awards.length) {
     cards.push({
       key: 'auszeichnungen',
       kicker: 'Ausgezeichnet',
       icon: NAV_ICONS.season,
       body: (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div className="award-grid">
           {awards.map((a) => {
             const mine = !!me && a.names.includes(me)
             return (
-              <div key={a.label} className={`row${mine ? ' me-row' : ''}`} style={{ background: mine ? undefined : 'rgba(255,255,255,0.05)' }}>
+              <div key={a.label} className={`award${mine ? ' me-row' : ''}`}>
+                <span className="award-icon">{a.icon}</span>
+                <span className="award-label">{a.label}</span>
                 <span style={{ display: 'flex' }}>
-                  {a.names.map((n, i) => (
+                  {a.names.slice(0, 4).map((n, i) => (
                     <span key={n} style={{ marginLeft: i ? -10 : 0 }}>
-                      <Avatar name={n} ring={n === me ? 'var(--me)' : undefined} />
+                      <Avatar name={n} size={34} ring={n === me ? 'var(--me)' : undefined} />
                     </span>
                   ))}
                 </span>
-                <span className="grow">
-                  <span className="sub">{a.label}</span>
-                  <span className="name" style={{ whiteSpace: 'normal' }}>
-                    {a.names.map((n, i) => (
-                      <span key={n}>
-                        {i > 0 && ', '}
-                        <span style={n === me ? { color: 'var(--me)' } : undefined}>{n === me ? 'Du' : n}</span>
-                      </span>
-                    ))}
-                  </span>
-                </span>
-                <span className="num" style={{ fontWeight: 800, color: 'var(--gold)', whiteSpace: 'nowrap' }}>
-                  {a.value}
-                </span>
+                <b style={{ fontSize: 14, lineHeight: 1.25 }}>
+                  {a.names.map((n, i) => (
+                    <span key={n}>
+                      {i > 0 && ', '}
+                      <span style={n === me ? { color: 'var(--me)' } : undefined}>{n === me ? 'Du' : n}</span>
+                    </span>
+                  ))}
+                </b>
+                <span style={{ fontSize: 11, color: 'var(--muted)' }}>{a.value}</span>
               </div>
             )
           })}
@@ -292,12 +311,20 @@ export function eventCards(state: EventState, steps: ProgressStep[], me: string 
     kicker: done ? 'In Zahlen' : 'In Zahlen · bisher',
     icon: PATHS.track,
     body: (
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-        <StatTile value={nums.heats} label="Läufe" />
-        <StatTile value={nums.laps} label="Runden" />
-        <StatTile value={nums.crashes} label="Abflüge" />
-        <StatTile value={nums.drivers} label="Fahrer" />
-      </div>
+      <>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <StatTile value={nums.heats} label="Läufe" />
+          <StatTile value={nums.laps} label="Runden" />
+          {nums.km != null ? <StatTile value={Math.round(nums.km * 10) / 10} label="Kilometer" format={(v) => fmtNum(v, 1)} /> : <StatTile value={nums.drivers} label="Fahrer" />}
+          <StatTile value={nums.crashes} label="Abflüge" />
+        </div>
+        {nums.perDriver.length > 1 && (
+          <Group gap={8}>
+            <span style={{ fontSize: 12, color: 'var(--muted)' }}>Runden je Fahrer</span>
+            <BarList rows={nums.perDriver.map((d) => ({ key: d.name, label: d.name === me ? 'Du' : d.name, value: d.laps }))} color="#5B6573" highlight={me} highlightColor={ME} />
+          </Group>
+        )}
+      </>
     ),
   })
 

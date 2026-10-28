@@ -352,12 +352,23 @@ export function recapMoments(state: EventState, steps: ProgressStep[]): Story[] 
 /** Zahlen zum ganzen Wettkampf */
 export function eventNumbers(state: EventState) {
   const done = state.heats.filter((h) => h.status === 'done' && h.session)
-  const results = done.flatMap((h) => h.session!.results.filter((r) => !isGuest(r.driver)))
+  const results = done.flatMap((h) => h.session!.results.filter((r) => !isGuest(r.driver)).map((r) => ({ r, cm: h.session!.trackLengthCm })))
+  const perDriver = new Map<string, { laps: number; crashes: number }>()
+  for (const { r } of results) {
+    const d = perDriver.get(r.driver) ?? { laps: 0, crashes: 0 }
+    d.laps += r.laps
+    d.crashes += r.lapTimes.filter((l) => l.status === 'crash').length
+    perDriver.set(r.driver, d)
+  }
+  // Kilometer nur, wenn die Streckenlänge bekannt ist
+  const km = results.every(({ cm }) => cm) && results.length ? results.reduce((a, { r, cm }) => a + (r.laps * cm!) / 100_000, 0) : null
   return {
     heats: done.length,
-    laps: results.reduce((a, r) => a + r.laps, 0),
-    crashes: results.reduce((a, r) => a + r.lapTimes.filter((l) => l.status === 'crash').length, 0),
-    drivers: new Set(results.map((r) => r.driver)).size,
+    laps: results.reduce((a, { r }) => a + r.laps, 0),
+    crashes: results.reduce((a, { r }) => a + r.lapTimes.filter((l) => l.status === 'crash').length, 0),
+    drivers: perDriver.size,
+    km,
+    perDriver: [...perDriver].map(([name, v]) => ({ name, ...v })).sort((a, b) => b.laps - a.laps || a.name.localeCompare(b.name)),
   }
 }
 
