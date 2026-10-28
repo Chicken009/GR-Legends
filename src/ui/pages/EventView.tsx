@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { driverInsight, planFromText, planVisible, todayIso } from '../../domain/event/insights'
 import { eventProgress, placePoints, sectionFactor, waitFor } from '../../domain/event/progress'
@@ -315,26 +316,60 @@ function SectionCard({ sec, state, me }: { sec: EventState['sections'][number]; 
       {sec.heats.map((h) => (
         <HeatCard key={h.id} heat={h} state={state} me={me} />
       ))}
-      {sec.started && sec.ranking.length > 0 && sec.def.format !== 'team' && (
-        <details open={sec.complete}>
-          <summary style={{ fontSize: 13, color: 'var(--text-2)', cursor: 'pointer' }}>Wertung {sec.def.name}</summary>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 6 }}>
-            {sec.ranking.map((r) => (
-              <div key={r.name} className="entrant">
-                <span className="num" style={{ minWidth: 22, color: 'var(--muted)' }}>
-                  {r.rank}.
-                </span>
-                <span style={r.name === me ? { color: 'var(--me)', fontWeight: 700 } : undefined}>{r.name === me ? `Du · ${r.name}` : r.name}</span>
-                <span className="car">{r.detail}</span>
-                <span className="num" style={{ minWidth: 34, textAlign: 'right', fontWeight: 700 }}>
-                  {sec.def.weight > 0 ? fmtPts(r.points) : ''}
-                </span>
-              </div>
-            ))}
-          </div>
-        </details>
-      )}
+      {sec.started && (sec.def.format === 'team' ? (sec.teamRanking?.length ?? 0) > 0 : sec.ranking.length > 0) && <SectionResult sec={sec} state={state} me={me} />}
     </section>
+  )
+}
+
+/**
+ * Ergebnis eines Abschnitts am Ende seiner Karte: „Endstand“ oder „Zwischenstand“, was es bewirkt
+ * (Startplätze, ×2 …) und die Rangliste im Stil der Wertung. Lange Listen zeigen erst die besten drei
+ * und dich, der Rest auf Knopfdruck.
+ */
+function SectionResult({ sec, state, me }: { sec: EventState['sections'][number]; state: EventState; me: string | null }) {
+  const [all, setAll] = useState(false)
+  const team = sec.def.format === 'team'
+  const f = sectionFactor(state, sec.def.id)
+  const effect = team ? (state.separate ? 'zählt für die Teamwertung' : 'Teampunkte für alle Mitglieder') : f === 0 ? 'bestimmt die Startplätze' : f !== 1 ? `zählt ×${fmtPts(f)}` : 'zählt für die Gesamtwertung'
+  const rows = team
+    ? (sec.teamRanking ?? []).map((r) => {
+        const t = state.teams.find((x) => x.id === r.name)
+        return { key: r.name, rank: r.rank, label: t?.name ?? r.name, color: t ? teamColor(t.id, t.name) : undefined, mine: !!me && !!t?.drivers.includes(me), detail: t?.drivers.join(', ') ?? '', points: r.points as number | null }
+      })
+    : sec.ranking.map((r) => {
+        const t = state.teams.find((x) => x.drivers.includes(r.name))
+        return { key: r.name, rank: r.rank, label: r.name === me ? `Du · ${r.name}` : r.name, color: t ? teamColor(t.id, t.name) : undefined, mine: r.name === me, detail: r.detail, points: f === 0 ? null : r.points }
+      })
+  const short = rows.length > 5 && !all
+  const shown = short ? rows.filter((r, i) => i < 3 || r.mine) : rows
+  return (
+    <div className="card-part" style={{ borderTop: '1px solid var(--line-2)', paddingTop: 12, marginTop: 4 }}>
+      <span className="part-label">
+        <span>{sec.complete ? 'Endstand' : 'Zwischenstand'}</span>
+        <span style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 600 }}>{effect}</span>
+      </span>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        {shown.map((r) => (
+          <div key={r.key} className={`row${r.mine && !team ? ' me-row' : ''}`} style={{ padding: '4px 8px', minHeight: 38, ...(r.color ? { borderLeft: `4px solid ${r.color}` } : null) }}>
+            <span className={`rank${r.rank <= 3 ? ` r${r.rank}` : ''}`} style={{ minWidth: 22, fontSize: 15 }}>
+              {r.rank}
+            </span>
+            <span className="grow" style={{ minWidth: 0 }}>
+              <span className="name" style={{ ...(team ? { color: r.color } : r.mine ? { color: 'var(--me)' } : null) }}>
+                {r.label}
+              </span>
+              {r.detail && <span className="sub">{r.detail}</span>}
+            </span>
+            {r.points != null && <Pts value={r.points} size={15} color={team ? r.color : undefined} />}
+          </div>
+        ))}
+      </div>
+      {rows.length > 5 && (
+        <button className="btn ghost" style={{ alignSelf: 'flex-start', minHeight: 32, fontSize: 13 }} onClick={() => setAll(!all)}>
+          {all ? 'Weniger zeigen' : `Alle ${rows.length} zeigen`}
+        </button>
+      )}
+    </div>
   )
 }
 
