@@ -1,12 +1,29 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { EventFolder } from '../../data/events'
-import { driverInsight, eventVisible, todayIso } from '../../domain/event/insights'
+import { driverInsight, eventFinished, eventPhase, eventVisible, todayIso } from '../../domain/event/insights'
 import { PageHead, useData } from '../components'
 import { useMe } from '../me'
 import { StrokeIcon, TOOL_ICONS } from '../icons'
 import { CarThumb } from '../CarPhoto'
 import { computeFor, dateRange, EVENT_ACCENT, finishedOf, PhasePill, phaseOf, Pts, teamColor } from '../event/shared'
+
+/** Sichtbare Wettkämpfe nach Stand: was läuft, was kommt, was vorbei ist (Ergebnis steht fest) */
+function groupEvents(data: ReturnType<typeof useData>, today: string) {
+  const visible = data.events.filter((e) => eventVisible(e.def, today))
+  const status = new Map(
+    visible.map((e) => {
+      const state = computeFor(data, e.def, e.id)
+      return [e.id, eventFinished(e.def, state, today) ? 'done' : eventPhase(e.def, state, today) === 'planned' ? 'planned' : 'running'] as const
+    }),
+  )
+  const of = (k: string) => visible.filter((e) => status.get(e.id) === k)
+  return [
+    ['Läuft', of('running')],
+    ['Geplant', of('planned').sort((a, b) => a.def.start.localeCompare(b.def.start))],
+    ['Beendet', of('done').sort((a, b) => b.def.start.localeCompare(a.def.start))],
+  ] as const
+}
 
 /** Liste der Wettkämpfe (Seite und Reiter „Wettkämpfe“ der Saison) */
 export function EventList() {
@@ -14,6 +31,7 @@ export function EventList() {
   const { me } = useMe()
   const [showHidden, setShowHidden] = useState(false)
   const today = todayIso()
+  const groups = useMemo(() => groupEvents(data, today), [data, today])
   const visible = data.events.filter((e) => eventVisible(e.def, today))
   const hidden = data.events.filter((e) => !eventVisible(e.def, today))
   return (
@@ -30,9 +48,19 @@ export function EventList() {
           </p>
         </section>
       )}
-      {visible.map((e) => (
-        <EventCard key={e.id} folder={e} me={me} />
-      ))}
+      {groups.map(
+        ([label, list]) =>
+          list.length > 0 && (
+            <section key={label} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <span className="group-label">
+                {label} <span style={{ color: 'var(--faint)' }}>{list.length}</span>
+              </span>
+              {list.map((e) => (
+                <EventCard key={e.id} folder={e} me={me} />
+              ))}
+            </section>
+          ),
+      )}
       {hidden.length > 0 && (
         <button className="btn ghost" onClick={() => setShowHidden(!showHidden)} style={{ alignSelf: 'flex-start' }}>
           {showHidden ? 'Noch nicht angekündigte ausblenden' : `Noch nicht angekündigt (${hidden.length})`}

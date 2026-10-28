@@ -250,7 +250,7 @@ export function recapMoments(state: EventState, steps: ProgressStep[]): Story[] 
   if (f.wireToWire) out.push({ icon: 'flag', text: `Start-Ziel: ${f.wireToWire} lag nach jedem Lauf vorn.` })
   if (f.turn) out.push({ icon: 'flag', text: `Die Wende: Nach ${f.turn.label} übernahm ${f.turn.name} die Spitze.` })
   if (f.jump) out.push({ icon: 'rocket', text: `Größter Sprung: ${f.jump.name} in ${f.jump.label} von Platz ${f.jump.from} auf ${f.jump.to}.` })
-  if (f.closest) out.push({ icon: 'sword', text: `Knappste Entscheidung: ${f.closest.heat.order[0]} vor ${f.closest.heat.order[1]}, nur ${fmtSec(f.closest.ms)}.` })
+  if (f.closest) out.push({ icon: 'sword', text: `Knappste Entscheidung: ${f.closest.heat.order[0]} kam ${fmtSec(f.closest.ms)} vor ${f.closest.heat.order[1]} ins Ziel (${f.closest.heat.label}).` })
   if (state.fastestLap) out.push({ icon: 'bolt', text: `Schnellste Runde: ${state.fastestLap.name} – ${fmtSec(state.fastestLap.ms)}.` })
   if (f.driverOfDay) out.push({ icon: 'star', text: `Fahrer des Tages: ${f.driverOfDay.name}.` })
   return out.map(endSentence)

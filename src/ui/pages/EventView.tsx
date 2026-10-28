@@ -4,7 +4,8 @@ import { eventProgress, placePoints, sectionFactor, waitFor } from '../../domain
 import { FORMAT_LABEL, heatLength } from '../../domain/event/types'
 import { Avatar, PageHead, Segment, useData, useMyName } from '../components'
 import type { EventState, Heat } from '../../domain/event/engine'
-import { formatDate } from '../format'
+import { formatDate, formatTime } from '../format'
+import { CarThumb } from '../CarPhoto'
 import { useMe } from '../me'
 import { StrokeIcon, TOOL_ICONS } from '../icons'
 import { PointsLadder, RuleChip } from '../PointsLadder'
@@ -70,7 +71,7 @@ export function EventView() {
   const tab: Tab = stored === 'ablauf' || stored === 'punkte' ? stored : 'stand'
   return (
     <div className="page" style={{ ['--accent' as string]: EVENT_ACCENT }}>
-      <PageHead title={def.name} kicker={`Wettkampf · ${dateRange(def)}`} color={EVENT_ACCENT}>
+      <PageHead title={def.name} kicker={`Wettkampf · ${dateRange(def)}`} color={EVENT_ACCENT} back={{ to: '/wettkampf', label: 'Alle Wettkämpfe' }}>
         <Link to={`/wettkampf/${id}/bearbeiten`} className="icon-btn" aria-label="Bearbeiten (Rennleitung)" title="Bearbeiten (Rennleitung)">
           <StrokeIcon d={TOOL_ICONS.pencil} size={18} color="var(--muted)" />
         </Link>
@@ -334,6 +335,9 @@ function SectionCard({ sec, state, me }: { sec: EventState['sections'][number]; 
 function DoneRow({ heat, state, me }: { heat: Heat; state: EventState; me: string | null }) {
   const winner = heat.order[0]
   const mine = me ? heat.order.indexOf(me) + 1 : 0
+  const result = heat.session?.results.find((r) => r.driver === winner)
+  const best = result?.validBestLapMs ?? result?.bestLapMs ?? null
+  const car = result?.car
   return (
     <details className="heat-row">
       <summary>
@@ -350,6 +354,18 @@ function DoneRow({ heat, state, me }: { heat: Heat; state: EventState; me: strin
         {mine > 1 && (
           <span className="num" style={{ color: 'var(--me)', fontWeight: 700, whiteSpace: 'nowrap' }}>
             Du: {mine}.
+          </span>
+        )}
+        <span style={{ flex: 1 }} />
+        {/* Qualifying: die Zeit des Schnellsten, Rennen: das Auto des Siegers */}
+        {heat.kind === 'quali' && best != null && (
+          <span className="num" style={{ fontSize: 12, color: 'var(--best)', whiteSpace: 'nowrap' }}>
+            {formatTime(best)}
+          </span>
+        )}
+        {heat.kind === 'race' && car && (
+          <span style={{ display: 'inline-flex' }} title={car}>
+            <CarThumb car={car} size={26} />
           </span>
         )}
       </summary>

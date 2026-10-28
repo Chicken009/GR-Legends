@@ -577,6 +577,16 @@ describe('Ansicht', () => {
     expect(worst.gridFrom).toBe('Elo, Schwächste vorne')
   })
 
+  it('stellt auch Teamrennen auf und sagt, wenn die Aufstellung noch folgt', () => {
+    const teamDef = def({ drivers: ['A', 'B', 'C', 'D'], teams: { mode: 'manual', size: 2, teams: [{ name: 'Rot', drivers: ['A', 'D'] }, { name: 'Blau', drivers: ['B', 'C'] }] }, sections: [newSection('team', { id: 't', seeding: 'elo' })] })
+    const team = computeEvent(teamDef, ctx()).heats[0]
+    expect(team.grid!.map((e) => e.name)).toEqual(['A', 'B', 'C', 'D'])
+    // Quali läuft noch: keine Startplätze, aber der Hinweis, woher sie kommen
+    const open = computeEvent(def({ sections: [newSection('quali', { id: 'q', maxPerHeat: 1 }), newSection('races', { id: 'r', rounds: 1 })] }), ctx()).sections[1].heats[0]
+    expect(open.grid).toBeNull()
+    expect(open.gridFrom).toBe('Qualifying')
+  })
+
   it('erklärt, was ein Fahrer braucht', () => {
     const quali = ['F', 'E', 'D', 'C', 'B', 'A'].map((n, i) => run('quali', [n], { best: [10000 + (5 - i) * 10] }))
     const s = computeEvent(d, ctx(quali))

@@ -9,11 +9,14 @@ export function parseTime(value: string): number | null {
   return Number(hours) * 3_600_000 + Number(min) * 60_000 + Number(sec) * 1000 + Number(frac.padEnd(3, '0'))
 }
 
-/** Formatiert Millisekunden als `ss.mmm` bzw. `m:ss.mmm`. */
+/**
+ * Formatiert Millisekunden deutsch mit Komma: `10,077 s` bzw. `4:43,307` (ab einer Minute).
+ * Mit Punkt läse man „10.077“ leicht als zehntausend.
+ */
 export function formatTime(ms: number | null | undefined): string {
   if (ms == null) return '–'
   const min = Math.floor(ms / 60_000)
   const sec = Math.floor((ms % 60_000) / 1000)
   const milli = String(ms % 1000).padStart(3, '0')
-  return min > 0 ? `${min}:${String(sec).padStart(2, '0')}.${milli}` : `${sec}.${milli}`
+  return min > 0 ? `${min}:${String(sec).padStart(2, '0')},${milli}` : `${sec},${milli} s`
 }

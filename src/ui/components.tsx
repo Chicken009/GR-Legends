@@ -1,9 +1,9 @@
 import { createContext, useContext, useEffect, useId, useRef, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import type { AppData } from '../data/useRaceDays'
 import { nameKey } from '../data/settings'
-import { StrokeIcon } from './icons'
+import { ChevronLeft, StrokeIcon } from './icons'
 import { initials } from './format'
 import { useMe } from './me'
 
@@ -66,10 +66,16 @@ export function MeButton() {
   )
 }
 
-export function PageHead({ title, kicker, color, children }: { title: string; kicker?: string; color?: string; children?: ReactNode }) {
+/** Seitenkopf; mit `back` steht links ein Pfeil zurück (z. B. vom Wettkampf zur Übersicht) */
+export function PageHead({ title, kicker, color, children, back }: { title: string; kicker?: string; color?: string; children?: ReactNode; back?: { to: string; label: string } }) {
   return (
     <header className="page-head">
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+      {back && (
+        <Link to={back.to} className="icon-btn" aria-label={back.label} title={back.label} style={{ flexShrink: 0, marginLeft: -8 }}>
+          <ChevronLeft color={color} />
+        </Link>
+      )}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0, flex: back ? 1 : undefined }}>
         {kicker && <span className="kicker">{kicker}</span>}
         <h1 style={{ color }}>{title}</h1>
       </div>

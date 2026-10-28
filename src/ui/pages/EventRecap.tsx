@@ -188,7 +188,9 @@ export function eventCards(state: EventState, steps: ProgressStep[], me: string 
         <>
           <Group>
             <Huge>{fmtSec(c.ms)}</Huge>
-            <Line>{c.heat.label}</Line>
+            <Line>
+              <b>{c.heat.order[0]}</b> kam {fmtSec(c.ms)} vor <b>{c.heat.order[1]}</b> ins Ziel – {c.heat.label}.
+            </Line>
           </Group>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: 10, textAlign: 'center' }}>
             <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>

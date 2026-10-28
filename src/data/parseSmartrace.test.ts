@@ -18,8 +18,8 @@ describe('parseTime / formatTime', () => {
   })
 
   it('formatiert Millisekunden', () => {
-    expect(formatTime(10_077)).toBe('10.077')
-    expect(formatTime(283_307)).toBe('4:43.307')
+    expect(formatTime(10_077)).toBe('10,077 s')
+    expect(formatTime(283_307)).toBe('4:43,307')
     expect(formatTime(null)).toBe('–')
   })
 })

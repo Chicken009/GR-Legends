@@ -72,7 +72,7 @@ export interface Heat {
    * nach dem Qualifying. Noch offene Plätze (Aufsteiger) stehen als Platzhalter am Ende.
    */
   grid: Entrant[] | null
-  /** Abschnitt, nach dessen Ergebnis aufgestellt wird */
+  /** Abschnitt, nach dessen Ergebnis aufgestellt wird (bzw. „Elo“); ohne `grid`: Aufstellung folgt noch */
   gridFrom: string | null
 }
 
@@ -1210,7 +1210,12 @@ export function computeEvent(def: EventDef, ctx: EventContext): EventState {
     // feststeht, oder nach der Elo zu Beginn des Wettkampfs – Beste oder Schwächste vorne
     const byPrev = sec.seeding === 'previous' && prev?.complete && prev.ranking.length ? new Map(prev.ranking.map((r, k) => [r.name, k])) : null
     // Erster Abschnitt mit „vorheriger Abschnitt“ = nach Elo
-    const byElo = !byPrev && (sec.seeding === 'elo' || (sec.seeding === 'previous' && !prev)) && sec.format !== 'team'
+    const byElo = !byPrev && (sec.seeding === 'elo' || (sec.seeding === 'previous' && !prev))
+    // Vorheriger Abschnitt läuft noch: Startplätze folgen – nur der Hinweis, woher sie kommen
+    const pending = !byPrev && !byElo && sec.seeding === 'previous' && prev && !prev.complete
+    if (pending) {
+      for (const h of part.heats) if (h.status !== 'done' && h.kind === 'race' && h.entrants.length >= 2) h.gridFrom = prev!.def.name
+    }
     if (byPrev || byElo) {
       const key = (n: string) => (byPrev ? (byPrev.get(n) ?? 999) : -ctx.elo(n))
       const dir = sec.gridOrder === 'worst' ? -1 : 1

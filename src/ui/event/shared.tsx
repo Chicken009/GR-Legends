@@ -413,7 +413,7 @@ export function HeatCard({ heat, state, me, children, plain, headless }: { heat:
         {!headless && <span className={`status-chip ${heat.status}`}>{STATUS_TEXT[heat.status]}</span>}
         {heat.manual && <span className="status-chip">per Hand zugeordnet</span>}
         {heatNote(heat, state) && <span style={{ fontSize: 11, color: 'var(--muted)' }}>{heatNote(heat, state)}</span>}
-        {heat.status !== 'done' && heat.grid && <span style={{ fontSize: 11, color: EVENT_ACCENT }}>Startaufstellung nach {heat.gridFrom}</span>}
+        {heat.status !== 'done' && heat.gridFrom && <span style={{ fontSize: 11, color: heat.grid ? EVENT_ACCENT : 'var(--muted)' }}>Startaufstellung nach {heat.gridFrom}{heat.grid ? '' : ' folgt'}</span>}
         {inModel && (
           <Link to={`/lauf/${heat.session!.fileId}`} style={{ marginLeft: 'auto', fontSize: 12, color: EVENT_ACCENT }}>
             Details ›
