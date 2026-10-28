@@ -1,4 +1,6 @@
+import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { funDistance } from '../../domain/funDistance'
 import type { EventState } from '../../domain/event/engine'
 import { driverInsight } from '../../domain/event/insights'
 import { eventKind, eventNumbers, myRecap, recapFacts, stages, type ProgressStep } from '../../domain/event/progress'
@@ -33,10 +35,12 @@ function RankPath({ ranks }: { ranks: number[] }) {
 }
 
 /** Story-Karten zu einem Wettkampf; läuft er noch, heißt es „bisher“ */
-export function eventCards(state: EventState, steps: ProgressStep[], me: string | null, done: boolean, onDone: () => void): CardDef[] {
+/** `pick` (0–1) wählt den witzigen Vergleich für die gefahrene Strecke */
+export function eventCards(state: EventState, steps: ProgressStep[], me: string | null, done: boolean, onDone: () => void, pick = 0): CardDef[] {
   const def = state.def
   const f = recapFacts(state, steps)
   const nums = eventNumbers(state)
+  const distance = nums.km != null ? funDistance(nums.km, pick) : null
   const cards: CardDef[] = []
   // Siegerkarte(n) je nach Art: Einzel = Fahrerpodest, Team = Teampodest mit allen Mitgliedern, gemischt = beide
   const kind = eventKind(state)
@@ -320,6 +324,7 @@ export function eventCards(state: EventState, steps: ProgressStep[], me: string 
           {nums.km != null ? <StatTile value={Math.round(nums.km * 10) / 10} label="Kilometer" format={(v) => fmtNum(v, 1)} /> : <StatTile value={nums.drivers} label="Fahrer" />}
           <StatTile value={nums.crashes} label="Abflüge" />
         </div>
+        {distance && <Line>Zusammen {fmtNum(nums.km, 1)} km – {distance}.</Line>}
         {nums.perDriver.length > 1 && (
           <Group gap={8}>
             <span style={{ fontSize: 12, color: 'var(--muted)' }}>Runden je Fahrer</span>
@@ -373,6 +378,8 @@ export function EventRecap() {
   const known = useMyName()
   const me = picked && state?.drivers.includes(picked) ? picked : known
   const back = () => navigate(`/wettkampf/${id}`, { replace: true })
+  // bei jedem Öffnen ein anderer Vergleich für die gefahrene Strecke
+  const [pick] = useState(Math.random)
   if (!folder || !state || !state.started) {
     return (
       <div className="page">
@@ -380,5 +387,5 @@ export function EventRecap() {
       </div>
     )
   }
-  return <StoryPager cards={eventCards(state, steps, me, finishedOf(state.def, state), back)} label={`Rückblick ${state.def.name}`} onDone={back} doneLabel="Zum Wettkampf" />
+  return <StoryPager cards={eventCards(state, steps, me, finishedOf(state.def, state), back, pick)} label={`Rückblick ${state.def.name}`} onDone={back} doneLabel="Zum Wettkampf" />
 }

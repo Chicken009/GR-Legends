@@ -28,6 +28,7 @@ export function EventLive() {
   const queryClient = useQueryClient()
   const [updated, setUpdated] = useState(() => new Date())
   const [tick, setTick] = useState(0)
+  const [pick] = useState(Math.random)
   // Rückblick als Story, die von selbst weiterblättert – zum gemeinsamen Anschauen
   const [recap, setRecap] = useState(false)
 
@@ -73,7 +74,7 @@ export function EventLive() {
 
   return (
     <div className="live" style={{ ['--accent' as string]: EVENT_ACCENT }}>
-      {recap && <StoryPager cards={eventCards(state, steps, null, done, () => setRecap(false))} label={`Rückblick ${def.name}`} onDone={() => setRecap(false)} auto={10_000} doneLabel="Schließen" />}
+      {recap && <StoryPager cards={eventCards(state, steps, null, done, () => setRecap(false), pick)} label={`Rückblick ${def.name}`} onDone={() => setRecap(false)} auto={10_000} doneLabel="Schließen" />}
       {done && CONFETTI.map((c, i) => <span key={i} className="confetti" style={{ left: `${6 + i * 9.5}%`, background: c, animationDelay: `${(i * 0.37) % 3}s` }} />)}
       <header style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
