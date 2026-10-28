@@ -9,7 +9,7 @@ import { CarThumb } from '../CarPhoto'
 import { recapMoments } from '../../domain/event/progress'
 import { StoryPager } from '../story'
 import { eventCards } from './EventRecap'
-import { Ceremony, EVENT_ACCENT, GridSlot, finishedOf, fmtPts, heatNote, PhasePill, phaseOf, StoryIcon, teamColor, teamEloText, useEventHistory, useEventState } from '../event/shared'
+import { Ceremony, EVENT_ACCENT, GridSlot, gridStagger, finishedOf, fmtPts, heatNote, PhasePill, phaseOf, StoryIcon, teamColor, teamEloText, useEventHistory, useEventState } from '../event/shared'
 
 const REFRESH_MS = 30_000
 const TICKER_MS = 8_000
@@ -62,6 +62,8 @@ export function EventLive() {
   const def = folder.def
   const phase = phaseOf(def, state)
   const done = finishedOf(def, state)
+  // Bei getrennter Wertung gibt es Teampunkte erst mit dem ersten Teamrennen
+  const teamsScored = state.teamStandings.some((t) => t.points !== 0)
   // Nach dem Wettkampf läuft der Rückblick: besondere Momente zum gemeinsamen Anschauen
   const stories = done ? recapMoments(state, steps) : storylines(state)
   const story = stories.length ? stories[tick % stories.length] : null
@@ -114,7 +116,7 @@ export function EventLive() {
               {(state.next.grid ?? state.next.entrants).map((e, i) => {
                 const team = e.name ? state.teams.find((t) => t.drivers.includes(e.name!)) : undefined
                 return (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 14, ...(team ? { borderLeft: `4px solid ${teamColor(team.id, team.name)}`, paddingLeft: 10 } : null) }}>
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 14, ...(team ? { borderLeft: `4px solid ${teamColor(team.id, team.name)}`, paddingLeft: 10 } : null), ...(state.next!.grid ? { marginLeft: gridStagger(i, 24) } : null) }}>
                   {state.next!.grid && <GridSlot n={i + 1} size={44} />}
                   {e.name ? <Avatar name={e.name} size={48} /> : <span style={{ width: 48, height: 48, borderRadius: 24, border: '2px dashed var(--faint)' }} />}
                   <span className="big-name" style={e.name ? undefined : { color: 'var(--faint)' }}>
@@ -196,15 +198,15 @@ export function EventLive() {
               <span className="kicker">Teams</span>
               {state.teamStandings.map((t) => (
                 <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <span className={`rank${t.rank <= 3 ? ` r${t.rank}` : ''}`} style={{ fontSize: '1.2em', minWidth: 30 }}>
-                    {t.rank}
+                  <span className={`rank${teamsScored && t.rank <= 3 ? ` r${t.rank}` : ''}`} style={{ fontSize: '1.2em', minWidth: 30 }}>
+                    {teamsScored ? t.rank : '–'}
                   </span>
                   <span style={{ fontWeight: 700, color: teamColor(t.id, t.name) }}>{t.name}</span>
                   <span style={{ color: 'var(--muted)', fontSize: '0.8em' }}>
                     {t.drivers.join(', ')} · {teamEloText(t, state.teamStandings)}
                   </span>
                   <span className="num" style={{ marginLeft: 'auto', fontSize: '1.2em', fontWeight: 800 }}>
-                    {fmtPts(t.points)}
+                    {teamsScored ? fmtPts(t.points) : ''}
                   </span>
                 </div>
               ))}

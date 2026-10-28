@@ -366,22 +366,25 @@ export function CarChips({ cars, size = 32, label }: { cars: string[]; size?: nu
 }
 
 /**
- * Startplatz wie auf der Bahn markiert: ein aufgemalter Startkasten (offen nach vorn) mit der Nummer –
- * damit klar ist, dass es der Platz ist, auf den das Auto kommt, und kein Ergebnis. `n = null`: nur der Kasten.
+ * Startplatz wie auf der Bahn markiert: die aufgemalte Startlinie mit kurzen Schenkeln, die Nummer
+ * dazwischen – damit klar ist, dass es der Platz ist, auf den das Auto kommt, und kein Ergebnis.
+ * `n = null`: nur die Markierung (für Hinweise).
  */
 export function GridSlot({ n, size = 24 }: { n: number | null; size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" role={n == null ? undefined : 'img'} aria-label={n == null ? undefined : `Startplatz ${n}`} aria-hidden={n == null ? true : undefined} style={{ flexShrink: 0 }}>
-      <rect x="1" y="1" width="22" height="22" rx="4" fill="#2A2F38" />
-      <path d="M5 5v14h14V5" fill="none" stroke="#E3E7EB" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M9 3H4v18h5" fill="none" stroke="#E3E7EB" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
       {n != null && (
-        <text x="12" y="15.5" textAnchor="middle" fill="#F2F4F5" fontSize={n > 9 ? 8.5 : 10} fontWeight="800">
+        <text x="14.5" y="16.5" textAnchor="middle" fill="#F2F4F5" fontSize={n > 9 ? 10 : 13} fontWeight="800">
           {n}
         </text>
       )}
     </svg>
   )
 }
+
+/** Startaufstellung schräg: jeder Platz ein Stück weiter rechts als der davor, wie in der Startgasse */
+export const gridStagger = (i: number, step = 10) => Math.min(i, 5) * step
 
 export function HeatCard({ heat, state, me, children, plain }: { heat: Heat; state: EventState; me: string | null; children?: ReactNode; plain?: boolean }) {
   const { model } = useData()
@@ -459,7 +462,7 @@ export function HeatCard({ heat, state, me, children, plain }: { heat: Heat; sta
             )
           })
         : (heat.grid ?? heat.entrants).map((e, i) => (
-            <div key={i} className={`entrant${e.name ? '' : ' placeholder'}`} style={teamBar(e.name)}>
+            <div key={i} className={`entrant${e.name ? '' : ' placeholder'}`} style={{ ...teamBar(e.name), ...(heat.grid ? { marginLeft: gridStagger(i) } : null) }}>
               {heat.grid && <GridSlot n={i + 1} />}
               <span className="entrant-text">
                 <span style={nameStyle(e.name)}>{e.name && e.name === me ? `Du · ${e.label}` : e.label}</span>
