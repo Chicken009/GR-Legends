@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useId, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import type { Challenge, Medal } from '../domain/model'
-import { ChallengeBadge, XpChip } from './ChallengeItem'
+import { ChallengeBadge, PtsChip, XpChip } from './ChallengeItem'
 import { AREA } from './colors'
 import { Link, useLocation } from 'react-router-dom'
 import { Avatar, driverPath, sheetStack, useData, useMyName } from './components'
@@ -100,7 +100,10 @@ function ChallengePopup({ c, driver, year, onClose }: { c: Challenge; driver?: s
             {c.value} / {c.target}
           </span>
         )}
-        <XpChip done={c.done} />
+        <span style={{ display: 'inline-flex', gap: 6 }}>
+          <PtsChip done={c.done} />
+          <XpChip done={c.done} />
+        </span>
         {driver && <span style={{ fontSize: 12, color: 'var(--muted)' }}>{driver}</span>}
         {year && <DoneByList id={c.id} year={year} onNavigate={onClose} />}
         <button className="btn round" onClick={onClose} autoFocus style={{ marginTop: 8, minWidth: 140 }}>

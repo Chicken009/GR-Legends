@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { type NewsItem } from '../../domain/model'
+import { type Challenge, type NewsItem } from '../../domain/model'
 import { SEASON_POINTS } from '../../domain/season'
 import { isGuest } from '../../domain/drivers'
 import { AREA, ME } from '../colors'
@@ -8,6 +8,7 @@ import { Sparkline } from '../charts/Sparkline'
 import { driverPath, MeButton, Monogram, useData, useMyName } from '../components'
 import { Chevrons, Crown, RecordFlame, Trophy } from '../icons'
 import { MedalBadge } from '../Medal'
+import { useChallengePopup } from '../MedalPopup'
 import { ChallengeBadge, ChallengeItem } from '../ChallengeItem'
 import { byProgress, unseenDone } from '../challengeUtils'
 import { formatDate, formatTime, plural, shortName } from '../format'
@@ -288,14 +289,41 @@ function GoalsCard({ driver }: { driver: string }) {
   )
 }
 
+/** Neu geschaffte Challenges: Abzeichen öffnen das Pop-up, die Zeile führt zur Übersicht */
+function FreshBar({ fresh, year, driver }: { fresh: Challenge[]; year: string; driver: string }) {
+  const openChallenge = useChallengePopup()
+  return (
+    <div className="inner" style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: '10px 12px' }}>
+      <span style={{ display: 'inline-flex' }}>
+        {fresh.slice(0, 4).map((c, i) => (
+          <button
+            key={c.id}
+            type="button"
+            onClick={() => openChallenge(c, { driver, year })}
+            aria-label={`Challenge ${c.label} anzeigen`}
+            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', marginLeft: i ? -10 : 0, display: 'inline-flex', borderRadius: '50%' }}
+          >
+            <ChallengeBadge c={c} accent={AREA.season} size={36} fresh />
+          </button>
+        ))}
+      </span>
+      <Link to={`/saison/${year}`} state={{ tab: 'challenges' }} style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 8, alignSelf: 'stretch' }}>
+        <span style={{ flex: 1, fontSize: 13, fontWeight: 700 }}>{fresh.length === 1 ? 'Neue Challenge geschafft' : `${fresh.length} neue Challenges geschafft`}</span>
+        <span style={{ fontSize: 16, color: 'var(--muted)' }}>›</span>
+      </Link>
+    </div>
+  )
+}
+
 function ChallengesCard() {
   const { model } = useData()
   const me = useMyName()
   if (!me) return null
   const year = CURRENT_YEAR
   const list = model.challenges(me, year)
+  // die drei offenen, die am weitesten sind
   const open = list
-    .filter((c) => !c.done && (c.value > 0 || c.target - c.value <= 1))
+    .filter((c) => !c.done)
     .sort(byProgress)
     .slice(0, 3)
   // Geschafft, aber noch nicht in der Saison angesehen
@@ -312,21 +340,7 @@ function ChallengesCard() {
           Alle Challenges ›
         </Link>
       </div>
-      {fresh.length > 0 && (
-        <Link to={`/saison/${year}`} state={{ tab: 'challenges' }} className="inner" style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: '10px 12px' }}>
-          <span style={{ display: 'inline-flex' }}>
-            {fresh.slice(0, 3).map((c, i) => (
-              <span key={c.id} style={{ marginLeft: i ? -10 : 0 }}>
-                <ChallengeBadge c={c} accent={AREA.season} size={36} fresh />
-              </span>
-            ))}
-          </span>
-          <span style={{ fontSize: 13, fontWeight: 600, flex: 1 }}>
-            Neu geschafft: {fresh.map((c) => c.label).join(', ')}
-          </span>
-          <span style={{ fontSize: 12, color: 'var(--muted)' }}>›</span>
-        </Link>
-      )}
+      {fresh.length > 0 && <FreshBar fresh={fresh} year={year} driver={me} />}
       {open.map((c) => (
         <ChallengeItem key={c.id} c={c} accent={AREA.season} year={year} driver={me} />
       ))}

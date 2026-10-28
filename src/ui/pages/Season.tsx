@@ -325,7 +325,10 @@ function Challenges({ year, driver }: { year: string; driver?: string }) {
         <ProgressRing value={done.length} total={mine.length} color={ACCENT} />
         <span style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
           <span className="card-title">{own ? 'Deine Challenges' : `Challenges von ${me}`}</span>
-          <Amount kind="xp" value={done.length * CHALLENGE_XP} size={15} />
+          <span style={{ display: 'flex', gap: 12, alignItems: 'baseline' }}>
+            <Amount kind="pts" value={done.length * SEASON_POINTS.perChallenge} size={15} />
+            <Amount kind="xp" value={done.length * CHALLENGE_XP} size={15} />
+          </span>
           <span style={{ fontSize: 12, color: 'var(--muted)' }}>
             Platz {rank} von {total} bei den Challenges
             {fresh.size > 0 && <b style={{ color: ACCENT }}> · {fresh.size} neu geschafft</b>}

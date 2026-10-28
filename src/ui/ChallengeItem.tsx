@@ -1,6 +1,8 @@
 import { useCallback, useState, type ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { CHALLENGE_XP, type Challenge } from '../domain/challenges'
+import { SEASON_POINTS } from '../domain/season'
+import { AREA } from './colors'
 import { Avatar, driverPath, Sheet } from './components'
 import { CurrencyIcon, XP_COLOR } from './currency'
 import { NAV_ICONS, StrokeIcon } from './icons'
@@ -69,6 +71,26 @@ export function XpChip({ done }: { done: boolean }) {
       }}
     >
       <CurrencyIcon kind="xp" size={11} color={done ? '#1A1205' : '#B9A67E'} />+{CHALLENGE_XP} XP
+    </span>
+  )
+}
+
+/** „+1 Pkt.“ für die Saisonwertung in Saisonfarbe: gefüllt = erhalten, gestrichelt = noch offen */
+export function PtsChip({ done }: { done: boolean }) {
+  const text = done ? `${SEASON_POINTS.perChallenge} Saisonpunkt erhalten` : `bringt ${SEASON_POINTS.perChallenge} Saisonpunkt`
+  return (
+    <span
+      title={text}
+      aria-label={text}
+      className="num"
+      style={{
+        display: 'inline-flex', alignItems: 'center', padding: '3px 8px', borderRadius: 999, fontSize: 11, fontWeight: 800, flexShrink: 0,
+        border: done ? `1.5px solid ${AREA.season}` : '1.5px dashed #34506A',
+        background: done ? AREA.season : 'transparent',
+        color: done ? '#0E1013' : '#86A9C8',
+      }}
+    >
+      +{SEASON_POINTS.perChallenge} Pkt.
     </span>
   )
 }
@@ -159,8 +181,11 @@ export function ChallengeItem({ c, accent, showProgress = true, footer, fresh, d
             {c.label}
             {fresh && <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: 0.6, padding: '2px 6px', borderRadius: 999, background: accent, color: '#0E1013' }}>NEU</span>}
           </span>
-          <XpChip done={showProgress && c.done} />
         </div>
+        <span style={{ display: 'flex', gap: 4 }}>
+          <PtsChip done={showProgress && c.done} />
+          <XpChip done={showProgress && c.done} />
+        </span>
         <span style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.4 }}>
           {c.detail}
           {showProgress && !c.done && (
