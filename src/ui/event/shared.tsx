@@ -612,6 +612,14 @@ export function TeamCard({ state, team, me }: { state: EventState; team: TeamSta
             format={fmtPts}
             labeled
           />
+          {/* Ohne Punkte hat ein Mitglied keinen Abschnitt im Ring – es soll trotzdem nicht fehlen */}
+          {parts
+            .filter((p) => p.points <= 0)
+            .map((p) => (
+              <span key={p.name} style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center' }}>
+                <b style={{ color: p.name === me ? 'var(--me)' : 'var(--text-2)' }}>{p.name === me ? 'Du' : p.name}</b>: {p.races ? `0 Pkt. aus ${p.races} ${p.races === 1 ? 'Lauf' : 'Läufen'}` : 'noch nicht gefahren'}
+              </span>
+            ))}
         </>
       ) : (
         <span style={{ fontSize: 13, color: 'var(--muted)' }}>{team.drivers.map((n) => (n === me ? 'Du' : n)).join(', ')} – noch keine Punkte.</span>

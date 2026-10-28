@@ -230,7 +230,7 @@ export function eventKind(state: EventState): EventKind {
  * Wer hat seinem Team wie viel beigetragen? Zählt die Teamwertung den Schnitt der Gesamtpunkte, ist
  * es die Gesamtpunktzahl jedes Mitglieds; sonst die Punkte, die es in den Teamrennen geholt hat.
  */
-export function teamContributions(state: EventState, teamId: string): { name: string; points: number }[] {
+export function teamContributions(state: EventState, teamId: string): { name: string; points: number; races: number }[] {
   const team = state.teams.find((t) => t.id === teamId)
   if (!team) return []
   const byTotal = eventKind(state) === 'mixed' && !state.separate
@@ -239,7 +239,9 @@ export function teamContributions(state: EventState, teamId: string): { name: st
   return team.drivers
     .map((name) => {
       const raw = byTotal ? (state.standings.find((s) => s.name === name)?.total ?? 0) : heats.reduce((a, h) => a + (h.points.get(name) ?? 0), 0)
-      return { name, points: Math.round(raw * 10) / 10 }
+      // Läufe, die zählen: alle Rennen (Schnitt der Gesamtpunkte) bzw. die Teamrennen
+      const races = byTotal ? (state.standings.find((s) => s.name === name)?.races ?? 0) : heats.filter((h) => h.order.includes(name)).length
+      return { name, points: Math.round(raw * 10) / 10, races }
     })
     .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name))
 }

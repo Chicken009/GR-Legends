@@ -109,6 +109,8 @@ describe('Punkteverlauf und Rückblick', () => {
     const done = computeEvent(teamDef, ctx([race(['A', 'B', 'C', 'D'].filter((n) => names.includes(n)))]))
     const rot = teamContributions(done, done.teams.find((t) => t.name === 'Rot')!.id)
     expect(rot.map((r) => r.name)).toEqual(['A', 'D'])
+    // Letzter im Teamrennen: 0 Punkte, aber dabei – mit Zahl der Läufe
+    expect(rot.every((r) => r.races === 1)).toBe(true)
     expect(rot[0].points).toBeGreaterThan(rot[1].points)
     const mixed = normalizeEvent({ ...teamDef, sections: [newSection('races', { id: 'r', rounds: 1 }), newSection('team', { id: 't' })] })
     expect(eventKind(computeEvent(mixed, ctx()))).toBe('mixed')
