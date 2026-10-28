@@ -286,7 +286,7 @@ jeweiligen Autos) schneller geworden sind, zeigt das Profil diesen Fortschritt u
 
 **Ab 26.10.2026, nicht rückwirkend:** Alle Läufe vor diesem Tag werden weiter genau wie bisher
 gerechnet (alte Autowertung, Schätzung vor jedem Renntag, 5 Einstufungsläufe); auch der Maßstab
-für das Duell gegen die Bahn kommt für sie nur aus Läufen vor diesem Tag. Neue Läufe ändern ältere
+für den Tempobonus kommt für sie nur aus Läufen vor diesem Tag. Neue Läufe ändern ältere
 Elo-Werte nicht mehr.
 
 **Autowertung** (ab 26.10.2026; davor Abflüge pro Runde × typische Kosten eines Abflugs): Sie kommt
@@ -319,7 +319,7 @@ sich erst durch, wenn er über mehrere Rennen gleich bleibt (halbe Wirkung nach 
 so zeigen sich mechanische Änderungen, einzelne Ausreißer aber kaum. Underdog-Bonus ab 6 Punkten unter
 dem Schnitt (≈ 0,75 % langsamer).
 
-**Duell gegen die Bahn**: Zusätzlich fährt jeder in jedem Lauf gegen einen festen Maßstab (Startwert
+**Tempobonus** (früher „Duell gegen die Bahn“): Zusätzlich fährt jeder in jedem Lauf gegen einen festen Maßstab (Startwert
 500): gewonnen, wenn die eigene typische saubere Runde schneller ist als die typische Runde des Autos
 auf der Strecke über alle Läufe. Gewicht 0,3 eines Laufs, nur als Bonus (nie Abzug). Werden alle
 schneller, steigen alle – die Wertung spiegelt so auch echte Verbesserung wider.

@@ -115,7 +115,7 @@ describe('Wertung', () => {
     expect(r.drivers.get('Anna')!).toBeGreaterThan(r.drivers.get('Ben')!)
   })
 
-  it('lässt alle steigen, wenn alle schneller werden (Duell gegen die Bahn)', () => {
+  it('lässt alle steigen, wenn alle schneller werden (Tempobonus)', () => {
     const lapRace = (id: string, date: string, ms: number) => {
       const s = race(id, date, [['Anna', 'Auto', 10], ['Ben', 'Auto', 10]])
       return { ...s, results: s.results.map((r) => ({ ...r, lapTimes: r.lapTimes.map((l) => ({ ...l, ms: ms + (r.position - 1) * 50 })) })) }

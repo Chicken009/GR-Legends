@@ -60,7 +60,7 @@ export const RATING = {
    */
   carHalfLifeDays: 120,
   /**
-   * Duell gegen die Bahn: Zusätzlich zu den Duellen gegeneinander fährt jeder gegen einen festen
+   * Tempobonus: Zusätzlich zu den Duellen gegeneinander fährt jeder gegen einen festen
    * Maßstab (Startwert) – gewonnen, wenn die eigene saubere Runde schneller ist als die typische
    * Runde des Autos auf der Strecke. Nur Bonus, nie Abzug. Werden alle schneller, steigen alle.
    * Gewicht relativ zu einem Lauf.
@@ -90,7 +90,7 @@ export interface RatingEvent {
   reason: string
   /** Größte Überraschung im Lauf: Erwartung gegen einen geschlagenen Gegner (0–1) */
   upsetExpectation: number | null
-  /** Anteil aus dem Duell gegen die Bahn (in der Änderung enthalten) */
+  /** Anteil aus dem Tempobonus (in der Änderung enthalten) */
   bench: number
 }
 
@@ -206,7 +206,7 @@ export function computeRatings(sessions: Session[], cfg = RATING): RatingResult 
   const placementRuns = (driver: string) => ((firstDate.get(driver) ?? cfg.v2From) < cfg.v2From ? cfg.provisionalRacesLegacy : cfg.provisionalRaces)
   const carRating = (track: string, car: string) => carValue(cars, track, car)
 
-  // Typische saubere Runde je Auto und Strecke (Maßstab für das Duell gegen die Bahn): für Läufe vor
+  // Typische saubere Runde je Auto und Strecke (Maßstab für den Tempobonus): für Läufe vor
   // v2From aus allen Läufen vor v2From, danach aus allen Läufen bis einschließlich des aktuellen –
   // spätere Läufe ändern ihn so nicht mehr
   const lapPools = new Map<string, number[]>()
@@ -273,7 +273,7 @@ export function computeRatings(sessions: Session[], cfg = RATING): RatingResult 
       const n = counts.get(a.driver) ?? 0
       const k = (n < placementRuns(a.driver) ? cfg.kProvisional : cfg.k) * w
       const before = drivers.get(a.driver) ?? cfg.start
-      // Duell gegen die Bahn: eigene typische saubere Runde gegen die typische Runde des Autos
+      // Tempobonus: eigene typische saubere Runde gegen die typische Runde des Autos
       const own = a.lapTimes.filter((l) => l.status === 'normal').map((l) => l.ms).sort((x, y) => x - y)
       const bRef = benchRef(s.track, a.car)
       let bench = 0
@@ -306,7 +306,7 @@ export function computeRatings(sessions: Session[], cfg = RATING): RatingResult 
         reason = `Platz ${a.position} von ${field}, ${gapText(a, key.opp)} hinter ${key.opp.driver}`
       }
       reason += ` · ${a.car}`
-      if (Math.round(bench) !== 0) reason += ` · Duell gegen die Bahn ${bench > 0 ? '+' : '−'}${Math.abs(Math.round(bench))}`
+      if (Math.round(bench) !== 0) reason += ` · Tempobonus ${bench > 0 ? '+' : '−'}${Math.abs(Math.round(bench))}`
       const ev: RatingEvent = {
         fileId: s.fileId, date: s.date, type: s.type, driver: a.driver, car: a.car,
         position: a.position, field, before, after, delta: after - before, reason, upsetExpectation, bench,
