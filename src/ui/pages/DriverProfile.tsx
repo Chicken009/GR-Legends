@@ -465,7 +465,7 @@ function SeasonChart({ driver, period }: { driver: string; period: string }) {
     <>
       <PointsChart dates={dates} series={series} label={`Punkteverlauf von ${driver} in der Saison ${year}`} />
       <span style={{ fontSize: 11, color: 'var(--muted)', lineHeight: 1.45 }}>
-        Saison {year}: Platz {mine.rank} von {rows.length} · {mine.points.toLocaleString('de-DE')} Punkte. Punktestand nach jedem Renntag, mit Streichresultaten
+        Saison {year}: Platz {mine.rank} von {rows.length} · {mine.points.toLocaleString('de-DE')} Punkte. Punktestand nach jedem Renntag (beste Rennen bis dahin)
         {other ? `; grau: ${other.name} (${idx === 0 ? 'Verfolger' : `Platz ${other.rank}, direkt vor dir`})` : ''}.
       </span>
     </>

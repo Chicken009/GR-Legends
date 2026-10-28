@@ -69,7 +69,7 @@ function DriverStandings({ year }: { year: string }) {
   const rows = model.season(year)
   const dates = [...new Set(model.sessions.filter((s) => s.date.startsWith(year)).map((s) => s.date))].sort()
   const mine = me ? rows.find((r) => r.name === me) : undefined
-  // Rangverlauf: Platz nach jedem Renntag (nach Punkten mit Streichresultaten)
+  // Rangverlauf: Platz nach jedem Renntag (nach den gewerteten Rennen bis dahin)
   const ranksAt = (i: number) => {
     const order = rows.filter((r) => r.progress[i] != null).sort((a, b) => b.progress[i]! - a.progress[i]!)
     return new Map(order.map((r, k) => [r.name, k + 1]))
@@ -114,10 +114,10 @@ function DriverStandings({ year }: { year: string }) {
             Bestzeit
           </span>
           <span>
-            <span className="day-chip joker">
-              8<sup>×2</sup>
+            <span className="day-chip">
+              8<sup>2/3</sup>
             </span>{' '}
-            Joker
+            2 von 3 Rennen gewertet
           </span>
         </div>
       </section>
@@ -128,7 +128,7 @@ function DriverStandings({ year }: { year: string }) {
             <span className="hint">Punkte antippen</span>
           </div>
           <PointsChart dates={dates} series={shown.map((n) => ({ name: n, color: colors.get(n) ?? '#9AA3AD', values: rows.find((r) => r.name === n)?.progress ?? [] }))} label={`Punkteverlauf der Saison ${year}`} />
-          <span style={{ fontSize: 11, color: 'var(--muted)' }}>Punktestand nach jedem Renntag, mit Streichresultaten.</span>
+          <span style={{ fontSize: 11, color: 'var(--muted)' }}>Punktestand nach jedem Renntag (beste {SEASON_POINTS.countedRaces} Rennen bis dahin).</span>
         </section>
       )}
       {dates.length >= 2 && (
@@ -158,9 +158,9 @@ function SeasonRules() {
         Je Gegner hinter dir {fmtPts(fixed)}–{fmtPts(most)} Pkt. – gegen Stärkere mehr
       </span>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-        <RuleChip value={`${sp.racesPerDay}`} label="beste Rennen je Renntag" />
-        <RuleChip value={`${sp.countedDays}`} label="beste Renntage zählen" />
-        <RuleChip value={`×${sp.jokerFactor}`} label="Joker: bester Renntag" color={AREA.season} />
+        <RuleChip value={`${sp.countedRaces}`} label="beste Rennen der Saison" color={AREA.season} />
+        <RuleChip value={`max. ${sp.racesPerDay}`} label="Rennen je Renntag" />
+        <RuleChip value={`max. ${sp.maxBeaten}`} label="Gegner je Rennen" />
         <RuleChip value={`⚡ +${sp.fastestLap}`} label="Schnellste Runde" color="var(--gold)" />
         <RuleChip value={`P +${sp.pole}`} label="Pole" color="var(--gold)" />
         <RuleChip value={`B +${sp.personalBest}`} label="Neue Bestzeit" color="var(--gold)" />
@@ -174,7 +174,11 @@ function SeasonRules() {
           </li>
           <li>Schnellste Runde und Pole zählen im Verhältnis zur typischen Runde des eigenen Autos auf der Strecke – mit einem langsameren Auto hat man genauso eine Chance.</li>
           <li>Neue persönliche Bestzeit auf der Strecke: +{fmtPts(sp.personalBest)} Pkt. am Renntag (ab der zweiten gefahrenen Zeit).</li>
-          <li>Der beste der {sp.countedDays} gewerteten Renntage zählt doppelt. Wer mal nicht kann, verliert nichts – auch nicht am letzten Renntag.</li>
+          <li>
+            Es zählen deine besten {sp.countedRaces} Rennen der Saison, höchstens {sp.racesPerDay} pro Renntag – wer an mehreren Tagen fährt, kann mehr Rennen werten. Die Boni eines Tages zählen,
+            wenn dort ein Rennen gewertet wird.
+          </li>
+          <li>Je Rennen zählen höchstens die {sp.maxBeaten} wertvollsten geschlagenen Gegner – ein großes Feld bringt also nicht mehr als ein Rennen zu viert.</li>
         </ul>
       </details>
     </section>
@@ -199,14 +203,18 @@ function StandingRow({ row: r, me, bg }: { row: SeasonStanding; me: string | nul
           {r.days.map((d) => (
             <span
               key={d.date}
-              className={`day-chip${d.counted ? '' : ' dropped'}${d.joker ? ' joker' : ''}`}
-              title={`${formatDate(d.date)}: ${fmtPts(d.points)} Punkte (${d.races} Rennen${d.fastestLap ? ', schnellste Runde' : ''}${d.pole ? ', Pole' : ''}${d.personalBest ? ', neue Bestzeit' : ''})${d.joker ? ' – Joker, zählt doppelt' : d.counted ? '' : ' – gestrichen'}`}
+              className={`day-chip${d.counted ? '' : ' dropped'}`}
+              title={`${formatDate(d.date)}: ${d.counted ? `${fmtPts(d.contribution)} Punkte gewertet (${d.countedRaces} von ${d.races} Rennen` : `${fmtPts(d.points)} Punkte, nicht gewertet (${d.races} Rennen`}${d.fastestLap ? ', schnellste Runde' : ''}${d.pole ? ', Pole' : ''}${d.personalBest ? ', neue Bestzeit' : ''})`}
             >
-              {fmtPts(d.points)}
+              {fmtPts(d.counted ? d.contribution : d.points)}
               {d.fastestLap && <sup>F</sup>}
               {d.pole && <sup>P</sup>}
               {d.personalBest && <sup>B</sup>}
-              {d.joker && <sup>×2</sup>}
+              {d.counted && d.countedRaces < d.races && (
+                <sup>
+                  {d.countedRaces}/{d.races}
+                </sup>
+              )}
             </span>
           ))}
         </span>
@@ -250,7 +258,7 @@ function Constructors({ year }: { year: string }) {
         </Link>
       ))}
       <p style={{ margin: '6px 0 0', fontSize: 11, color: 'var(--muted)', lineHeight: 1.45 }}>
-        Die Autos sammeln die Rennpunkte aller ihrer Fahrer (ohne Streichresultate und Bonus). Viel gefahrene Autos haben es leichter – Siege zeigen die Stärke.
+        Die Autos sammeln die Rennpunkte aller ihrer Fahrer (alle Rennen, ohne Bonus). Viel gefahrene Autos haben es leichter – Siege zeigen die Stärke.
       </p>
     </section>
   )

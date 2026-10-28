@@ -189,7 +189,7 @@ export function Drivers() {
           <span>Pace = Abstand der Ø sauberen Runde zur typischen Bestzeit der Strecke (Grenze der schnellsten 10 % aller Runden); minus = noch schneller</span>
           <span>Streuung = Schwankung sauberer Runden (kleiner = präziser)</span>
           <span>Abflüge nur aus Rennen ohne Tankfunktion</span>
-          {p !== 'all' && <span>Sortiert nach Saisonwertung {p} (Punkte, beste {SEASON_POINTS.countedDays} Renntage)</span>}
+          {p !== 'all' && <span>Sortiert nach Saisonwertung {p} (Punkte, beste {SEASON_POINTS.countedRaces} Rennen)</span>}
           <span>Inaktiv = seit über 12 Monaten kein Rennen – mit „Inaktive Fahrer filtern“ ohne Platz am Ende, bis zum nächsten Rennen</span>
           <span>Einstufung = neue Fahrer, die ersten {PLACEMENT_RUNS} Läufe pendeln die Wertung ein (wer vor dem {formatDate(RATING.v2From)} angefangen hat: {RATING.provisionalRacesLegacy})</span>
         </div>

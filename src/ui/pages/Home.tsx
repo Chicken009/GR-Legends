@@ -177,7 +177,7 @@ export function Home() {
 
 const CURRENT_YEAR = String(new Date().getFullYear())
 
-/** Saisonwertung des aktuellen Jahres: Punkte mit Streichresultaten */
+/** Saisonwertung des aktuellen Jahres: Punkte der besten Rennen */
 function SeasonCard() {
   const { model } = useData()
   const me = useMyName()
@@ -217,7 +217,7 @@ function SeasonCard() {
       {top.map(line)}
       {mine && !top.includes(mine) && line(mine)}
       <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--muted)', lineHeight: 1.45 }}>
-        Punkte für jeden geschlagenen Gegner – gegen Stärkere mehr. Bonus für schnellste Runde, Pole und neue Bestzeit. Es zählen die besten {SEASON_POINTS.countedDays} Renntage, der beste doppelt.
+        Punkte für jeden geschlagenen Gegner – gegen Stärkere mehr. Bonus für schnellste Runde, Pole und neue Bestzeit. Es zählen die besten {SEASON_POINTS.countedRaces} Rennen, höchstens {SEASON_POINTS.racesPerDay} pro Renntag.
       </p>
     </section>
   )

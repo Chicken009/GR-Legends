@@ -273,7 +273,7 @@ export interface Model {
   rankTimeline: () => { dates: string[]; ranks: Map<string, (number | null)[]> }
   /** Was am letzten Renntag passiert ist */
   news: () => NewsItem[]
-  /** Saisonwertung mit Punkten und Streichresultaten */
+  /** Saisonwertung: Punkte der besten Rennen der Saison */
   season: (year: string) => SeasonStanding[]
   /** Konstrukteurswertung: Punkte der Autos im Jahr */
   constructors: (year: string) => ConstructorStanding[]
@@ -1441,7 +1441,7 @@ function computeMedals(
     if (y >= thisYear) continue
     const lastInYear = dates.filter((dt) => dt.startsWith(y)).pop() ?? `${y}-12-31`
     const standings = season(y)
-    // Saisonsieger: die meisten Punkte (mit Streichresultaten)
+    // Saisonsieger: die meisten Punkte (beste Rennen der Saison)
     for (const w of standings.filter((r) => r.rank === 1 && r.points > 0)) {
       add(w.name, { id: `saison-${y}`, kind: 'saisonsieger', name: `Saisonsieger ${y}`, description: `Saisonwertung gewonnen mit ${w.points} Punkten`, tier: 'platinum', icon: 'trophy', date: lastInYear })
     }
