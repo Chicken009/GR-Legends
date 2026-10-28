@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { funDistance } from '../../domain/funDistance'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { CHALLENGE_XP } from '../../domain/challenges'
 import type { Medal, Wrapped as WrappedData } from '../../domain/model'
@@ -120,10 +121,11 @@ function CompareRow({ label, before, now, diff, better }: { label: string; befor
   )
 }
 
-function buildCards(w: WrappedData, you: boolean, seasonDates: string[]): CardDef[] {
+function buildCards(w: WrappedData, you: boolean, seasonDates: string[], pick: number): CardDef[] {
   const driver = w.driver
   const year = w.year
   const cards: CardDef[] = []
+  const distance = w.km != null ? funDistance(w.km, pick) : null
 
   cards.push({
     key: 'intro', kicker: `GR Legends · ${year}`, icon: PATHS.track,
@@ -160,7 +162,7 @@ function buildCards(w: WrappedData, you: boolean, seasonDates: string[]): CardDe
           <Line>
             Rennen an {w.days} {w.days === 1 ? 'Renntag' : 'Renntagen'}
             {w.qualis ? ` und ${w.qualis} Qualifyings` : ''}
-            {w.km != null ? ` – ${fmtNum(w.km)} km, so weit wie ${Math.max(1, Math.round((w.km * 1000) / 105))} Fußballfelder.` : '.'}
+            {w.km != null ? ` – ${fmtNum(w.km)} km${distance ? `, ${distance}` : ''}.` : '.'}
           </Line>
         </Group>
         <Reveal>
@@ -707,11 +709,13 @@ export function Wrapped() {
       return true
     }
   })
+  // bei jedem Öffnen ein anderer Vergleich für die gefahrene Strecke
+  const [pick] = useState(Math.random)
   const w = model.wrapped(driver, year)
   const seasonDates = [...new Set(model.sessions.filter((s) => s.date.startsWith(year)).map((s) => s.date))].sort()
   const you = driver === me
   if (!w) return <div className="page"><p className="muted">Für {driver} gibt es {year} keine Rennen.</p></div>
-  const cards = buildCards(w, you, seasonDates)
+  const cards = buildCards(w, you, seasonDates, pick)
   const share = async () => {
     const text = `${you ? 'Mein' : `${driver}s`} GR-Legends-Jahr ${year}: ${w.races} Rennen, ${w.wins} Siege${w.season ? `, Platz ${w.season.rank} in der Saison` : ''}`
     try {
