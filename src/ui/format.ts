@@ -51,10 +51,12 @@ export const fmtDelta = (v: number) => {
 export const fmtGapSec = (ms: number | null | undefined) => (ms == null ? '–' : `${ms < 0 ? '−' : '+'}${nf(2).format(Math.abs(ms) / 1000)} s`)
 export const fmtSeconds = (ms: number, digits = 1) => `${nf(digits).format(ms / 1000)} s`
 
-/** Initialen für Avatare: „Anton Berger“ → AB, „Mika“ → MI, „K. Lindner“ → KL */
+/** Initialen für Avatare: „Anton Berger“ → AB, „Mika“ → MI, „K. Lindner“ → KL, „Fahrer 07“ → 07 */
 export function initials(name: string): string {
   const clean = name.replace(/\(.*?\)/g, '').trim()
   const parts = clean.split(/[\s.]+/).filter(Boolean)
+  // Pseudonym „Fahrer 07“ → „07“ (sonst hießen alle „F0“)
+  if (parts.length >= 2 && /^\d+$/.test(parts[parts.length - 1])) return parts[parts.length - 1].slice(-2).padStart(2, '0')
   if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
   return clean.slice(0, 2).toUpperCase()
 }
@@ -63,6 +65,8 @@ export function initials(name: string): string {
 export function shortName(name: string): string {
   const parts = name.split(' ').filter(Boolean)
   if (parts.length < 2) return name
+  // Pseudonyme wie „Fahrer 01“ unterscheiden sich erst an der Nummer – dann ganz lassen
+  if (/\d/.test(parts[parts.length - 1])) return name
   return /\.$/.test(parts[0]) ? parts.slice(1).join(' ') : parts[0]
 }
 
