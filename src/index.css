@@ -335,6 +335,10 @@ h3 {
   box-shadow: var(--sh2);
   white-space: nowrap;
 }
+/* Als Knopf ohne den Standardrahmen des Browsers */
+button.pill {
+  border: none;
+}
 
 .chips {
   display: flex;

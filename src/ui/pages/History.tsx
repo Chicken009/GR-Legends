@@ -79,7 +79,7 @@ export function History() {
             nur mit mir
           </label>
         )}
-        <button className={`pill${active ? ' active' : ''}`} onClick={() => setFilterOpen(true)} aria-haspopup="dialog" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, ...(active ? { borderColor: ACCENT, color: 'var(--text)' } : null) }}>
+        <button className={`pill${active ? ' active' : ''}`} onClick={() => setFilterOpen(true)} aria-haspopup="dialog" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, ...(active ? { background: ACCENT, color: '#0E1013', fontWeight: 700 } : null) }}>
           <FilterIcon />
           Filter{active ? ` · ${active}` : ''}
         </button>
@@ -138,7 +138,7 @@ function FilterSheet({ drivers, cars, pickedDrivers, pickedCars, me, onApply, on
           {visible.map((x) => {
             const on = picked.includes(x)
             return (
-              <button key={x} className="pill" role="checkbox" aria-checked={on} onClick={() => toggle(picked, set, x)} style={on ? { background: ACCENT, borderColor: ACCENT, color: '#0E1013', fontWeight: 700 } : x === me ? { borderColor: 'var(--me)' } : undefined}>
+              <button key={x} className="pill" role="checkbox" aria-checked={on} onClick={() => toggle(picked, set, x)} style={on ? { background: ACCENT, color: '#0E1013', fontWeight: 700 } : x === me ? { color: 'var(--me)', fontWeight: 700 } : undefined}>
                 {x}
               </button>
             )
