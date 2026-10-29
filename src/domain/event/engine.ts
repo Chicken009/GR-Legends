@@ -61,6 +61,8 @@ export interface Heat {
   points: Map<string, number>
   /** Teamrennen: Punkte je Team */
   teamPoints: Map<string, number> | null
+  /** Teamrennen (ab TEAM_RULES_FROM): Punkte nur gegen Fahrer anderer Teams – Grundlage der Teampunkte */
+  rivalPoints: Map<string, number> | null
   /** „Knapp verloren zählt“: in `points` enthaltene Punkte für knappe Niederlagen */
   close: Map<string, number> | null
   /** Aufstiegsleiter / K.-o.: wer aus diesem Lauf weiterkommt (Punkte gibt es hier erst für den Endstand) */
@@ -301,26 +303,41 @@ interface Env {
 const strengthOf = (env: Env, name: string, car?: string, at?: Session) => env.ctx.elo(name, at) + (car ? env.ctx.car(car, at) : 0)
 
 /** Punkte für eine Reihenfolge: je geschlagenem Gegner + Sieg; fair: gegen Stärkere mehr */
-function orderPoints(env: Env, order: string[], strength: (n: string) => number, closeness?: (behind: string, ahead: string) => number, close?: Map<string, number>): Map<string, number> {
+/**
+ * Punkte je Fahrer aus der Zielreihenfolge. Mit `rival` zählen nur Gegner, für die `rival` gilt
+ * (Teamrennen: Fahrer anderer Teams); `noWin`: kein Siegbonus für Platz 1.
+ */
+function orderPoints(
+  env: Env,
+  order: string[],
+  strength: (n: string) => number,
+  closeness?: (behind: string, ahead: string) => number,
+  close?: Map<string, number>,
+  rival?: (a: string, b: string) => boolean,
+  noWin = false,
+): Map<string, number> {
   const sc = env.def.scoring
   const pts = new Map<string, number>()
+  const counts = (a: string, b: string) => !rival || rival(a, b)
   order.forEach((name, i) => {
     let p = 0
     for (let j = i + 1; j < order.length; j++) {
+      if (!counts(name, order[j])) continue
       if (sc.method === 'fair') p += 2 * (1 - winProb(strength(name), strength(order[j]))) * sc.perBeaten
       else p += sc.perBeaten
     }
     // Knapp verloren: anteilig, was ein Sieg gegen den Vordermann gebracht hätte (kein Abzug für den Sieger)
     if (closeness && sc.closeLoss) {
       let c = 0
-      for (let j = 0; j < i; j++) c += closeness(name, order[j]) * (sc.method === 'fair' ? 2 * (1 - winProb(strength(name), strength(order[j]))) : 1) * sc.perBeaten
+      for (let j = 0; j < i; j++) if (counts(name, order[j])) c += closeness(name, order[j]) * (sc.method === 'fair' ? 2 * (1 - winProb(strength(name), strength(order[j]))) : 1) * sc.perBeaten
       c = Math.round(c * 10) / 10
       if (c > 0) {
         p += c
         close?.set(name, c)
       }
     }
-    if (i === 0 && order.length > 1) p += winBonus(env, name, order.slice(1), strength)
+    const others = order.slice(1).filter((o) => counts(name, o))
+    if (i === 0 && others.length && !noWin) p += winBonus(env, name, others, strength)
     pts.set(name, Math.round(p * 10) / 10)
   })
   return pts
@@ -514,6 +531,7 @@ function addHeat(
     order: [],
     points: new Map(),
     teamPoints: null,
+    rivalPoints: null,
     close: null,
     advancing: null,
     grid: null,
@@ -533,6 +551,11 @@ function addHeat(
     const close = new Map<string, number>()
     heat.points = orderPoints(env, heat.order, (n) => strengthOf(env, n, driven.get(n), session), heat.kind === 'race' ? closenessIn(session) : undefined, close)
     heat.close = close.size ? close : null
+    // Teamrennen: für die Teampunkte zählen nur Gegner aus anderen Teams
+    const teamOf = heat.teamOf
+    if (teamOf && env.def.start >= TEAM_RULES_FROM) {
+      heat.rivalPoints = orderPoints(env, heat.order, (n) => strengthOf(env, n, driven.get(n), session), closenessIn(session), undefined, (a, b) => teamOf[a] !== teamOf[b], !!sec.teamWin)
+    }
     // Gefahrene Besetzung gilt (auch wenn jemand eingesprungen ist)
     heat.entrants = heat.order.map(named)
   }
@@ -798,6 +821,8 @@ export function ladderPlan(n: number, per: number, opts: { advance: number | 'au
  * ab diesem Tag – bereits gefahrene Wettkämpfe behalten ihre Läufe und Wertungen.
  */
 export const EVENT_RULES_FROM = '2026-10-24'
+/** Ab diesem Wettkampfstart zählen in Teamrennen nur Gegner aus anderen Teams für die Teampunkte (und wahlweise Siegbonus nach Teampunkten) */
+export const TEAM_RULES_FROM = '2026-10-30'
 
 /**
  * Ausgeglichene Verteilung zufälliger Autos (`rotateCars`) gilt für Wettkämpfe ab diesem Tag –
@@ -1156,13 +1181,18 @@ function sectionTeam(env: Env, sec: SectionDef, teams: TeamState[], per: number)
   for (const h of heats) {
     if (h.status !== 'done') continue
     const byTeam = new Map<string, number[]>()
-    for (const [n, p] of h.points) {
+    for (const [n, p] of h.rivalPoints ?? h.points) {
       const t = h.teamOf?.[n] ?? teamOfAll[n]
       if (t) byTeam.set(t, [...(byTeam.get(t) ?? []), p])
     }
     const e = expectedPoints(env, h.order.length)
     const scale = e > 0 && ref > 0 ? ref / e : 1
     h.teamPoints = new Map([...byTeam].map(([t, ps]) => [t, Math.round((ps.reduce((a, b) => a + b, 0) / ps.length) * scale * 10) / 10]))
+    // Siegbonus nach Teampunkten: an das Team mit den meisten Punkten im Rennen, bei Gleichstand an niemanden
+    if (sec.teamWin && h.rivalPoints && h.teamPoints.size > 1) {
+      const sorted = [...h.teamPoints].sort((a, b) => b[1] - a[1])
+      if (sorted[0][1] > sorted[1][1]) h.teamPoints.set(sorted[0][0], Math.round((sorted[0][1] + env.def.scoring.win) * 10) / 10)
+    }
     for (const [t, p] of h.teamPoints) teamSum.set(t, (teamSum.get(t) ?? 0) + p * (most / Math.max(1, planned.get(t) ?? most)))
   }
   const teamRows = [...teamSum].sort((a, b) => b[1] - a[1]).map(([id, points], i) => ({ name: id, rank: i + 1, points: Math.round(points * 10) / 10, detail: teams.find((t) => t.id === id)!.name }))

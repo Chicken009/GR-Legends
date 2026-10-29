@@ -111,6 +111,8 @@ export interface SectionDef {
   finalDirect?: number
   /** Startaufstellung nach Startreihenfolge (vorheriger Abschnitt oder Elo): Beste vorne (Standard) oder Schwächste vorne */
   gridOrder?: 'best' | 'worst'
+  /** team: Siegbonus fürs Team mit den meisten Punkten im Rennen (Gleichstand: niemand) statt für Platz 1 */
+  teamWin?: boolean
   /** custom: Läufe mit festen Fahrern */
   heats?: { kind: 'race' | 'quali'; drivers: string[] }[]
 }

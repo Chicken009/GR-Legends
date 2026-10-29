@@ -922,6 +922,24 @@ function TeamPlanHint({ plan, sec, onChange }: { plan: TeamPlan; sec: SectionDef
           Nur halber Durchgang
         </label>
       )}
+      {plan.mode !== 'slots' && (
+        <>
+          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-2)', marginTop: 4 }}>Siegbonus</span>
+          <Segment
+            small
+            label="Siegbonus"
+            value={sec.teamWin ? 'team' : 'driver'}
+            onChange={(v) => onChange({ teamWin: v === 'team' || undefined })}
+            options={[
+              ['driver', 'Für Platz 1'],
+              ['team', 'Fürs bessere Team'],
+            ]}
+          />
+          <span style={{ fontSize: 12, color: 'var(--muted)', lineHeight: 1.45 }}>
+            {sec.teamWin ? 'Das Team mit den meisten Punkten im Rennen bekommt den Siegbonus, bei Gleichstand niemand.' : 'Das Team des Fahrers auf Platz 1 bekommt den Siegbonus.'} Punkte gibt es nur für Gegner aus anderen Teams.
+          </span>
+        </>
+      )}
       {(total ?? halfCount) > 20 && <span style={{ fontSize: 12, color: 'var(--crash)' }}>Das sind sehr viele Rennen – weniger Teams, größere Teams oder ein halber Durchgang verkürzen den Abschnitt.</span>}
     </div>
   )

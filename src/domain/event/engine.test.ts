@@ -226,11 +226,27 @@ describe('Rennen, K.-o. und Teams', () => {
     // Einzelwertung ohne Teamrennen: D gewinnt das Einzelrennen
     expect(mixed.standings.find((r) => r.name === 'D')!.sections[1]).toBe(0)
     expect(mixed.standings[0].name).toBe('D')
-    // Teamwertung nur aus dem Teamrennen: Rot 2, Blau 1,5
-    expect(mixed.teamStandings.map((t) => [t.name, t.points])).toEqual([['Rot', 2], ['Blau', 1.5]])
+    // Teamwertung nur aus dem Teamrennen, nur Gegner zählen: A 2 + Sieg, D 0 → Rot 1,5; B 1, C 1 → Blau 1
+    expect(mixed.teamStandings.map((t) => [t.name, t.points])).toEqual([['Rot', 1.5], ['Blau', 1]])
     // vor dem Stichtag bleibt es bei der bisherigen Wertung
     const old = computeEvent(def({ start: '2026-06-01', drivers: ['A', 'B', 'C', 'D'], teams, sections }), ctx(sessions))
     expect(old.separate).toBe(false)
+  })
+
+  it('Teamrennen: nur Gegner zählen, Siegbonus wahlweise fürs Team mit den meisten Punkten', () => {
+    const teams = { mode: 'manual' as const, size: 2, teams: [{ name: 'Rot', drivers: ['A', 'D'] }, { name: 'Blau', drivers: ['B', 'C'] }] }
+    const heat = (teamWin: boolean, order: string[], start = '2026-11-01') =>
+      computeEvent(def({ start, drivers: ['A', 'B', 'C', 'D'], teams, sections: [newSection('team', { id: 't', teamWin: teamWin || undefined })] }), ctx([run('race', order)])).heats[0]
+    // Platz 1 und 4 gegen 2 und 3: im direkten Vergleich 2:2 – ohne Siegbonus fürs Team unentschieden
+    expect([...heat(true, ['A', 'B', 'C', 'D']).teamPoints!]).toEqual([['t1', 1], ['t2', 1]])
+    // mit Siegbonus für Platz 1 bekommt Rot ihn (halb, im Schnitt der beiden)
+    expect([...heat(false, ['A', 'B', 'C', 'D']).teamPoints!]).toEqual([['t1', 1.5], ['t2', 1]])
+    // Plätze 1 und 2: Rot schlägt je beide Gegner (je 2) und bekommt den Siegbonus ganz
+    expect(heat(true, ['A', 'D', 'B', 'C']).teamPoints!.get('t1')).toBe(3)
+    // der Sieg über den eigenen Teamkollegen zählt nicht
+    expect(heat(true, ['A', 'D', 'B', 'C']).rivalPoints!.get('A')).toBe(2)
+    // vor dem Stichtag zählt wie bisher jeder Gegner
+    expect(heat(true, ['A', 'B', 'C', 'D'], '2026-06-01').rivalPoints).toBeNull()
   })
 
   it('Einer je Team bei unterschiedlich großen Teams: ganzer und halber Durchgang', () => {
