@@ -27,7 +27,8 @@ Smartrace-CSVs und dem Einstellungen-Sheet sind **für jeden lesbar**. Deshalb g
 - Der Datenschutzhinweis steht in `src/ui/Privacy.tsx`. Bei Änderungen an Datenquellen, Hosting oder
   gespeicherten Daten den Hinweis mitpflegen. Die Kontaktdaten darin sind absichtlich verschleiert
   (nicht als Klartext im Code) – so lassen.
-- Browserspeicher (`localStorage`) nur für Einstellungen auf dem eigenen Gerät, nie für Daten anderer.
+- Browserspeicher (`localStorage`) nur für Einstellungen auf dem eigenen Gerät und als Zwischenspeicher der
+  öffentlichen Drive-Dateien (Rennergebnisse, Wettkämpfe) – sonst nie für Daten anderer.
 
 ## Gestaltung (einheitlich in der ganzen App)
 

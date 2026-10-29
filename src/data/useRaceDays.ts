@@ -4,7 +4,7 @@ import { classifyAllLaps } from '../domain/laps'
 import { buildModel, type Model } from '../domain/model'
 import { buildSession, dropDuplicates, groupRaceDays } from '../domain/sessions'
 import type { RaceDay, Session } from '../types'
-import { downloadDriveFile, listDriveFiles, readSettingsSheet } from './drive'
+import { downloadDriveFile, listDriveFiles, pruneFileCache, readSettingsSheet } from './drive'
 import { renameEventDrivers, resolveEvents, type EventFolder, type RawEvent } from './events'
 import { eventSlug } from '../domain/event/normalize'
 import { applySettings, EMPTY_SETTINGS, nameKey, newcomers, parseSettings, unmatchedSettings, type Settings } from './settings'
@@ -35,6 +35,7 @@ async function loadRaw(): Promise<Raw> {
   if (driveEnabled) {
     const apiKey = config.googleApiKey!
     const listing = await listDriveFiles(config.driveFolderId!, apiKey)
+    pruneFileCache([...listing.files.map((f) => f.id), ...listing.events.flatMap((e) => (e.json ? [e.json.id] : []))])
     let settingsProblem: string | null = listing.settingsNotSheet
       ? 'Die Einstellungen liegen als Datei (z. B. Excel) im Ordner und nicht als Google-Tabelle. In Drive „Öffnen mit → Google Tabellen“ wählen und danach die Datei löschen.'
       : null

@@ -96,8 +96,9 @@ export function PrivacySheet({ onClose }: { onClose: () => void }) {
             Die App setzt keine Cookies und nutzt keine Analyse- oder Werbedienste. Schriften und Programmteile werden von der Seite selbst geladen, nicht von fremden Servern.
           </p>
           <p style={{ margin: 0 }}>
-            Im Speicher deines Browsers merkt sich die App nur Einstellungen auf deinem Gerät, z. B. wer du bist („Das bin ich“), gewählte Ansichten und schon gesehene Medaillen. Diese Angaben verlassen
-            dein Gerät nicht und lassen sich über die Browsereinstellungen jederzeit löschen.
+            Im Speicher deines Browsers merkt sich die App Einstellungen auf deinem Gerät, z. B. wer du bist („Das bin ich“), gewählte Ansichten und schon gesehene Medaillen. Außerdem legt sie die
+            öffentlichen Rennergebnisse aus dem Google-Drive-Ordner dort ab, damit sie nicht bei jedem Besuch neu geladen werden; Dateien, die aus dem Ordner verschwinden, werden auch dort gelöscht. Diese
+            Angaben verlassen dein Gerät nicht und lassen sich über die Browsereinstellungen jederzeit löschen.
           </p>
         </Part>
 

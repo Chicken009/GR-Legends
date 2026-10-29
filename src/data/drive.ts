@@ -183,6 +183,21 @@ export async function readSettingsSheet(sheetId: string, apiKey: string) {
 
 const CACHE_PREFIX = 'gr-legends:file:'
 
+/** Entfernt zwischengespeicherte Dateien, die nicht mehr im Drive-Ordner liegen */
+export function pruneFileCache(keep: Iterable<string>) {
+  const ids = new Set(keep)
+  try {
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const key = localStorage.key(i)
+      if (!key?.startsWith(CACHE_PREFIX)) continue
+      const id = key.slice(CACHE_PREFIX.length).split(':')[0]
+      if (!ids.has(id)) localStorage.removeItem(key)
+    }
+  } catch {
+    // localStorage nicht verfügbar – nichts zu tun
+  }
+}
+
 /** Lädt eine Datei (CSV oder JSON); Inhalt wird pro `modifiedTime` im localStorage zwischengespeichert. */
 export async function downloadDriveFile(file: SourceFile, apiKey: string): Promise<string> {
   const cacheKey = `${CACHE_PREFIX}${file.id}:${file.modifiedTime}`
