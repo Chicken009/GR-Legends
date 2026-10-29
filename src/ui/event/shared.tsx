@@ -5,7 +5,7 @@ import { eventSessions } from '../../data/useRaceDays'
 import type { EventFolder } from '../../data/events'
 import { carScale } from '../../data/settings'
 import { eventCars, eventContext, typicalLapMs } from '../../domain/event/context'
-import { byPlace, CLOSE_LOSS_LAPS, computeEvent, TEAM_RULES_FROM, type EventState, type Heat, type Standing, type TeamStanding } from '../../domain/event/engine'
+import { byPlace, CLOSE_LOSS_LAPS, computeEvent, type EventState, type Heat, type Standing, type TeamStanding } from '../../domain/event/engine'
 import { eventFinished, eventPhase, lastDay, todayIso, withoutTeams, type EventPhase, type Story } from '../../domain/event/insights'
 import { eventKind, heatPointsExplained, pointsHistory, stages, teamContributions, type ProgressStep, type Stage } from '../../domain/event/progress'
 import { FORMAT_LABEL, type EventDef } from '../../domain/event/types'
@@ -703,7 +703,7 @@ export function rulesText(def: EventDef, state: EventState): string[] {
           : d.format === 'ko'
             ? `die besten ${d.advance ?? 1} je Lauf kommen weiter; in jeder Gruppe scheiden gleich viele aus, in größeren Gruppen kommt also einer mehr weiter`
             : d.format === 'team'
-              ? `${s.teamPlan?.mode === 'pairs' || s.teamPlan?.mode === 'split' ? (d.half && (d.rounds ?? 1) === 1 ? 'ein halber Durchgang, Gegner nach Elo ausgeglichen; ' : `jedes Team ${d.rounds && d.rounds > 1 ? `${d.rounds}× ` : ''}gegen jedes; `) : ''}${s.teamPlan?.mode === 'split' ? `je ${s.teamPlan.perTeam} Fahrer pro Team und Rennen, die Aufstellung wechselt reihum; ` : ''}${s.teamPlan?.mode === 'slots' ? 'die Nr. 1 jedes Teams gegeneinander, dann die Nr. 2 usw.; ' : ''}jedes Team bekommt den Schnitt seiner Fahrer${state.def.start >= TEAM_RULES_FROM ? ` (nur Punkte gegen andere Teams${d.teamWin ? ', Siegbonus fürs Team mit den meisten Punkten im Rennen' : ''})` : ''}, alle Mitglieder die Teampunkte. Läufe mit weniger Fahrern und Pausen werden hochgerechnet`
+              ? `${s.teamPlan?.mode === 'pairs' || s.teamPlan?.mode === 'split' ? (d.half && (d.rounds ?? 1) === 1 ? 'ein halber Durchgang, Gegner nach Elo ausgeglichen; ' : `jedes Team ${d.rounds && d.rounds > 1 ? `${d.rounds}× ` : ''}gegen jedes; `) : ''}${s.teamPlan?.mode === 'split' ? `je ${s.teamPlan.perTeam} Fahrer pro Team und Rennen, die Aufstellung wechselt reihum; ` : ''}${s.teamPlan?.mode === 'slots' ? 'die Nr. 1 jedes Teams gegeneinander, dann die Nr. 2 usw.; ' : ''}jedes Team bekommt den Schnitt seiner Fahrer (nur Punkte gegen andere Teams${d.teamWin ? ', Siegbonus fürs Team mit den meisten Punkten im Rennen' : ''}), alle Mitglieder die Teampunkte. Läufe mit weniger Fahrern und Pausen werden hochgerechnet`
               : d.format === 'races'
                 ? `${d.rounds ?? 1} ${d.rounds === 1 ? 'Durchgang' : 'Durchgänge'}, Punkte addiert; Läufe mit weniger Fahrern werden hochgerechnet`
                 : d.format === 'custom'
@@ -730,7 +730,7 @@ export function rulesText(def: EventDef, state: EventState): string[] {
   if (newRules && (sc.method === 'fair' || sc.driverOfDay)) out.push('Wer noch in der Einstufung ist, zählt mit seiner Elo vor dem jeweiligen Rennen – so zählen die Ergebnisse statt des Startwerts. Die Autowertung gilt so, wie sie vor dem jeweiligen Rennen feststand.')
   if (place && def.teams) out.push('Teamwertung: Durchschnittsplatz der Mitglieder – kleiner ist besser.')
   else if (state.separate) out.push('Einzel- und Teamwertung sind getrennt: Einzelrennen zählen für die eigenen Punkte, Teamrennen nur für die Teamwertung (Teampunkte je Lauf: Schnitt der Mitglieder, hochgerechnet).')
-  else if (def.teams) out.push('Teamwertung: Schnitt der Gesamtpunkte der Mitglieder – unterschiedlich große Teams bleiben fair.')
+  else if (def.teams) out.push('Teamwertung: Schnitt der Punkte der Mitglieder; Boni nach Einsätzen gewichtet – wer öfter fährt, hat nicht mehr Chancen.')
   out.push(def.countInStats ? 'Die Läufe zählen auch für Elo und Saison.' : 'Die Läufe zählen nicht für Elo und Saison.')
   return out
 }

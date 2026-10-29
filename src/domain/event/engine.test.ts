@@ -205,15 +205,28 @@ describe('Rennen, K.-o. und Teams', () => {
     expect(buildTeams(random, d.drivers, (n) => ELO[n]).teams).toEqual(buildTeams(random, d.drivers, (n) => ELO[n]).teams)
   })
 
+  it('gewichtet Boni fürs Team nach Einsätzen', () => {
+    // Rot: A fährt 2×, D 1×; Blau: B 2×, C 1× (eigene Läufe, keine getrennte Wertung)
+    const teams = { mode: 'manual' as const, size: 2, teams: [{ name: 'Rot', drivers: ['A', 'D'] }, { name: 'Blau', drivers: ['B', 'C'] }] }
+    const sections = [newSection('custom', { id: 'c', heats: [{ kind: 'race', drivers: ['A', 'B'] }, { kind: 'race', drivers: ['A', 'C'] }, { kind: 'race', drivers: ['D', 'B'] }] })]
+    const s = computeEvent(def({ drivers: ['A', 'B', 'C', 'D'], teams, sections }), ctx([run('race', ['B', 'A']), run('race', ['C', 'A']), run('race', ['B', 'D'])]))
+    const bonus = (n: string) => s.standings.find((r) => r.name === n)!.bonuses.reduce((a, b) => a + b.points, 0)
+    const own = (names: string[]) => names.reduce((a, n) => a + s.standings.find((r) => r.name === n)!.total - bonus(n), 0) / names.length
+    // 6 Einsätze bei 4 Fahrern = 1,5 je Fahrer; Rot und Blau haben je 3 Einsätze
+    const expected = (names: string[]) => own(names) + (names.reduce((a, n) => a + bonus(n), 0) / 3) * 1.5
+    expect(s.standings.some((r) => r.bonuses.length > 0)).toBe(true)
+    for (const t of s.teamStandings) expect(t.points).toBeCloseTo(Math.round(expected(t.drivers) * 10) / 10, 5)
+  })
+
   it('wertet Teamrennen mit dem Schnitt und gibt allen Mitgliedern die Teampunkte', () => {
     const d = def({ drivers: ['A', 'B', 'C', 'D'], teams: { mode: 'manual', size: 2, teams: [{ name: 'Rot', drivers: ['A', 'D'] }, { name: 'Blau', drivers: ['B', 'C'] }] }, sections: [newSection('team', { id: 't' })] })
     const s = computeEvent(d, ctx([run('race', ['A', 'B', 'C', 'D'])]))
     const heat = s.sections[0].heats[0]
     expect(heat.status).toBe('done')
-    // A 3+1 = 4, D 0 → Rot 2; B 2, C 1 → Blau 1,5
-    expect(heat.teamPoints!.get('t1')).toBe(2)
-    expect(heat.teamPoints!.get('t2')).toBe(1.5)
-    expect(s.standings.find((r) => r.name === 'D')!.sections[0]).toBe(2)
+    // nur Gegner zählen: A 2+1 = 3, D 0 → Rot 1,5; B 1, C 1 → Blau 1
+    expect(heat.teamPoints!.get('t1')).toBe(1.5)
+    expect(heat.teamPoints!.get('t2')).toBe(1)
+    expect(s.standings.find((r) => r.name === 'D')!.sections[0]).toBe(1.5)
     expect(s.teamStandings[0].name).toBe('Rot')
   })
 
@@ -235,8 +248,8 @@ describe('Rennen, K.-o. und Teams', () => {
 
   it('Teamrennen: nur Gegner zählen, Siegbonus wahlweise fürs Team mit den meisten Punkten', () => {
     const teams = { mode: 'manual' as const, size: 2, teams: [{ name: 'Rot', drivers: ['A', 'D'] }, { name: 'Blau', drivers: ['B', 'C'] }] }
-    const heat = (teamWin: boolean, order: string[], start = '2026-11-01') =>
-      computeEvent(def({ start, drivers: ['A', 'B', 'C', 'D'], teams, sections: [newSection('team', { id: 't', teamWin: teamWin || undefined })] }), ctx([run('race', order)])).heats[0]
+    const heat = (teamWin: boolean, order: string[]) =>
+      computeEvent(def({ drivers: ['A', 'B', 'C', 'D'], teams, sections: [newSection('team', { id: 't', teamWin: teamWin || undefined })] }), ctx([run('race', order)])).heats[0]
     // Platz 1 und 4 gegen 2 und 3: im direkten Vergleich 2:2 – ohne Siegbonus fürs Team unentschieden
     expect([...heat(true, ['A', 'B', 'C', 'D']).teamPoints!]).toEqual([['t1', 1], ['t2', 1]])
     // mit Siegbonus für Platz 1 bekommt Rot ihn (halb, im Schnitt der beiden)
@@ -245,8 +258,6 @@ describe('Rennen, K.-o. und Teams', () => {
     expect(heat(true, ['A', 'D', 'B', 'C']).teamPoints!.get('t1')).toBe(3)
     // der Sieg über den eigenen Teamkollegen zählt nicht
     expect(heat(true, ['A', 'D', 'B', 'C']).rivalPoints!.get('A')).toBe(2)
-    // vor dem Stichtag zählt wie bisher jeder Gegner
-    expect(heat(true, ['A', 'B', 'C', 'D'], '2026-06-01').rivalPoints).toBeNull()
   })
 
   it('Einer je Team bei unterschiedlich großen Teams: ganzer und halber Durchgang', () => {

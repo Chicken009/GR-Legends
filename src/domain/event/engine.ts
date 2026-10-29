@@ -61,7 +61,7 @@ export interface Heat {
   points: Map<string, number>
   /** Teamrennen: Punkte je Team */
   teamPoints: Map<string, number> | null
-  /** Teamrennen (ab TEAM_RULES_FROM): Punkte nur gegen Fahrer anderer Teams – Grundlage der Teampunkte */
+  /** Teamrennen: Punkte nur gegen Fahrer anderer Teams – Grundlage der Teampunkte */
   rivalPoints: Map<string, number> | null
   /** „Knapp verloren zählt“: in `points` enthaltene Punkte für knappe Niederlagen */
   close: Map<string, number> | null
@@ -553,7 +553,7 @@ function addHeat(
     heat.close = close.size ? close : null
     // Teamrennen: für die Teampunkte zählen nur Gegner aus anderen Teams
     const teamOf = heat.teamOf
-    if (teamOf && env.def.start >= TEAM_RULES_FROM) {
+    if (teamOf) {
       heat.rivalPoints = orderPoints(env, heat.order, (n) => strengthOf(env, n, driven.get(n), session), closenessIn(session), undefined, (a, b) => teamOf[a] !== teamOf[b], !!sec.teamWin)
     }
     // Gefahrene Besetzung gilt (auch wenn jemand eingesprungen ist)
@@ -821,8 +821,6 @@ export function ladderPlan(n: number, per: number, opts: { advance: number | 'au
  * ab diesem Tag – bereits gefahrene Wettkämpfe behalten ihre Läufe und Wertungen.
  */
 export const EVENT_RULES_FROM = '2026-10-24'
-/** Ab diesem Wettkampfstart zählen in Teamrennen nur Gegner aus anderen Teams für die Teampunkte (und wahlweise Siegbonus nach Teampunkten) */
-export const TEAM_RULES_FROM = '2026-10-30'
 
 /**
  * Ausgeglichene Verteilung zufälliger Autos (`rotateCars`) gilt für Wettkämpfe ab diesem Tag –
@@ -1465,10 +1463,21 @@ function computeByPoints(def: EventDef, ctx: EventContext): EventState {
       const row = s.teamRanking.find((r) => r.name === id)
       return sum + (row?.points ?? 0) * s.def.weight * (i === lastOverall ? sc.finaleFactor : 1)
     }, 0)
+  // Boni fürs Team nach Einsätzen gewichtet: Boni je Einsatz × Einsätze eines Fahrers im Schnitt.
+  // Fahren alle gleich oft, ist das der Schnitt der Mitglieder; wer öfter fährt, hat nicht mehr Chancen.
+  const starts = new Map<string, number>()
+  for (const h of heats) if (h.status === 'done') for (const n of h.order) starts.set(n, (starts.get(n) ?? 0) + 1)
+  const members = teams.flatMap((t) => t.drivers)
+  const perDriver = members.length ? members.reduce((a, d) => a + (starts.get(d) ?? 0), 0) / members.length : 0
+  const bonusOf = (d: string) => rows.get(d)?.bonuses.reduce((a, b) => a + b.points, 0) ?? 0
+  const teamBonus = (t: TeamState) => {
+    const n = t.drivers.reduce((a, d) => a + (starts.get(d) ?? 0), 0)
+    return n ? (t.drivers.reduce((a, d) => a + bonusOf(d), 0) / n) * perDriver : 0
+  }
   const teamStandings: TeamStanding[] = teams
     .map((t) => {
-      const pts = t.drivers.map((d) => rows.get(d)?.total ?? 0)
-      const points = separate ? teamRacePoints(t.id) : pts.length ? pts.reduce((a, b) => a + b, 0) / pts.length : 0
+      const pts = t.drivers.map((d) => (rows.get(d)?.total ?? 0) - bonusOf(d))
+      const points = separate ? teamRacePoints(t.id) : pts.length ? pts.reduce((a, b) => a + b, 0) / pts.length + teamBonus(t) : 0
       return { id: t.id, name: t.name, drivers: t.drivers, elo: t.elo, rank: 0, points: Math.round(points * 10) / 10 }
     })
     .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name))
