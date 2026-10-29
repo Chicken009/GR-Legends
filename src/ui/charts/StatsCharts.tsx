@@ -175,7 +175,7 @@ export function TrendChart({ days, color }: { days: { date: string; best: number
       {days.map((d, i) => (
         <button key={d.date} className="hit" style={{ left: sx(i), top: sy(d.best), width: Math.max(14, Math.min(32, width / days.length)), marginLeft: -Math.max(7, Math.min(16, width / days.length / 2)) }} aria-label={`${formatDate(d.date)}: Bestzeit ${formatTime(d.best)}`} onClick={() => setOpen(open === i ? null : i)} onPointerEnter={(e) => e.pointerType === 'mouse' && setOpen(i)} />
       ))}
-      {open != null && (
+      {open != null && days[open] && (
         <Tip
           x={sx(open)}
           y={sy(days[open].best)}

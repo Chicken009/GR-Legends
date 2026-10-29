@@ -179,8 +179,8 @@ function StandingRow({ row: r, me, bg }: { row: SeasonStanding; me: string | nul
       {/* gewertete Rennen über die ganze Breite, eingerückt bis zum Namen */}
       {(r.counted.length > 0 || r.challenges > 0) && (
         <span style={{ display: 'flex', flexWrap: 'wrap', gap: 4, flexBasis: '100%', paddingLeft: 72 }}>
-          {r.counted.map((race) => (
-            <span key={race.fileId} className="day-chip" title={`${formatDate(race.date)} · ${race.label}: ${fmtPts(race.points)} Pkt.`}>
+          {r.counted.map((race, i) => (
+            <span key={`${race.fileId}-${i}`} className="day-chip" title={`${formatDate(race.date)} · ${race.label}: ${fmtPts(race.points)} Pkt.`}>
               {fmtPts(race.points)}
             </span>
           ))}

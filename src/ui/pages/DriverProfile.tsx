@@ -272,7 +272,7 @@ export function DriverProfile({ onClose }: { onClose: () => void }) {
           .slice(-6)
           .reverse()
           .map(({ session, result }) => (
-            <button key={session.fileId} className="row" style={{ border: 'none', background: 'none', textAlign: 'left', padding: '6px 0' }} onClick={() => navigate(`/lauf/${session.fileId}`)}>
+            <button key={`${session.fileId}-${result.position}`} className="row" style={{ border: 'none', background: 'none', textAlign: 'left', padding: '6px 0' }} onClick={() => navigate(`/lauf/${session.fileId}`)}>
               <span className={`rank${result.position <= 3 ? ` r${result.position}` : ''}`} style={{ minWidth: 26 }}>
                 P{result.position}
               </span>
@@ -330,7 +330,7 @@ function AllRaces({ driver }: { driver: string }) {
             const placing = model.placement(driver, session.fileId)
             const dl = delta.get(`${session.fileId}|${result.car}`)
             return (
-              <button key={session.fileId + result.car} className="row" style={{ border: 'none', background: 'none', textAlign: 'left', padding: '6px 0' }} onClick={() => navigate(`/lauf/${session.fileId}`)}>
+              <button key={`${session.fileId}-${result.position}`} className="row" style={{ border: 'none', background: 'none', textAlign: 'left', padding: '6px 0' }} onClick={() => navigate(`/lauf/${session.fileId}`)}>
                 <span className={`rank${result.position <= 3 ? ` r${result.position}` : ''}`} style={{ minWidth: 26 }}>
                   P{result.position}
                 </span>

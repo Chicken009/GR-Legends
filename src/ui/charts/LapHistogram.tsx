@@ -83,7 +83,7 @@ export function LapHistogram({ laps, mine, color, meColor, best }: { laps: numbe
           onPointerLeave={(e) => e.pointerType === 'mouse' && setOpen(null)}
         />
       ))}
-      {open != null && (
+      {open != null && bins[open] && (
         <Tip
           x={sx(bins[open].from) + barW / 2}
           y={sy(bins[open].all)}

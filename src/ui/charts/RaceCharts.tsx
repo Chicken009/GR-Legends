@@ -163,7 +163,7 @@ export function LapChart({ result, color }: { result: Result; color: string }) {
           onPointerEnter={(e) => e.pointerType === 'mouse' && setOpen(i)}
         />
       ))}
-      {open != null && <Tip x={pts[open][0]} y={pts[open][1]} width={width} tip={tipFor(open)} above={pts[open][1] > 50} />}
+      {open != null && pts[open] && <Tip x={pts[open][0]} y={pts[open][1]} width={width} tip={tipFor(open)} above={pts[open][1] > 50} />}
     </div>
   )
 }
