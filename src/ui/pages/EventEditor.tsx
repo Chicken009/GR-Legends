@@ -781,6 +781,21 @@ function SectionEditor({ sec, index, count, def, plan, onChange, onMove, onRemov
             </select>
           </Field>
         )}
+        {/* Eigene Läufe und Teamrennen haben eine feste Einteilung – hier geht es nur um die Startplätze */}
+        {(sec.format === 'custom' || sec.format === 'team') && (
+          <Group label="Startaufstellung" help={sec.seeding === 'random' ? 'Ihr stellt euch selbst auf' : sec.seeding === 'elo' || index === 0 ? 'nach Elo zu Beginn des Wettkampfs' : 'nach dem Ergebnis des vorigen Abschnitts'}>
+            <span style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <select className="select" aria-label="Startaufstellung nach" value={sec.seeding} onChange={(e) => onChange({ seeding: e.target.value as Seeding })}>
+                <option value="previous">{index === 0 ? 'Nach Elo (erster Abschnitt)' : 'Nach dem vorigen Abschnitt'}</option>
+                <option value="elo">Nach Elo</option>
+                <option value="random">Keine Vorgabe</option>
+              </select>
+              {sec.seeding !== 'random' && (
+                <Segment small label="Startaufstellung" value={sec.gridOrder ?? 'best'} onChange={(v) => onChange({ gridOrder: v === 'worst' ? 'worst' : undefined })} options={[['best', 'Beste vorne'], ['worst', 'Schwächste vorne']]} />
+              )}
+            </span>
+          </Group>
+        )}
         {(sec.format === 'races' || sec.format === 'ladder' || sec.format === 'ko') && (sec.seeding === 'elo' || sec.seeding === 'previous') && (
           <Group label="Startaufstellung" help={sec.seeding === 'elo' || index === 0 ? 'nach Elo zu Beginn des Wettkampfs' : 'nach dem Ergebnis des vorigen Abschnitts'}>
             <Segment small label="Startaufstellung" value={sec.gridOrder ?? 'best'} onChange={(v) => onChange({ gridOrder: v === 'worst' ? 'worst' : undefined })} options={[['best', 'Beste vorne'], ['worst', 'Schwächste vorne']]} />

@@ -632,6 +632,15 @@ describe('Ansicht', () => {
     expect(open.gridFrom).toBe('Qualifying')
   })
 
+  it('stellt eigene Läufe nach Elo auf, ohne Vorgabe gar nicht', () => {
+    const custom = (seeding: 'elo' | 'random', gridOrder?: 'worst') =>
+      computeEvent(def({ drivers: ['A', 'B', 'C', 'D'], sections: [newSection('custom', { id: 'c', seeding, gridOrder, heats: [{ kind: 'race', drivers: ['D', 'A', 'C'] }] })] }), ctx()).heats[0]
+    const names = custom('elo').grid!.map((e) => e.name!)
+    expect(names).toEqual([...names].sort((a, b) => ELO[b] - ELO[a]))
+    expect(custom('elo', 'worst').grid!.map((e) => e.name)).toEqual([...names].reverse())
+    expect(custom('random').grid).toBeNull()
+  })
+
   it('erklärt, was ein Fahrer braucht', () => {
     const quali = ['F', 'E', 'D', 'C', 'B', 'A'].map((n, i) => run('quali', [n], { best: [10000 + (5 - i) * 10] }))
     const s = computeEvent(d, ctx(quali))
