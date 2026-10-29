@@ -35,10 +35,15 @@ export function LapHeatmap({ session, me }: { session: Session; me: string | nul
     const xs = r.lapTimes.filter((l) => l.status === 'normal').map((l) => l.ms).sort((a, b) => a - b)
     return xs.length ? xs[Math.floor(xs.length / 2)] : null
   })
-  const tip = open ? rows[open.r].lapTimes[open.l] : null
+  const tip = open ? rows[open.r]?.lapTimes[open.l] : null
+  // Nur wenn die Runden nicht in die Breite passen, wird quer gescrollt – sonst darf der Tooltip
+  // über den Rand ragen (sonst scrollt z. B. ein Einzelqualifying mit einer Zeile senkrecht).
+  // Beim Querscrollen bekommt eine kurze Heatmap unten Platz für den Tooltip.
+  const scroll = width > 0 && w > width
+  const room = scroll && rows.length <= 2 ? 56 : 0
   return (
-    <div ref={ref} style={{ overflowX: 'auto' }}>
-      <div className="chart" style={{ position: 'relative', width: w, height: h }}>
+    <div ref={ref} style={scroll ? { overflowX: 'auto', overflowY: 'hidden' } : undefined}>
+      <div className="chart" style={{ position: 'relative', width: w, height: h, marginBottom: room }}>
         <svg width={w} height={h} role="img" aria-label={`Rundenzeiten-Heatmap ${session.type} ${session.heat}`}>
           <defs>
             <pattern id="lap-crash" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
