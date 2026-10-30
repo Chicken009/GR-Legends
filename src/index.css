@@ -1,39 +1,191 @@
 /* GR Legends – Farbvariante D, Rubik, dunkles Design */
-:root {
-  --bg: #0e1013;
-  --bg-deep: #07080a;
-  --nav: #13161a;
-  --card: #171a1f;
-  --sheet: #12151a;
-  --inner: #1f232a;
-  --inner-2: #1a1e24;
-  --line: #242932;
-  --line-2: #2a2f38;
-  --grid: #22262d;
+/* Dunkel (Standard). `.theme-dark` erzwingt Dunkel für Rückblicke, Leinwand und Feiern. */
+:root,
+.theme-dark {
+  --bg: #0b0d10;
+  --bg-deep: #050608;
+  --nav: #181c22;
+  --nav-glass: rgba(24, 28, 34, 0.96);
+  --card: #1e232a;
+  --card-hl: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --sheet: #181c22;
+  --inner: #2a3039;
+  --inner-2: #262c34;
+  --line: #2e343e;
+  --line-2: #363d48;
+  --line-3: #444c58;
+  --grid: #2c323b;
+  --track: #313844;
+  --hover: rgba(255, 255, 255, 0.04);
+  --tint-5: rgba(255, 255, 255, 0.05);
+  --row-solid: #252a32;
+  --me-solid: #24452c;
+  --overlay: rgba(5, 6, 8, 0.7);
+  --tip-bg: #2e343e;
+  --tip-shadow: 0 12px 28px -8px rgba(0, 0, 0, 0.85);
+  --title-shadow: 0 3px 12px rgba(0, 0, 0, 0.6);
   --text: #f2f4f5;
-  --text-2: #c5ccd3;
-  --muted: #9aa3ad;
-  --faint: #6b7480;
+  --text-2: #d3d9df;
+  --muted: #aab3bc;
+  --faint: #848d98;
+  --faint-2: #56606b;
 
   --drivers: #3bbc4a;
   --cars: #ae6dee;
   --stats: #f75f4c;
   --history: #ee9e10;
+  --season: #4aa8f0;
+  --events: #e2559a;
   --me: #3bbc4a;
 
   --gold: #ffd84d;
+  --xp: #f4b43a;
   --silver: #e3eaf0;
   --bronze: #e8a06a;
   --best: #b98cff;
   --crash: #ff6b5a;
+  --crash-text: #ff8a7a;
+  --good: #7bdb8a;
+  --chip-pts: #86a9c8;
+  --chip-pts-border: #34506a;
+  --chip-xp: #b9a67e;
+  --chip-xp-border: #5a5040;
 
   --sh1: 0 14px 32px -10px rgba(0, 0, 0, 0.75), 0 3px 8px rgba(0, 0, 0, 0.45);
   --sh2: 0 8px 18px -8px rgba(0, 0, 0, 0.7), 0 2px 4px rgba(0, 0, 0, 0.35);
   --sh-row: 0 12px 28px -10px rgba(0, 0, 0, 0.8), 0 2px 6px rgba(0, 0, 0, 0.4);
+  --sh-sheet: 0 -20px 50px rgba(0, 0, 0, 0.5);
   --icon-shadow: drop-shadow(0 2px 1.5px rgba(0, 0, 0, 0.55)) drop-shadow(0 6px 10px rgba(0, 0, 0, 0.4));
-  --accent: var(--text);
 
   color-scheme: dark;
+}
+
+/* Hell: per Einstellung oder automatisch nach dem Gerät (außer „Dunkel“ ist gewählt) */
+:root[data-theme='light'] {
+  --bg: #eceff3;
+  --bg-deep: #dfe3e8;
+  --nav: #ffffff;
+  --nav-glass: rgba(255, 255, 255, 0.94);
+  --card: #ffffff;
+  --card-hl: inset 0 0 0 transparent;
+  --sheet: #f6f7f9;
+  --inner: #eef1f4;
+  --inner-2: #f2f4f7;
+  --line: #dde1e6;
+  --line-2: #d2d7dd;
+  --line-3: #bcc3cb;
+  --grid: #e4e8ec;
+  --track: #e1e5ea;
+  --hover: rgba(0, 0, 0, 0.035);
+  --tint-5: rgba(0, 0, 0, 0.04);
+  --row-solid: #f4f6f8;
+  --me-solid: #dcf1df;
+  --overlay: rgba(20, 26, 34, 0.38);
+  --tip-bg: #ffffff;
+  --tip-shadow: 0 10px 26px -8px rgba(20, 30, 40, 0.28), 0 1px 3px rgba(20, 30, 40, 0.12);
+  --title-shadow: none;
+  --text: #14181d;
+  --text-2: #353d47;
+  --muted: #5b646e;
+  --faint: #79828c;
+  --faint-2: #aab2ba;
+
+  --drivers: #23963a;
+  --cars: #8a4fd3;
+  --stats: #d8432f;
+  --history: #b97700;
+  --season: #1f7fd1;
+  --events: #c6377d;
+  --me: #23963a;
+
+  --gold: #b88700;
+  --xp: #a8730a;
+  --silver: #75818d;
+  --bronze: #b8692f;
+  --best: #7d48d6;
+  --crash: #e0442f;
+  --crash-text: #c93a26;
+  --good: #1f8a35;
+  --chip-pts: #2f6fa6;
+  --chip-pts-border: #9fc2e2;
+  --chip-xp: #8a6a12;
+  --chip-xp-border: #d8c48c;
+
+  --sh1: 0 6px 18px -8px rgba(20, 30, 40, 0.18), 0 1px 3px rgba(20, 30, 40, 0.08);
+  --sh2: 0 3px 10px -6px rgba(20, 30, 40, 0.18), 0 1px 2px rgba(20, 30, 40, 0.06);
+  --sh-row: 0 6px 14px -8px rgba(20, 30, 40, 0.2), 0 1px 2px rgba(20, 30, 40, 0.06);
+  --sh-sheet: 0 -12px 40px rgba(20, 30, 40, 0.18);
+  --icon-shadow: drop-shadow(0 1px 1px rgba(20, 30, 40, 0.18));
+
+  color-scheme: light;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme='dark']) {
+    --bg: #eceff3;
+    --bg-deep: #dfe3e8;
+    --nav: #ffffff;
+    --nav-glass: rgba(255, 255, 255, 0.94);
+    --card: #ffffff;
+    --card-hl: inset 0 0 0 transparent;
+    --sheet: #f6f7f9;
+    --inner: #eef1f4;
+    --inner-2: #f2f4f7;
+    --line: #dde1e6;
+    --line-2: #d2d7dd;
+    --line-3: #bcc3cb;
+    --grid: #e4e8ec;
+    --track: #e1e5ea;
+    --hover: rgba(0, 0, 0, 0.035);
+    --tint-5: rgba(0, 0, 0, 0.04);
+    --row-solid: #f4f6f8;
+    --me-solid: #dcf1df;
+    --overlay: rgba(20, 26, 34, 0.38);
+    --tip-bg: #ffffff;
+    --tip-shadow: 0 10px 26px -8px rgba(20, 30, 40, 0.28), 0 1px 3px rgba(20, 30, 40, 0.12);
+    --title-shadow: none;
+    --text: #14181d;
+    --text-2: #353d47;
+    --muted: #5b646e;
+    --faint: #79828c;
+    --faint-2: #aab2ba;
+
+    --drivers: #23963a;
+    --cars: #8a4fd3;
+    --stats: #d8432f;
+    --history: #b97700;
+    --season: #1f7fd1;
+    --events: #c6377d;
+    --me: #23963a;
+
+    --gold: #b88700;
+    --xp: #a8730a;
+    --silver: #75818d;
+    --bronze: #b8692f;
+    --best: #7d48d6;
+    --crash: #e0442f;
+    --crash-text: #c93a26;
+    --good: #1f8a35;
+    --chip-pts: #2f6fa6;
+    --chip-pts-border: #9fc2e2;
+    --chip-xp: #8a6a12;
+    --chip-xp-border: #d8c48c;
+
+    --sh1: 0 6px 18px -8px rgba(20, 30, 40, 0.18), 0 1px 3px rgba(20, 30, 40, 0.08);
+    --sh2: 0 3px 10px -6px rgba(20, 30, 40, 0.18), 0 1px 2px rgba(20, 30, 40, 0.06);
+    --sh-row: 0 6px 14px -8px rgba(20, 30, 40, 0.2), 0 1px 2px rgba(20, 30, 40, 0.06);
+    --sh-sheet: 0 -12px 40px rgba(20, 30, 40, 0.18);
+    --icon-shadow: drop-shadow(0 1px 1px rgba(20, 30, 40, 0.18));
+
+    color-scheme: light;
+  }
+}
+/* Erzwungen dunkle Bereiche bringen Schrift- und Hintergrundfarbe selbst mit */
+.theme-dark {
+  color: var(--text);
+}
+
+:root {
+  --accent: var(--text);
   font-family: Rubik, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   line-height: 1.4;
   -webkit-font-smoothing: antialiased;
@@ -136,7 +288,7 @@ h3 {
 .page-head h1 {
   font-size: 26px;
   font-weight: 800;
-  text-shadow: 0 3px 12px rgba(0, 0, 0, 0.6);
+  text-shadow: var(--title-shadow);
 }
 
 .kicker {
@@ -156,7 +308,7 @@ h3 {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   padding: 8px 8px calc(12px + env(safe-area-inset-bottom));
-  background: rgba(19, 22, 26, 0.96);
+  background: var(--nav-glass);
   backdrop-filter: blur(8px);
   border-top: 1px solid var(--line);
 }
@@ -169,7 +321,7 @@ h3 {
   gap: 4px;
   min-height: 48px;
   border-radius: 14px;
-  color: #7d8691;
+  color: var(--muted);
   font-size: 11px;
   font-weight: 500;
 }
@@ -255,7 +407,7 @@ h3 {
   border: 1px solid var(--line);
   border-radius: 20px;
   padding: 16px;
-  box-shadow: var(--sh1);
+  box-shadow: var(--card-hl), var(--sh1);
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -518,7 +670,7 @@ select.select {
   width: 30px;
   height: 30px;
   border-radius: 50%;
-  background: #262b33;
+  background: var(--track);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -565,7 +717,7 @@ select.select {
 @media (hover: hover) {
   a.row:hover,
   a.list-item:hover {
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--hover);
   }
   a.row.me-row:hover {
     background: linear-gradient(90deg, rgba(59, 188, 74, 0.38) 0%, rgba(59, 188, 74, 0.12) 60%, transparent 100%);
@@ -621,7 +773,7 @@ select.select {
 .bar {
   height: 6px;
   border-radius: 3px;
-  background: #262b33;
+  background: var(--track);
   display: flex;
   overflow: hidden;
 }
@@ -690,7 +842,7 @@ table.data tr {
 }
 
 table.data tbody tr:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--hover);
 }
 
 table.data th:first-child,
@@ -759,7 +911,7 @@ table.data .left {
   position: fixed;
   inset: 0;
   z-index: 40;
-  background: rgba(7, 8, 10, 0.7);
+  background: var(--overlay);
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -772,11 +924,11 @@ table.data .left {
   max-height: calc(100dvh - 36px);
   background: var(--sheet);
   border-radius: 28px 28px 0 0;
-  border-top: 1px solid #262b33;
+  border-top: 1px solid var(--line);
   display: flex;
   flex-direction: column;
   animation: slide-up 0.28s cubic-bezier(0.2, 0.9, 0.3, 1);
-  box-shadow: 0 -20px 50px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--sh-sheet);
 }
 
 .sheet-handle {
@@ -799,7 +951,7 @@ table.data .left {
   width: 40px;
   height: 5px;
   border-radius: 3px;
-  background: #3a404a;
+  background: var(--line-3);
 }
 
 .sheet .sheet-bar {
@@ -879,11 +1031,11 @@ table.data .left {
 .tip {
   position: absolute;
   z-index: 5;
-  background: #262b33;
-  border: 1px solid #3a404a;
+  background: var(--tip-bg);
+  border: 1px solid var(--line-3);
   border-radius: 12px;
   padding: 8px 10px;
-  box-shadow: 0 12px 28px -8px rgba(0, 0, 0, 0.85);
+  box-shadow: var(--tip-shadow);
   pointer-events: none;
   font-size: 12px;
   display: flex;
@@ -1135,7 +1287,7 @@ table.data .left {
 }
 
 .error {
-  color: #ff8a7a;
+  color: var(--crash-text);
 }
 
 /* ---------- Scrollbare Tabelle mit festen Spalten (# und Bild) ---------- */
@@ -1248,12 +1400,12 @@ table.dt th.st1 {
 }
 
 table.dt tbody tr:hover td {
-  background-color: rgba(255, 255, 255, 0.03);
+  background-color: var(--hover);
 }
 
 table.dt tbody tr:hover td.st0,
 table.dt tbody tr:hover td.st1 {
-  background: #1d2026;
+  background: var(--row-solid);
 }
 
 /* Eigene Zeile: Anfang des Verlaufs als deckende Farbe (Karte + Grün) */
@@ -1262,18 +1414,18 @@ table.dt tr.me-row {
 }
 
 table.dt tr.me-row td.st0 {
-  background: #224b2c;
+  background: var(--me-solid);
 }
 
 table.dt tr.me-row td.st1 {
-  background: linear-gradient(90deg, #224b2c, #204429);
+  background: var(--me-solid);
 }
 
 .thumb {
   width: 36px;
   height: 36px;
   border-radius: 10px;
-  background: #262b33;
+  background: var(--track);
   overflow: hidden;
   display: inline-flex;
   align-items: center;
@@ -1316,7 +1468,7 @@ table.dt tr.me-row td.st1 {
 .ccard .pic {
   position: relative;
   aspect-ratio: 16 / 10;
-  background: #1f232a;
+  background: var(--inner);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1384,8 +1536,8 @@ table.dt tr.me-row td.st1 {
   min-width: 26px;
   padding: 2px 6px;
   border-radius: 7px;
-  background: var(--inner-2, #232830);
-  border: 1px solid var(--line-2, #2C323B);
+  background: var(--inner-2);
+  border: 1px solid var(--line-2);
   font-size: 11px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -1903,7 +2055,7 @@ select.select:focus {
   gap: 6px;
   padding: 12px;
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--tint-5);
   min-width: 0;
 }
 

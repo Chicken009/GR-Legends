@@ -187,7 +187,7 @@ export function StoryPager({ cards, label, onDone, auto, doneLabel = 'Zur Übers
   const last = index === total - 1
   const slide = { flex: '0 0 100%', minWidth: 0, minHeight: 0, padding: '14px max(16px, env(safe-area-inset-left, 0px))', display: 'flex', flexDirection: 'column', overflowY: 'auto', overflowX: 'hidden', touchAction: 'pan-y', overscrollBehavior: 'contain' } as const
   return (
-    <div role="dialog" aria-modal="true" aria-label={label} style={{ position: 'fixed', inset: 0, zIndex: 80, background: 'var(--bg)', display: 'flex', flexDirection: 'column', paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+    <div role="dialog" aria-modal="true" aria-label={label} className="theme-dark" style={{ position: 'fixed', inset: 0, zIndex: 80, background: 'var(--bg)', display: 'flex', flexDirection: 'column', paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
       <div style={{ display: 'flex', gap: 4, padding: '12px 16px 0' }}>
         {Array.from({ length: total }, (_, i) => (
           <span key={i} style={{ flex: 1, height: 3, borderRadius: 2, background: i <= index ? '#F2F4F5' : '#3A404A', transition: 'background .2s' }} />

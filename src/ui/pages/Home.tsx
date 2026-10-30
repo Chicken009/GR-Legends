@@ -132,7 +132,7 @@ export function Home() {
                     </span>
                     <div
                       className={`rank r${r.rank}`}
-                      style={{ width: '100%', height: h, borderRadius: '12px 12px 4px 4px', background: `linear-gradient(180deg, ${tint} 0%, #1F232A 70%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: r.rank === 1 ? 26 : 22, boxShadow: 'var(--sh-row)' }}
+                      style={{ width: '100%', height: h, borderRadius: '12px 12px 4px 4px', background: `linear-gradient(180deg, ${tint} 0%, var(--inner) 70%)`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: r.rank === 1 ? 26 : 22, boxShadow: 'var(--sh-row)' }}
                     >
                       {r.rank}
                     </div>
@@ -201,7 +201,7 @@ function SeasonCard() {
         </span>
       </span>
       <Amount kind="pts" value={r.points} size={15} />
-      <Sparkline values={r.progress} color={r.name === me ? ME : '#8A94A0'} label={`Punkteverlauf ${r.name}`} width={48} />
+      <Sparkline values={r.progress} color={r.name === me ? ME : 'var(--muted)'} label={`Punkteverlauf ${r.name}`} width={48} />
     </Link>
   )
   const top = rows.slice(0, 3)

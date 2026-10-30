@@ -10,7 +10,7 @@ export interface LinePoint {
   muted?: boolean
 }
 
-const MUTED = '#8A929C'
+const MUTED = 'var(--muted)'
 
 /** Graue Hintergrundlinie mit eigener, unbeschrifteter Skala (z. B. Rang hinter der Elo) */
 export interface BackLine {
@@ -91,7 +91,7 @@ export function LineChart({
       <svg width={width} height={height} role="img" aria-label={label} className="icon-shadow">
         {ticks.map((t) => (
           <g key={t}>
-            <path d={`M0 ${sy(t)}H${width}`} stroke="#262B33" />
+            <path d={`M0 ${sy(t)}H${width}`} stroke="var(--track)" />
             <text x="0" y={sy(t) - 4} fill={AXIS} fontSize="10">
               {format(t)}
             </text>
@@ -99,12 +99,12 @@ export function LineChart({
         ))}
         {backPts && (
           <g>
-            <path d={linePath(backPts.filter((p): p is [number, number] => p != null))} fill="none" stroke="#5B636E" strokeWidth="1.6" strokeDasharray="4 3" strokeLinejoin="round" />
+            <path d={linePath(backPts.filter((p): p is [number, number] => p != null))} fill="none" stroke="var(--faint-2)" strokeWidth="1.6" strokeDasharray="4 3" strokeLinejoin="round" />
             {backLast != null && (
               <text
                 x={backPts[backLast]![0] - 40}
                 y={Math.max(top, Math.min(bottom - 4, backPts[backLast]![1] - 5))}
-                fill="#8A929C"
+                fill="var(--muted)"
                 fontSize="10"
                 fontWeight="700"
                 textAnchor="end"
@@ -118,10 +118,10 @@ export function LineChart({
         {solidFrom > 0 && mutedPts.length > 1 && <path d={linePath(mutedPts)} fill="none" stroke={MUTED} strokeWidth="2" strokeDasharray="5 4" strokeLinejoin="round" strokeLinecap="round" />}
         {solidPts.length > 1 && <path d={linePath(solidPts)} fill="none" stroke={color} strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" />}
         {points.map((p, i) =>
-          p.tip ? <circle key={i} cx={pts[i][0]} cy={pts[i][1]} r={open === i ? 6 : 4.5} fill="#1A1E24" stroke="#F2F4F5" strokeWidth="2" /> : null,
+          p.tip ? <circle key={i} cx={pts[i][0]} cy={pts[i][1]} r={open === i ? 6 : 4.5} fill="var(--card)" stroke="var(--text)" strokeWidth="2" /> : null,
         )}
-        <circle cx={last[0]} cy={last[1]} r="5" fill={lastMuted ? MUTED : color} stroke="#1A1E24" strokeWidth="2" />
-        <text x={Math.min(last[0], width - 4)} y={last[1] + (invert ? 18 : -8)} fill={lastMuted ? MUTED : '#F2F4F5'} textAnchor="end" fontWeight="700" fontSize="12">
+        <circle cx={last[0]} cy={last[1]} r="5" fill={lastMuted ? MUTED : color} stroke="var(--card)" strokeWidth="2" />
+        <text x={Math.min(last[0], width - 4)} y={last[1] + (invert ? 18 : -8)} fill={lastMuted ? MUTED : 'var(--text)'} textAnchor="end" fontWeight="700" fontSize="12">
           {format(points[points.length - 1].y)}
         </text>
         {xLabels.map((l) => (

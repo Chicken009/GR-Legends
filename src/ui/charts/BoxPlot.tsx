@@ -32,7 +32,7 @@ export function BoxPlot({ rows, color, highlightColor = '#3BBC4A', onPick, label
   const step = hi - lo > 8000 ? 2 : 1
   const ticks: number[] = []
   for (let t = Math.ceil(lo / 1000); t <= Math.floor(hi / 1000); t += step) ticks.push(t)
-  const fill = (c: string) => `${c}66`
+  const fill = (c: string) => `color-mix(in srgb, ${c} 40%, transparent)`
   return (
     <div ref={ref} className="chart" style={{ height: h }}>
       <svg width={width} height={h} role="img" aria-label={label}>
@@ -50,12 +50,12 @@ export function BoxPlot({ rows, color, highlightColor = '#3BBC4A', onPick, label
           return (
             <g key={r.key} data-tip-target style={{ cursor: 'pointer' }} onClick={() => (onPick ? onPick(r.key) : setOpen(open === i ? null : i))} onPointerEnter={(e) => e.pointerType === 'mouse' && setOpen(i)} onPointerLeave={(e) => e.pointerType === 'mouse' && setOpen(null)}>
               <rect x={0} y={y - rowH / 2} width={width} height={rowH} fill="transparent" />
-              <text x={left - 8} y={y + 4} textAnchor="end" fill={r.highlight ? highlightColor : '#C5CCD3'} fontSize="11" fontWeight="600">
+              <text x={left - 8} y={y + 4} textAnchor="end" fill={r.highlight ? highlightColor : 'var(--text-2)'} fontSize="11" fontWeight="600">
                 {shorten(r.label, maxChars)}
               </text>
-              <path d={`M${sx(r.q[0])} ${y}H${sx(r.q[4])}`} stroke="#6B7480" strokeWidth="1.5" />
+              <path d={`M${sx(r.q[0])} ${y}H${sx(r.q[4])}`} stroke="var(--faint)" strokeWidth="1.5" />
               <rect x={sx(r.q[1])} y={y - 9} width={Math.max(2, sx(r.q[3]) - sx(r.q[1]))} height="18" rx="5" fill={fill(c)} stroke={c} strokeWidth={open === i ? 2 : 1.2} />
-              <path d={`M${sx(r.q[2])} ${y - 9}V${y + 9}`} stroke="#F2F4F5" strokeWidth="2" />
+              <path d={`M${sx(r.q[2])} ${y - 9}V${y + 9}`} stroke="var(--text)" strokeWidth="2" />
             </g>
           )
         })}

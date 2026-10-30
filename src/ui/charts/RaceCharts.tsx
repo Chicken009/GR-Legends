@@ -30,7 +30,7 @@ export function PositionChart({ session, colors, me }: { session: Session; color
       seen.add(id)
       const pos = trace.get(key(r))?.[ev.lap - 1]
       if (pos == null) continue
-      out.push({ ev, x: sx(ev.lap), y: sy(pos), color: colors.get(r.driver) ?? '#9AA3AD' })
+      out.push({ ev, x: sx(ev.lap), y: sy(pos), color: colors.get(r.driver) ?? 'var(--muted)' })
     }
     return out
   })()
@@ -61,15 +61,15 @@ export function PositionChart({ session, colors, me }: { session: Session; color
         {marks.map((m, i) =>
           m.ev.kind === 'pit' ? (
             <g key={i}>
-              <rect x={m.x - 6} y={m.y - 6} width="12" height="12" rx="3" fill="#171A1F" stroke={m.color} strokeWidth="2" />
+              <rect x={m.x - 6} y={m.y - 6} width="12" height="12" rx="3" fill="var(--card)" stroke={m.color} strokeWidth="2" />
               <text x={m.x} y={m.y + 3} textAnchor="middle" fill={m.color} fontSize="8" fontWeight="700">
                 B
               </text>
             </g>
           ) : m.ev.kind === 'crash' ? (
-            <path key={i} d={`M${m.x} ${m.y - 6}l6 6-6 6-6-6z`} fill="#FF6B5A" stroke="#171A1F" strokeWidth="2" />
+            <path key={i} d={`M${m.x} ${m.y - 6}l6 6-6 6-6-6z`} fill="#FF6B5A" stroke="var(--card)" strokeWidth="2" />
           ) : (
-            <circle key={i} cx={m.x} cy={m.y} r={open === i ? 6.5 : 5} fill={m.color} stroke="#171A1F" strokeWidth="2" />
+            <circle key={i} cx={m.x} cy={m.y} r={open === i ? 6.5 : 5} fill={m.color} stroke="var(--card)" strokeWidth="2" />
           ),
         )}
         {session.results.map((r) => (
@@ -147,10 +147,10 @@ export function LapChart({ result, color }: { result: Result; color: string }) {
         <path d={linePath(pts)} fill="none" stroke={`url(#${gid})`} strokeWidth="3.5" strokeLinejoin="round" strokeLinecap="round" />
         {laps.map((l, i) => {
           const [cx, cy] = pts[i]
-          if (l.status === 'crash') return <path key={i} d={`M${cx} ${cy - 7}l7 7-7 7-7-7z`} fill="#FF6B5A" stroke="#171A1F" strokeWidth="2" />
-          if (l.status === 'pit') return <rect key={i} x={cx - 6} y={cy - 6} width="12" height="12" rx="3" fill="#171A1F" stroke="#9AA3AD" strokeWidth="2" />
-          if (l.ms === best) return <circle key={i} cx={cx} cy={cy} r="6" fill="#B98CFF" stroke="#171A1F" strokeWidth="2" />
-          return laps.length <= 40 ? <circle key={i} cx={cx} cy={cy} r="3.5" fill={color} stroke="#171A1F" strokeWidth="1.5" /> : null
+          if (l.status === 'crash') return <path key={i} d={`M${cx} ${cy - 7}l7 7-7 7-7-7z`} fill="#FF6B5A" stroke="var(--card)" strokeWidth="2" />
+          if (l.status === 'pit') return <rect key={i} x={cx - 6} y={cy - 6} width="12" height="12" rx="3" fill="var(--card)" stroke="var(--muted)" strokeWidth="2" />
+          if (l.ms === best) return <circle key={i} cx={cx} cy={cy} r="6" fill="var(--best)" stroke="var(--card)" strokeWidth="2" />
+          return laps.length <= 40 ? <circle key={i} cx={cx} cy={cy} r="3.5" fill={color} stroke="var(--card)" strokeWidth="1.5" /> : null
         })}
       </svg>
       {laps.map((l, i) => (

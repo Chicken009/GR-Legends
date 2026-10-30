@@ -6,7 +6,8 @@ import { isQuali } from '../../domain/rating'
 import type { RaceDay, Result, Session } from '../../types'
 import { AREA, seriesColors } from '../colors'
 import { carPath, driverPath, PageHead, Placement, Rank, Segment, Sheet, useData, useMyName } from '../components'
-import { LAP_HEAT_RAMP, LapHeatmap } from '../charts/LapHeatmap'
+import { lapHeatRamp, LapHeatmap } from '../charts/LapHeatmap'
+import { useResolvedTheme } from '../theme'
 import { LapChart, PositionChart } from '../charts/RaceCharts'
 import { ChevronLeft, ChevronRight, SearchIcon, StrokeIcon, Trophy } from '../icons'
 import { fmtDelta, formatDate, formatGap, formatTime, formatTrack, plural, sessionTitle, shortName } from '../format'
@@ -265,6 +266,7 @@ export function RaceView() {
   const { days, model } = useData()
   const me = useMyName()
   const navigate = useNavigate()
+  const theme = useResolvedTheme()
   const day = days.find((d) => d.sessions.some((s) => s.fileId === fileId))
   const session = day?.sessions.find((s) => s.fileId === fileId)
   const [pick, setPick] = useState<string | null>(null)
@@ -299,7 +301,7 @@ export function RaceView() {
           <span style={{ fontSize: 12, color: ACCENT, fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase' }}>
             {formatDate(session.date)} · {count > 1 ? `Lauf ${session.heat}` : session.track}
           </span>
-          <h1 style={{ fontSize: 22, fontWeight: 800, textShadow: '0 3px 12px rgba(0,0,0,.6)' }}>
+          <h1 style={{ fontSize: 22, fontWeight: 800, textShadow: 'var(--title-shadow)' }}>
             {session.type} · {plural(laps, 'Runde', 'Runden')}
           </h1>
         </div>
@@ -336,7 +338,7 @@ export function RaceView() {
                 <span className="num" style={{ fontSize: 13 }}>
                   {isQuali(session) ? formatTime(r.validBestLapMs) : gapOf(session, r)}
                 </span>
-                <span className="num" style={{ fontSize: 11, fontWeight: 600, color: d != null && d > 0.5 ? '#7BDB8A' : 'var(--muted)' }}>
+                <span className="num" style={{ fontSize: 11, fontWeight: 600, color: d != null && d > 0.5 ? 'var(--good)' : 'var(--muted)' }}>
                   {placing != null ? <Placement n={placing} driver={r.driver} size={11} /> : d != null ? `${fmtDelta(d)} Elo` : guest ? 'Gast' : ''}
                   {!isQuali(session) && r.validBestLapMs === best ? (d != null || placing != null ? ' · ' : '') : ''}
                   {!isQuali(session) && r.validBestLapMs === best && <span style={{ color: 'var(--best)' }}>Bestzeit</span>}
@@ -356,7 +358,7 @@ export function RaceView() {
           <PositionChart session={session} colors={colors} me={me} />
           <div className="legend">
             <span>
-              <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#9AA3AD' }} />
+              <span style={{ width: 9, height: 9, borderRadius: '50%', background: 'var(--muted)' }} />
               Überholt
             </span>
             <span>
@@ -364,7 +366,7 @@ export function RaceView() {
               Abflug
             </span>
             <span>
-              <span style={{ width: 8, height: 8, borderRadius: 2, border: '2px solid #9AA3AD' }} />
+              <span style={{ width: 8, height: 8, borderRadius: 2, border: '2px solid var(--muted)' }} />
               Box
             </span>
           </div>
@@ -381,7 +383,7 @@ export function RaceView() {
           <div className="legend">
             <span>
               <span style={{ display: 'inline-flex', gap: 2 }}>
-                {LAP_HEAT_RAMP.map((c) => (
+                {lapHeatRamp(theme).map((c) => (
                   <span key={c} style={{ width: 12, height: 10, borderRadius: 2, background: c }} />
                 ))}
               </span>
@@ -419,7 +421,7 @@ export function RaceView() {
               </select>
             </label>
           </div>
-          <LapChart result={lapDriver} color={colors.get(lapDriver.driver) ?? '#9AA3AD'} />
+          <LapChart result={lapDriver} color={colors.get(lapDriver.driver) ?? 'var(--muted)'} />
           <div className="legend">
             <span>
               <span style={{ width: 9, height: 9, borderRadius: '50%', background: 'var(--best)' }} />
@@ -430,11 +432,11 @@ export function RaceView() {
               Abflug
             </span>
             <span>
-              <span style={{ width: 8, height: 8, borderRadius: 2, border: '2px solid #9AA3AD' }} />
+              <span style={{ width: 8, height: 8, borderRadius: 2, border: '2px solid var(--muted)' }} />
               Box
             </span>
-            <span style={{ color: '#FF8A7A' }}>oben langsamer</span>
-            <span style={{ color: '#7BDB8A' }}>unten schneller</span>
+            <span style={{ color: 'var(--crash-text)' }}>oben langsamer</span>
+            <span style={{ color: 'var(--good)' }}>unten schneller</span>
           </div>
         </section>
       )}

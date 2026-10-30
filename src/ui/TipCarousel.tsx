@@ -28,7 +28,7 @@ export function TipCarousel({ tips, accent }: { tips: Tip[]; accent: string }) {
       {tips.length > 1 && (
         <div className="tips-dots">
           {tips.map((t, i) => (
-            <button key={i} aria-label={`Tipp ${i + 1}: ${t.title}`} aria-current={i === index} onClick={() => go(i)} style={{ background: i === index ? accent : '#3A404A', width: i === index ? 16 : 6 }} />
+            <button key={i} aria-label={`Tipp ${i + 1}: ${t.title}`} aria-current={i === index} onClick={() => go(i)} style={{ background: i === index ? accent : 'var(--line-3)', width: i === index ? 16 : 6 }} />
           ))}
         </div>
       )}

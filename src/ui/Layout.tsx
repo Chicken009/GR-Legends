@@ -75,7 +75,7 @@ export function Layout() {
       <nav className="bottom-nav" aria-label="Hauptnavigation">
         {items.map((it) => (
           <NavLink key={it.to} to={it.to} aria-label={it.label} className={() => (it.match(pathname) ? 'active' : '')} aria-current={it.match(pathname) ? 'page' : undefined} style={{ ['--nav-color' as string]: it.color }}>
-            <StrokeIcon d={it.icon} color={it.match(pathname) ? it.color : '#7D8691'} />
+            <StrokeIcon d={it.icon} color={it.match(pathname) ? it.color : 'var(--muted)'} />
             <span>{it.short}</span>
           </NavLink>
         ))}

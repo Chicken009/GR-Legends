@@ -67,16 +67,16 @@ export function DonutChart({ parts, center, sub, label, size = 150, format = Str
                 <text x={lx} y={ly - 2} textAnchor={anchor} fill={p.color} fontSize="12" fontWeight="700">
                   {short}
                 </text>
-                <text x={lx} y={ly + 12} textAnchor={anchor} fill="#9AA3AD" fontSize="11">
+                <text x={lx} y={ly + 12} textAnchor={anchor} fill="var(--muted)" fontSize="11">
                   {p.note ?? `${format(p.value)} · ${Math.round((p.value / total) * 100)} %`}
                 </text>
               </g>
             )
           })}
-        <text x={cx} y={cy + 2} textAnchor="middle" fill="#F2F4F5" fontSize="24" fontWeight="800">
+        <text x={cx} y={cy + 2} textAnchor="middle" fill="var(--text)" fontSize="24" fontWeight="800">
           {shown ? format(shown.value) : center}
         </text>
-        <text x={cx} y={cy + 20} textAnchor="middle" fill="#9AA3AD" fontSize="11">
+        <text x={cx} y={cy + 20} textAnchor="middle" fill="var(--muted)" fontSize="11">
           {shown ? `${Math.round((shown.value / total) * 100)} % · ${shown.label.length > 14 ? shown.label.slice(0, 13) + '…' : shown.label}` : sub}
         </text>
       </svg>

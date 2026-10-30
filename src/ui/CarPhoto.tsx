@@ -46,7 +46,7 @@ export function CarPhoto({ fileId, alt, width = 1000, fallback }: { fileId: stri
 /** Kleines Bild für Listen und Auswahl: Foto oder Auto-Symbol */
 export function CarThumb({ car, size = 36 }: { car: string; size?: number }) {
   const photo = usePhotoId(car)
-  const icon = <StrokeIcon d={NAV_ICONS.cars} size={size * 0.55} color="#6B7480" />
+  const icon = <StrokeIcon d={NAV_ICONS.cars} size={size * 0.55} color="var(--faint)" />
   return (
     <span className="thumb" style={{ width: size, height: size }}>
       {photo ? <CarPhoto key={photo} fileId={photo} alt="" width={120} fallback={icon} /> : icon}

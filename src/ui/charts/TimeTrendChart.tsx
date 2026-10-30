@@ -99,13 +99,13 @@ export function TimeTrendChart({
         {series.map((s) => (
           <path key={s.name} d={path(s)} fill="none" stroke={s.color} strokeWidth={s.dashed ? 2 : 2.6} strokeDasharray={s.dashed ? '5 4' : undefined} strokeLinejoin="round" strokeLinecap="round" />
         ))}
-        {open != null && <path d={`M${sx(open)} ${top}V${bottom}`} stroke="#3A404A" strokeDasharray="3 3" />}
+        {open != null && <path d={`M${sx(open)} ${top}V${bottom}`} stroke="var(--line-3)" strokeDasharray="3 3" />}
         {series.map((s) => {
           const lastIdx = s.values.map((v, i) => (v != null ? i : -1)).filter((i) => i >= 0).pop()
           return (
             <g key={s.name}>
-              {open != null && s.values[open] != null && <circle cx={sx(open)} cy={sy(s.values[open]!)} r="4.5" fill={s.color} stroke="#1A1E24" strokeWidth="2" />}
-              {lastIdx != null && open == null && <circle cx={sx(lastIdx)} cy={sy(s.values[lastIdx]!)} r="4.5" fill={s.color} stroke="#1A1E24" strokeWidth="2" />}
+              {open != null && s.values[open] != null && <circle cx={sx(open)} cy={sy(s.values[open]!)} r="4.5" fill={s.color} stroke="var(--card)" strokeWidth="2" />}
+              {lastIdx != null && open == null && <circle cx={sx(lastIdx)} cy={sy(s.values[lastIdx]!)} r="4.5" fill={s.color} stroke="var(--card)" strokeWidth="2" />}
             </g>
           )
         })}

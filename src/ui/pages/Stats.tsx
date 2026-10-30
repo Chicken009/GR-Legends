@@ -102,7 +102,7 @@ function Overview({ period }: { period: string }) {
               Bestzeit
             </span>
             <span>
-              <span style={{ width: 14, height: 0, borderTop: '2px dashed #6B7480' }} />
+              <span style={{ width: 14, height: 0, borderTop: '2px dashed var(--faint)' }} />
               typische Runde
             </span>
           </div>
@@ -193,7 +193,7 @@ function Duels({ period }: { period: string }) {
             meist gewonnen
           </span>
           <span>
-            <span style={{ width: 12, height: 12, borderRadius: 3, background: '#262B33' }} />
+            <span style={{ width: 12, height: 12, borderRadius: 3, background: 'var(--track)' }} />
             ausgeglichen / verloren
           </span>
           <span>Feld antippen: Vergleich</span>

@@ -25,7 +25,7 @@ export function MiniBars({ items, color, height = 56, label }: { items: MiniItem
           const x = x0 + i * (bw + gap)
           return (
             <g key={i}>
-              <rect x={x} y={height - h} width={bw} height={h} rx={Math.min(4, bw / 2)} fill={it.value > 0 ? color : '#3A404A'} opacity={open == null || open === i ? 1 : 0.45} />
+              <rect x={x} y={height - h} width={bw} height={h} rx={Math.min(4, bw / 2)} fill={it.value > 0 ? color : 'var(--line-3)'} opacity={open == null || open === i ? 1 : 0.45} />
               <rect
                 x={x - gap / 2}
                 y={0}
@@ -67,7 +67,7 @@ export function MiniLine({ items, color, height = 64, invert = false, label }: {
       <svg width={width} height={height} role="img" aria-label={label}>
         <path d={d} fill="none" stroke={color} strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round" />
         {items.map((it, i) => (
-          <circle key={i} cx={x(i)} cy={y(it.value)} r={open === i ? 5 : i === items.length - 1 ? 3.5 : 2.5} fill={color} stroke="#14181D" strokeWidth="1.5" />
+          <circle key={i} cx={x(i)} cy={y(it.value)} r={open === i ? 5 : i === items.length - 1 ? 3.5 : 2.5} fill={color} stroke="var(--card)" strokeWidth="1.5" />
         ))}
       </svg>
       {items.map((it, i) => (

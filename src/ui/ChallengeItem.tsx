@@ -46,11 +46,11 @@ export function ChallengeBadge({ c, accent, size = 52, fresh }: { c: Challenge; 
   return (
     <span className={fresh ? 'pop' : undefined} style={{ position: 'relative', width: size, height: size, flexShrink: 0, display: 'inline-flex' }} aria-hidden="true">
       <svg width={size} height={size} style={{ position: 'absolute', inset: 0, transform: 'rotate(-90deg)' }}>
-        <circle cx={size / 2} cy={size / 2} r={r} fill={c.done ? accent : '#1F242B'} stroke={c.done ? accent : '#2E343D'} strokeWidth={stroke} />
+        <circle cx={size / 2} cy={size / 2} r={r} fill={c.done ? accent : 'var(--inner)'} stroke={c.done ? accent : 'var(--line-2)'} strokeWidth={stroke} />
         {!c.done && share > 0 && <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={accent} strokeWidth={stroke} strokeLinecap="round" strokeDasharray={`${len * share} ${len}`} />}
       </svg>
       <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <StrokeIcon d={ICONS[c.id] ?? NAV_ICONS.season} size={Math.round(size * 0.46)} color={c.done ? '#0E1013' : share > 0 ? '#C5CCD3' : '#6B7480'} width={2} />
+        <StrokeIcon d={ICONS[c.id] ?? NAV_ICONS.season} size={Math.round(size * 0.46)} color={c.done ? '#0E1013' : share > 0 ? 'var(--text-2)' : 'var(--faint)'} width={2} />
       </span>
     </span>
   )
@@ -65,12 +65,12 @@ export function XpChip({ done }: { done: boolean }) {
       className="num"
       style={{
         display: 'inline-flex', alignItems: 'center', gap: 3, padding: '3px 8px', borderRadius: 999, fontSize: 11, fontWeight: 800, flexShrink: 0,
-        border: done ? `1.5px solid ${XP_COLOR}` : '1.5px dashed #5A5040',
+        border: done ? `1.5px solid ${XP_COLOR}` : '1.5px dashed var(--chip-xp-border)',
         background: done ? XP_COLOR : 'transparent',
-        color: done ? '#1A1205' : '#B9A67E',
+        color: done ? '#1A1205' : 'var(--chip-xp)',
       }}
     >
-      <CurrencyIcon kind="xp" size={11} color={done ? '#1A1205' : '#B9A67E'} />+{CHALLENGE_XP} XP
+      <CurrencyIcon kind="xp" size={11} color={done ? '#1A1205' : 'var(--chip-xp)'} />+{CHALLENGE_XP} XP
     </span>
   )
 }
@@ -85,9 +85,9 @@ export function PtsChip({ done }: { done: boolean }) {
       className="num"
       style={{
         display: 'inline-flex', alignItems: 'center', padding: '3px 8px', borderRadius: 999, fontSize: 11, fontWeight: 800, flexShrink: 0,
-        border: done ? `1.5px solid ${AREA.season}` : '1.5px dashed #34506A',
+        border: done ? `1.5px solid ${AREA.season}` : '1.5px dashed var(--chip-pts-border)',
         background: done ? AREA.season : 'transparent',
-        color: done ? '#0E1013' : '#86A9C8',
+        color: done ? '#0E1013' : 'var(--chip-pts)',
       }}
     >
       +{SEASON_POINTS.perChallenge} Pkt.

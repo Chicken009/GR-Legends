@@ -53,9 +53,9 @@ export function NewcomerProfile({ driver, onClose }: { driver: string; onClose: 
       }
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-        <Avatar name={driver} size={64} ring={isMe ? ACCENT : '#3A404A'} style={{ background: 'var(--inner)', fontSize: 22, fontWeight: 800, boxShadow: 'var(--sh2)' }} />
+        <Avatar name={driver} size={64} ring={isMe ? ACCENT : 'var(--line-3)'} style={{ background: 'var(--inner)', fontSize: 22, fontWeight: 800, boxShadow: 'var(--sh2)' }} />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1, minWidth: 0 }}>
-          <h1 style={{ fontSize: 26, fontWeight: 800, textShadow: '0 3px 12px rgba(0,0,0,.6)' }}>{driver}</h1>
+          <h1 style={{ fontSize: 26, fontWeight: 800, textShadow: 'var(--title-shadow)' }}>{driver}</h1>
           <span style={{ fontSize: 14, color: 'var(--muted)' }}>
             Noch kein Rennen gefahren
             {isMe && ' · Das bist du'}

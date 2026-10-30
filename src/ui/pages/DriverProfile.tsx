@@ -100,10 +100,10 @@ export function DriverProfile({ onClose }: { onClose: () => void }) {
       }
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-        <Avatar name={driver} size={64} ring={isMe ? ACCENT : '#3A404A'} style={{ background: 'var(--inner)', fontSize: 22, fontWeight: 800, boxShadow: 'var(--sh2)' }} />
+        <Avatar name={driver} size={64} ring={isMe ? ACCENT : 'var(--line-3)'} style={{ background: 'var(--inner)', fontSize: 22, fontWeight: 800, boxShadow: 'var(--sh2)' }} />
         <div style={{ display: 'flex', flexDirection: 'column', gap: 3, flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <h1 style={{ fontSize: 26, fontWeight: 800, textShadow: '0 3px 12px rgba(0,0,0,.6)' }}>{driver}</h1>
+            <h1 style={{ fontSize: 26, fontWeight: 800, textShadow: 'var(--title-shadow)' }}>{driver}</h1>
             <StatusIcons list={statuses} size={22} animate />
           </div>
           <span style={{ fontSize: 14, color: 'var(--muted)' }}>
@@ -375,7 +375,7 @@ function DriverStyle({ driver }: { driver: string }) {
   const cars = [...d.cars].map(([name, u]) => ({ name, races: u.races })).filter((c) => c.races > 0).sort((a, b) => b.races - a.races)
   const carParts: DonutPart[] = [
     ...cars.slice(0, 4).map((c, i) => ({ label: c.name, value: c.races, color: SERIES[i] })),
-    ...(cars.length > 4 ? [{ label: 'Andere', value: cars.slice(4).reduce((a, c) => a + c.races, 0), color: '#4A515C' }] : []),
+    ...(cars.length > 4 ? [{ label: 'Andere', value: cars.slice(4).reduce((a, c) => a + c.races, 0), color: 'var(--faint-2)' }] : []),
   ]
   return (
     <>
@@ -410,7 +410,7 @@ function DriverStyle({ driver }: { driver: string }) {
             { label: 'Siege', value: places[0], color: '#E5A51A' },
             { label: 'Platz 2', value: places[1], color: '#B9C6D2' },
             { label: 'Platz 3', value: places[2], color: '#C87846' },
-            { label: 'Platz 4 und dahinter', value: places[3], color: '#4A515C' },
+            { label: 'Platz 4 und dahinter', value: places[3], color: 'var(--faint-2)' },
           ]}
         />
         <DonutChart label="Autos" center={String(d.races)} sub="Rennen" parts={carParts} />
@@ -458,7 +458,7 @@ function SeasonChart({ driver, period }: { driver: string; period: string }) {
   const idx = rows.indexOf(mine)
   const other = idx === 0 ? rows[1] : rows[idx - 1]
   const series = [
-    ...(other ? [{ name: other.name, color: '#7D8691', values: other.progress }] : []),
+    ...(other ? [{ name: other.name, color: 'var(--muted)', values: other.progress }] : []),
     { name: driver, color: ACCENT, values: mine.progress },
   ]
   return (
@@ -513,7 +513,7 @@ function SplitChart({ driver, period }: { driver: string; period: string }) {
             tickFormat={(sec) => `${Math.floor(sec / 60)}:${(sec % 60).toLocaleString('de-DE', { minimumIntegerDigits: 2, maximumFractionDigits: 1 })}`}
             series={[
               { name: 'Zeit', color: ACCENT, values: rows.map((r) => r.ms) },
-              { name: 'Bestmarke', color: '#B98CFF', values: rows.map((r) => r.pb), dashed: true, step: true },
+              { name: 'Bestmarke', color: 'var(--best)', values: rows.map((r) => r.pb), dashed: true, step: true },
             ]}
             tips={rows.map((r) => ({
               title: `${formatDate(r.session.date)} · ${r.session.type} ${r.session.heat}`,
@@ -521,7 +521,7 @@ function SplitChart({ driver, period }: { driver: string; period: string }) {
                 <>
                   <span style={{ color: ACCENT }}>{n} Runden in {s2(r.ms)}</span>
                   <br />
-                  <span style={{ color: '#B98CFF' }}>Bestmarke bis dahin {s2(r.pb)}</span>
+                  <span style={{ color: 'var(--best)' }}>Bestmarke bis dahin {s2(r.pb)}</span>
                   {r.ms === r.pb && <> · neue Bestmarke!</>}
                 </>
               ),
@@ -535,7 +535,7 @@ function SplitChart({ driver, period }: { driver: string; period: string }) {
               Zeit für {n} Runden
             </span>
             <span>
-              <span style={{ width: 14, height: 0, borderTop: '2px dashed #B98CFF' }} />
+              <span style={{ width: 14, height: 0, borderTop: '2px dashed var(--best)' }} />
               Bestmarke
             </span>
             <span>↑ schneller</span>
@@ -567,8 +567,8 @@ function DriverChart({ driver, kind, period }: { driver: string; kind: ChartKind
       // Einstufung: grau gestrichelt – der Wert nach dem letzten Einstufungslauf ist schon die Elo
       muted: placingNow || all.indexOf(e) < runs - 1,
       tip: placingRun(e)
-        ? { title: `Einstufungslauf ${all.indexOf(e) + 1}/${runs}`, text: 'Die ersten Läufe pendeln die Wertung ein.', sub: `${formatDate(e.date)} · ${e.type} · ${e.position}. von ${e.field}`, color: '#C5CCD3' }
-        : turning.has(i) ? { title: `${fmtDelta(e.delta)} Elo`, text: e.reason, sub: `${formatDate(e.date)} · ${e.type} · ${e.position}. von ${e.field}`, color: e.delta >= 0 ? ACCENT : '#C5CCD3' } : undefined,
+        ? { title: `Einstufungslauf ${all.indexOf(e) + 1}/${runs}`, text: 'Die ersten Läufe pendeln die Wertung ein.', sub: `${formatDate(e.date)} · ${e.type} · ${e.position}. von ${e.field}`, color: 'var(--text-2)' }
+        : turning.has(i) ? { title: `${fmtDelta(e.delta)} Elo`, text: e.reason, sub: `${formatDate(e.date)} · ${e.type} · ${e.position}. von ${e.field}`, color: e.delta >= 0 ? ACCENT : 'var(--text-2)' } : undefined,
     }))
     const mid = Math.floor(history.length / 2)
     // Sinkt die Elo zuletzt, obwohl man selbst schneller geworden ist: das zeigen, statt nur die fallende Kurve
@@ -603,13 +603,13 @@ function DriverChart({ driver, kind, period }: { driver: string; kind: ChartKind
           )}
           {points.some((p) => p.muted) && (
             <span>
-              <span style={{ width: 14, height: 0, borderTop: '2px dashed #8A929C' }} />
+              <span style={{ width: 14, height: 0, borderTop: '2px dashed var(--muted)' }} />
               Einstufung
             </span>
           )}
           {rankAt.some((r) => r != null) && (
             <span>
-              <span style={{ width: 14, height: 0, borderTop: '2px dashed #5B636E' }} />
+              <span style={{ width: 14, height: 0, borderTop: '2px dashed var(--faint-2)' }} />
               Gesamtrang (oben = besser)
             </span>
           )}
@@ -654,14 +654,14 @@ function DriverChart({ driver, kind, period }: { driver: string; kind: ChartKind
         label={`Rundenzeiten: Median der letzten ${WINDOW} Rennen und persönliche Bestzeit`}
         series={[
           { name: 'Median', color: ACCENT, values: shown.map((r) => r.median) },
-          { name: 'Bestzeit', color: '#B98CFF', values: shown.map((r) => r.pb), dashed: true, step: true },
+          { name: 'Bestzeit', color: 'var(--best)', values: shown.map((r) => r.pb), dashed: true, step: true },
         ]}
         band={{ lo: shown.map((r) => r.fast), hi: shown.map((r) => r.slow), color: ACCENT }}
         tips={shown.map((r) => ({
           title: `${formatDate(r.session.date)} · ${r.session.type} ${r.session.heat}`,
           text: (
             <>
-              <span style={{ color: ACCENT }}>Median {s2(r.median)} s</span> · <span style={{ color: '#B98CFF' }}>Bestzeit {s2(r.pb)} s</span>
+              <span style={{ color: ACCENT }}>Median {s2(r.median)} s</span> · <span style={{ color: 'var(--best)' }}>Bestzeit {s2(r.pb)} s</span>
               <br />
               Spanne {s2(r.fast)}–{s2(r.slow)} s
               <br />
@@ -678,7 +678,7 @@ function DriverChart({ driver, kind, period }: { driver: string; kind: ChartKind
           Median der letzten {WINDOW} Rennen
         </span>
         <span>
-          <span style={{ width: 14, height: 0, borderTop: '2px dashed #B98CFF' }} />
+          <span style={{ width: 14, height: 0, borderTop: '2px dashed var(--best)' }} />
           persönliche Bestzeit
         </span>
         <span>
@@ -761,7 +761,7 @@ function OpponentList({ driver }: { driver: string }) {
       <span className="grow">
         <span className="name" style={{ fontWeight: 500 }}>{o.name}</span>
       </span>
-      <span className="num" style={{ fontSize: 13, fontWeight: 700, color: o.w > o.l ? '#7BDB8A' : o.w === 0 ? 'var(--muted)' : 'var(--text-2)' }}>
+      <span className="num" style={{ fontSize: 13, fontWeight: 700, color: o.w > o.l ? 'var(--good)' : o.w === 0 ? 'var(--muted)' : 'var(--text-2)' }}>
         {o.w} : {o.l}
       </span>
     </button>
@@ -821,8 +821,8 @@ function CarBests({ driver }: { driver: string }) {
             <span className="grow">
               <span className="name">{car}</span>
               {bar != null ? (
-                <span style={{ display: 'block', height: 6, borderRadius: 3, background: '#262B33', marginTop: 5, position: 'relative', maxWidth: 160 }}>
-                  <span style={{ position: 'absolute', inset: 0, width: `${Math.max(0.04, bar) * 100}%`, borderRadius: 3, background: i === 0 ? ACCENT : '#4A515C' }} />
+                <span style={{ display: 'block', height: 6, borderRadius: 3, background: 'var(--track)', marginTop: 5, position: 'relative', maxWidth: 160 }}>
+                  <span style={{ position: 'absolute', inset: 0, width: `${Math.max(0.04, bar) * 100}%`, borderRadius: 3, background: i === 0 ? ACCENT : 'var(--faint-2)' }} />
                 </span>
               ) : (
                 <span className="sub">

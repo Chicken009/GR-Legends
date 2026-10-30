@@ -18,7 +18,8 @@ const STAR = 'M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1
 export const CURRENCY: Record<Currency, { unit: string; name: string; color: string; icon: string }> = {
   elo: { unit: 'Elo', name: 'Elo', color: AREA.drivers, icon: GAUGE },
   pts: { unit: 'Pkt.', name: 'Saisonpunkte', color: AREA.season, icon: NAV_ICONS.season },
-  xp: { unit: 'XP', name: 'Erfahrungspunkte', color: XP_COLOR, icon: STAR },
+  // Schrift und Symbol: im hellen Design dunkleres Gold (`--xp`); Flächen nutzen XP_COLOR
+  xp: { unit: 'XP', name: 'Erfahrungspunkte', color: 'var(--xp)', icon: STAR },
 }
 
 export function CurrencyIcon({ kind, size = 14, color }: { kind: Currency; size?: number; color?: string }) {

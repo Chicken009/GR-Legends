@@ -124,7 +124,7 @@ export function Compare() {
         <button className="icon-btn" aria-label="Zurück" onClick={back}>
           <ChevronLeft color={AREA.drivers} />
         </button>
-        <h1 style={{ fontSize: 26, fontWeight: 800, color: AREA.drivers, textShadow: '0 3px 12px rgba(0,0,0,.6)' }}>Vergleich</h1>
+        <h1 style={{ fontSize: 26, fontWeight: 800, color: AREA.drivers, textShadow: 'var(--title-shadow)' }}>Vergleich</h1>
       </header>
       <Segment label="Was vergleichen" value={kind} onChange={(v) => setParams(new URLSearchParams({ typ: v }), { replace: true })} options={[['fahrer', 'Fahrer'], ['auto', 'Fahrzeuge']]} />
 
@@ -133,8 +133,8 @@ export function Compare() {
         <Picker label="Zweiter" value={b} color={colorB} options={options.filter((o) => o.value !== a)} onChange={(v) => set({ b: v, autoB: null })} />
         {kind === 'fahrer' && (
           <>
-            <Picker label={carLabel(a, carA)} value={carA} color="#2A2F38" options={carOptions} onChange={(v) => set({ autoA: v })} small />
-            <Picker label={carLabel(b, carB)} value={carB} color="#2A2F38" options={carOptions} onChange={(v) => set({ autoB: v })} small />
+            <Picker label={carLabel(a, carA)} value={carA} color="var(--line-2)" options={carOptions} onChange={(v) => set({ autoA: v })} small />
+            <Picker label={carLabel(b, carB)} value={carB} color="var(--line-2)" options={carOptions} onChange={(v) => set({ autoB: v })} small />
           </>
         )}
       </div>
@@ -300,7 +300,7 @@ function WhatIf({ a, b, carA, carB, colorA, colorB }: { a: string; b: string; ca
     ['Niederlage mit 1 Runde Rückstand', -1],
   ]
   const cell = (v: number) => (
-    <span className="num" style={{ fontWeight: 700, color: v > 0.5 ? '#7BDB8A' : v < -0.5 ? '#FF8A7A' : 'var(--muted)' }}>
+    <span className="num" style={{ fontWeight: 700, color: v > 0.5 ? 'var(--good)' : v < -0.5 ? 'var(--crash-text)' : 'var(--muted)' }}>
       {fmtDelta(v)}
     </span>
   )

@@ -66,11 +66,11 @@ export function Tip({ x, y, width, tip, above = true }: { x: number; y: number; 
   return (
     <div className="tip" role="status" style={{ left, top: above ? undefined : y + 14, bottom: above ? `calc(100% - ${y - 12}px)` : undefined, maxWidth: w }}>
       {tip.title && <span style={{ fontSize: 13, fontWeight: 800, color: tip.color }}>{tip.title}</span>}
-      <span style={{ fontSize: 12, color: '#E3E7EB', lineHeight: 1.35 }}>{tip.text}</span>
-      {tip.sub && <span style={{ fontSize: 10, color: '#9AA3AD' }}>{tip.sub}</span>}
+      <span style={{ fontSize: 12, color: 'var(--text)', lineHeight: 1.35 }}>{tip.text}</span>
+      {tip.sub && <span style={{ fontSize: 10, color: 'var(--muted)' }}>{tip.sub}</span>}
     </div>
   )
 }
 
-export const AXIS = '#6B7480'
-export const GRID = '#22262D'
+export const AXIS = 'var(--faint)'
+export const GRID = 'var(--grid)'

@@ -44,7 +44,7 @@ export function UnderdogBonus({ bonus, compact }: { bonus: number; compact?: boo
   return (
     <span role="img" aria-label={label} title={label} style={{ display: 'inline-flex', gap: compact ? 0 : 2 }}>
       {[1, 2, 3].map((i) => (
-        <Chevrons key={i} value={2} size={compact ? 14 : 20} color={i <= bonus ? ACCENT : '#3A404A'} className={i <= bonus ? 'pulse' : undefined} />
+        <Chevrons key={i} value={2} size={compact ? 14 : 20} color={i <= bonus ? ACCENT : 'var(--line-3)'} className={i <= bonus ? 'pulse' : undefined} />
       ))}
     </span>
   )
@@ -173,7 +173,7 @@ function CarCard({ car, rank, mine }: { car: CarStats; rank: number | null; mine
           </span>
           <UnderdogBonus bonus={car.bonus} compact />
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 4, borderTop: '1px solid #262B33', paddingTop: 8 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 4, borderTop: '1px solid var(--track)', paddingTop: 8 }}>
           <Mini v={car.races} l="Rennen" />
           <Mini v={fmtPct(car.winRate)} l="Siege" />
           <Mini v={fmtNum(car.km)} l="km" />
@@ -228,8 +228,8 @@ function CarDrivers({ c, me }: { c: CarStats; me: string | null }) {
         return (
           <div key={n} className={isMe ? 'me-row' : undefined} style={{ display: 'flex', alignItems: 'center', gap: 10, borderRadius: 10, padding: '4px 6px' }}>
             <span style={{ fontSize: 13, fontWeight: 600, width: 120, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{n}</span>
-            <div style={{ flex: 1, height: 8, borderRadius: 4, background: '#262B33', position: 'relative' }}>
-              <div style={{ position: 'absolute', inset: 0, width: `${share(value(v)) * 100}%`, borderRadius: 4, background: isMe ? 'var(--me)' : '#4A515C' }} />
+            <div style={{ flex: 1, height: 8, borderRadius: 4, background: 'var(--track)', position: 'relative' }}>
+              <div style={{ position: 'absolute', inset: 0, width: `${share(value(v)) * 100}%`, borderRadius: 4, background: isMe ? 'var(--me)' : 'var(--faint-2)' }} />
             </div>
             <span className="num" style={{ fontSize: 13, fontWeight: 700, width: 54, textAlign: 'right', color: i === 0 ? '#C9D4DE' : undefined }}>
               {kind === 'fast' ? formatTime(v.bestLapMs) : kind === 'wins' ? fmtPct(v.wins / v.races) : `${fmtNum(v.km)} km`}
@@ -294,7 +294,7 @@ export function CarProfile({ onClose }: { onClose: () => void }) {
       }
     >
       <div style={{ ['--accent' as string]: ACCENT, display: 'contents' }}>
-        <div style={{ position: 'relative', height: 220, background: '#171A1F', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 20, border: '1px solid var(--line)', boxShadow: 'var(--sh1)', overflow: 'hidden', flexShrink: 0 }}>
+        <div style={{ position: 'relative', height: 220, background: 'var(--card)', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 20, border: '1px solid var(--line)', boxShadow: 'var(--sh1)', overflow: 'hidden', flexShrink: 0 }}>
           {photo ? (
             <CarPhoto
               key={photo}
@@ -365,13 +365,13 @@ export function CarProfile({ onClose }: { onClose: () => void }) {
             <LapHistogram
               laps={[...c.drivers.values()].flatMap((v) => v.normal)}
               mine={me ? (c.drivers.get(me)?.normal ?? []) : []}
-              color="#4A515C"
+              color="var(--faint-2)"
               meColor="#3BBC4A"
               best={c.bestLapMs}
             />
             <div className="legend">
               <span>
-                <span style={{ width: 10, height: 10, borderRadius: 3, background: '#4A515C' }} />
+                <span style={{ width: 10, height: 10, borderRadius: 3, background: 'var(--faint-2)' }} />
                 alle Fahrer
               </span>
               {me && c.drivers.has(me) && (

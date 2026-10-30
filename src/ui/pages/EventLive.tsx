@@ -52,7 +52,7 @@ export function EventLive() {
 
   if (!folder || !state) {
     return (
-      <div className="live">
+      <div className="live theme-dark">
         <p>Diesen Wettkampf gibt es nicht.</p>
         <Link to="/wettkampf" className="btn">
           Zurück
@@ -73,7 +73,7 @@ export function EventLive() {
   const after = state.next ? state.heats.slice(state.heats.indexOf(state.next) + 1).filter((h) => h.status !== 'done').slice(0, 2) : []
 
   return (
-    <div className="live" style={{ ['--accent' as string]: EVENT_ACCENT }}>
+    <div className="live theme-dark" style={{ ['--accent' as string]: EVENT_ACCENT }}>
       {recap && <StoryPager cards={eventCards(state, steps, null, done, () => setRecap(false), pick)} label={`Rückblick ${def.name}`} onDone={() => setRecap(false)} auto={10_000} doneLabel="Schließen" />}
       {done && CONFETTI.map((c, i) => <span key={i} className="confetti" style={{ left: `${6 + i * 9.5}%`, background: c, animationDelay: `${(i * 0.37) % 3}s` }} />)}
       <header style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>

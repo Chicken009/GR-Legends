@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import type { Session } from '../../types'
 import { formatTime } from '../format'
+import { useResolvedTheme } from '../theme'
 import { Tip, useTipState, useWidth } from './common'
 
-const BASE = '#1E3A2B'
-const HOT = '#C8F0CF'
+// Normale Runde unauffällig, langsame Runde auffällig: dunkel → hell im dunklen, hell → dunkel im hellen Design
+const RAMP = { dark: ['#1E3A2B', '#C8F0CF'], light: ['#DCEFE0', '#2C7A43'] } as const
 const CRASH = '#D95926'
 
 const mix = (a: string, b: string, t: number) => {
@@ -14,7 +15,7 @@ const mix = (a: string, b: string, t: number) => {
 }
 
 /** Farbstufen der Heatmap für die Legende */
-export const LAP_HEAT_RAMP = [0, 0.25, 0.5, 0.75, 1].map((t) => mix(BASE, HOT, t))
+export const lapHeatRamp = (theme: 'light' | 'dark') => [0, 0.25, 0.5, 0.75, 1].map((t) => mix(RAMP[theme][0], RAMP[theme][1], t))
 
 /**
  * Rundenzeiten-Heatmap: Zeilen = Fahrer (nach Platz), Spalten = Runden. Die Farbe zeigt, wie viel
@@ -23,6 +24,7 @@ export const LAP_HEAT_RAMP = [0, 0.25, 0.5, 0.75, 1].map((t) => mix(BASE, HOT, t
 export function LapHeatmap({ session, me }: { session: Session; me: string | null }) {
   const [ref, width] = useWidth<HTMLDivElement>()
   const [open, setOpen] = useTipState<{ r: number; l: number }>(ref)
+  const [BASE, HOT] = RAMP[useResolvedTheme()]
   // Querscrollen: Tooltip sitzt außerhalb des Scrollbereichs, verschoben um den gescrollten Teil
   const [scrollX, setScrollX] = useState(0)
   const rows = session.results
@@ -64,7 +66,7 @@ export function LapHeatmap({ session, me }: { session: Session; me: string | nul
             </defs>
             {Array.from({ length: maxLaps }, (_, k) =>
               maxLaps <= 15 || (k + 1) % 5 === 0 || k === 0 ? (
-                <text key={k} x={left + k * cell + cell / 2} y={11} textAnchor="middle" fill="#6B7480" fontSize="10">
+                <text key={k} x={left + k * cell + cell / 2} y={11} textAnchor="middle" fill="var(--faint)" fontSize="10">
                   {k + 1}
                 </text>
               ) : null,
@@ -74,12 +76,12 @@ export function LapHeatmap({ session, me }: { session: Session; me: string | nul
               const med = medians[i]
               return (
                 <g key={r.driver + r.position}>
-                  <text x={left - 8} y={y + rowH / 2 + 4} textAnchor="end" fill={r.driver === me ? '#3BBC4A' : '#C5CCD3'} fontSize="12" fontWeight="600">
+                  <text x={left - 8} y={y + rowH / 2 + 4} textAnchor="end" fill={r.driver === me ? '#3BBC4A' : 'var(--text-2)'} fontSize="12" fontWeight="600">
                     {`${r.position}. ${r.driver.length > 10 ? r.driver.slice(0, 9) + '…' : r.driver}`}
                   </text>
                   {r.lapTimes.map((l, k) => {
                     const dev = med ? (l.ms - med) / med : 0
-                    const fill = l.status === 'crash' ? 'url(#lap-crash)' : l.status === 'pit' ? '#EE9E10' : l.status === 'invalid' ? '#2A3038' : mix(BASE, HOT, Math.max(0, Math.min(1, dev / 0.2)))
+                    const fill = l.status === 'crash' ? 'url(#lap-crash)' : l.status === 'pit' ? '#EE9E10' : l.status === 'invalid' ? 'var(--line-2)' : mix(BASE, HOT, Math.max(0, Math.min(1, dev / 0.2)))
                     const active = open?.r === i && open.l === k
                     return (
                       <rect
@@ -91,7 +93,7 @@ export function LapHeatmap({ session, me }: { session: Session; me: string | nul
                         rx="5"
                         data-tip-target
                         fill={fill}
-                        stroke={active ? '#F2F4F5' : 'none'}
+                        stroke={active ? 'var(--text)' : 'none'}
                         strokeWidth="1.5"
                         style={{ cursor: 'pointer' }}
                         onClick={() => setOpen(active ? null : { r: i, l: k })}

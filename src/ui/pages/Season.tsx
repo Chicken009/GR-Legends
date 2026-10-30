@@ -103,7 +103,7 @@ function DriverStandings({ year }: { year: string }) {
             <span className="card-title">Punkteverlauf</span>
             <span className="hint">Punkte antippen</span>
           </div>
-          <PointsChart dates={dates} series={shown.map((n) => ({ name: n, color: colors.get(n) ?? '#9AA3AD', values: rows.find((r) => r.name === n)?.progress ?? [] }))} label={`Punkteverlauf der Saison ${year}`} />
+          <PointsChart dates={dates} series={shown.map((n) => ({ name: n, color: colors.get(n) ?? 'var(--muted)', values: rows.find((r) => r.name === n)?.progress ?? [] }))} label={`Punkteverlauf der Saison ${year}`} />
           <span style={{ fontSize: 11, color: 'var(--muted)' }}>Punktestand nach jedem Renntag (beste {SEASON_POINTS.countedRaces} Rennen und Challenges bis dahin).</span>
         </section>
       )}
@@ -174,7 +174,7 @@ function StandingRow({ row: r, me, bg }: { row: SeasonStanding; me: string | nul
         <Amount kind="pts" value={r.points} size={18} />
       </span>
       <span style={{ paddingTop: 8 }}>
-        <Sparkline values={r.progress} color={r.name === me ? ME : '#8A94A0'} label={`Punkteverlauf ${r.name}`} />
+        <Sparkline values={r.progress} color={r.name === me ? ME : 'var(--muted)'} label={`Punkteverlauf ${r.name}`} />
       </span>
       {/* gewertete Rennen über die ganze Breite, eingerückt bis zum Namen */}
       {(r.counted.length > 0 || r.challenges > 0) && (
@@ -259,7 +259,7 @@ function Awards({ year, running }: { year: string; running: boolean }) {
               <button onClick={() => openMedal(got[0].m, got[0].name)} aria-label={`Medaille ${got[0].m.name} anzeigen`} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', borderRadius: '50%' }}>
                 <MedalBadge medal={got[0].m} size={40} />
               </button>
-            ) : <span style={{ width: 40, height: 40, borderRadius: 20, border: '1px dashed #3A404A', flexShrink: 0 }} />}
+            ) : <span style={{ width: 40, height: 40, borderRadius: 20, border: '1px dashed var(--line-3)', flexShrink: 0 }} />}
             <span className="grow">
               <span className="name">{a.name}</span>
               <span className="sub">{got[0] ? got[0].m.description : a.text}</span>
@@ -384,7 +384,7 @@ function ProgressRing({ value, total, color, size = 84 }: { value: number; total
   return (
     <span style={{ position: 'relative', width: size, height: size, flexShrink: 0 }} role="img" aria-label={`${value} von ${total} geschafft`}>
       <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#2A3038" strokeWidth={stroke} />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--line-2)" strokeWidth={stroke} />
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color} strokeWidth={stroke} strokeLinecap="round" strokeDasharray={`${len * (total ? value / total : 0)} ${len}`} />
       </svg>
       <span className="num" style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 800 }}>

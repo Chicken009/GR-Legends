@@ -56,14 +56,14 @@ export function LapHistogram({ laps, mine, color, meColor, best }: { laps: numbe
         })}
         {best != null && best >= lo && (
           <g>
-            <path d={`M${sx(best)} ${top - 4}V${bottom}`} stroke="#B98CFF" strokeWidth="2" strokeDasharray="3 3" />
-            <text x={sx(best) + 4} y={top + 4} fill="#B98CFF" fontSize="10" fontWeight="600">
+            <path d={`M${sx(best)} ${top - 4}V${bottom}`} stroke="var(--best)" strokeWidth="2" strokeDasharray="3 3" />
+            <text x={sx(best) + 4} y={top + 4} fill="var(--best)" fontSize="10" fontWeight="600">
               Best {formatTime(best)}
             </text>
           </g>
         )}
-        <path d={`M${sx(median)} ${top + 10}V${bottom}`} stroke="#F2F4F5" strokeWidth="1.5" strokeDasharray="2 3" opacity="0.6" />
-        <text x={Math.min(sx(median) + 4, width - 70)} y={top + 18} fill="#C5CCD3" fontSize="10">
+        <path d={`M${sx(median)} ${top + 10}V${bottom}`} stroke="var(--text)" strokeWidth="1.5" strokeDasharray="2 3" opacity="0.6" />
+        <text x={Math.min(sx(median) + 4, width - 70)} y={top + 18} fill="var(--text-2)" fontSize="10">
           typisch {s1(median)}
         </text>
         {ticks.map((t) => (

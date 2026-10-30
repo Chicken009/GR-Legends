@@ -56,7 +56,7 @@ function DoneByList({ id, year, onNavigate }: { id: string; year: string; onNavi
   const names = drivers.filter((n) => model.challenges(n, year).find((x) => x.id === id)?.done)
   const r = rarity(names.length, drivers.length)
   return (
-    <div style={{ width: '100%', borderTop: '1px solid #262B33', marginTop: 4, paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center' }}>
+    <div style={{ width: '100%', borderTop: '1px solid var(--track)', marginTop: 4, paddingTop: 10, display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center' }}>
       <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.4, textTransform: 'uppercase', color: r.color, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
         <span style={{ width: 6, height: 6, borderRadius: 3, background: r.color }} />
         {r.label}
@@ -81,13 +81,13 @@ function ChallengePopup({ c, driver, year, onClose }: { c: Challenge; driver?: s
   return createPortal(
     <div
       onClick={(e) => e.target === e.currentTarget && onClose()}
-      style={{ position: 'fixed', inset: 0, zIndex: 95, background: 'rgba(7, 8, 10, 0.72)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, animation: 'fade 0.15s ease-out' }}
+      style={{ position: 'fixed', inset: 0, zIndex: 95, background: 'var(--overlay)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, animation: 'fade 0.15s ease-out' }}
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-label={`Challenge ${c.label}`}
-        style={{ animation: 'medal-pop 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.2)', width: '100%', maxWidth: 320, background: 'var(--sheet)', border: '1px solid #262B33', borderRadius: 24, padding: '20px 20px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, textAlign: 'center', boxShadow: '0 24px 60px rgba(0,0,0,.55)' }}
+        style={{ animation: 'medal-pop 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.2)', width: '100%', maxWidth: 320, background: 'var(--sheet)', border: '1px solid var(--track)', borderRadius: 24, padding: '20px 20px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, textAlign: 'center', boxShadow: 'var(--sh1)' }}
       >
         <ChallengeBadge c={c} accent={AREA.season} size={128} />
         <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: 2, textTransform: 'uppercase', color: c.done ? AREA.season : 'var(--muted)' }}>
@@ -128,13 +128,13 @@ function MedalPopup({ medal, driver, onClose }: { medal: Medal; driver?: string;
   return createPortal(
     <div
       onClick={(e) => e.target === e.currentTarget && onClose()}
-      style={{ position: 'fixed', inset: 0, zIndex: 95, background: 'rgba(7, 8, 10, 0.72)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, animation: 'fade 0.15s ease-out' }}
+      style={{ position: 'fixed', inset: 0, zIndex: 95, background: 'var(--overlay)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, animation: 'fade 0.15s ease-out' }}
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-label={`${t.label}-Medaille ${medal.name}`}
-        style={{ animation: 'medal-pop 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.2)', width: '100%', maxWidth: 320, background: 'var(--sheet)', border: '1px solid #262B33', borderRadius: 24, padding: '20px 20px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, textAlign: 'center', boxShadow: '0 24px 60px rgba(0,0,0,.55)' }}
+        style={{ animation: 'medal-pop 0.22s cubic-bezier(0.2, 0.9, 0.3, 1.2)', width: '100%', maxWidth: 320, background: 'var(--sheet)', border: '1px solid var(--track)', borderRadius: 24, padding: '20px 20px 16px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, textAlign: 'center', boxShadow: 'var(--sh1)' }}
       >
         <MedalArt tier={medal.tier} icon={medal.icon} size={128} muted={!!medal.former} label={`${t.label}-Medaille ${medal.name}`} />
         <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: 2, textTransform: 'uppercase', color: medal.former ? 'var(--muted)' : t.text }}>

@@ -61,7 +61,7 @@ export function MeButton() {
   const me = useMyName()
   return (
     <button className={`me-btn${me ? '' : ' empty'}`} onClick={openMe} aria-label={me ? `Mein Profil: ${me}` : 'Wer bist du? Fahrer auswählen'}>
-      {me ? initials(me) : <StrokeIcon d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21c0-4 3.6-6 8-6s8 2 8 6" size={20} color="#9AA3AD" />}
+      {me ? initials(me) : <StrokeIcon d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21c0-4 3.6-6 8-6s8 2 8 6" size={20} color="var(--muted)" />}
     </button>
   )
 }
@@ -186,7 +186,7 @@ export function Sheet({ onClose, children, actions, label }: { onClose: () => vo
     if (!d || !sheetRef.current) return
     d.dy = Math.max(0, y - d.startY)
     sheetRef.current.style.transform = `translateY(${d.dy}px)`
-    if (backdropRef.current) backdropRef.current.style.backgroundColor = `rgba(7, 8, 10, ${0.7 * Math.max(0, 1 - d.dy / 400)})`
+    if (backdropRef.current) backdropRef.current.style.opacity = String(Math.max(0, 1 - d.dy / 400))
   }
   const end = () => {
     const d = drag.current
@@ -198,11 +198,11 @@ export function Sheet({ onClose, children, actions, label }: { onClose: () => vo
     if (d.dy > 120 || (d.dy > 30 && speed > 0.6)) {
       closing.current = true
       sheet.style.transform = 'translateY(100%)'
-      if (backdropRef.current) backdropRef.current.style.backgroundColor = 'rgba(7, 8, 10, 0)'
+      if (backdropRef.current) backdropRef.current.style.opacity = '0'
       setTimeout(onClose, 200)
     } else {
       sheet.style.transform = ''
-      if (backdropRef.current) backdropRef.current.style.backgroundColor = ''
+      if (backdropRef.current) backdropRef.current.style.opacity = ''
     }
   }
 
@@ -338,7 +338,7 @@ export function Empty({ children }: { children: ReactNode }) {
 }
 
 /** GR-Monogramm (Vektor aus dem Logo) */
-export function Monogram({ width = 56, color = '#F2F4F5' }: { width?: number; color?: string }) {
+export function Monogram({ width = 56, color = 'var(--text)' }: { width?: number; color?: string }) {
   return (
     <svg width={width} height={(width * 160) / 286} viewBox="304 352 286 160" aria-hidden="true">
       <g fill={color}>
@@ -361,20 +361,20 @@ export function Wordmark({ width = 150 }: { width?: number }) {
   return (
     <svg width={width} height={(width * 150) / 300} viewBox="0 30 300 140" role="img" aria-label="GR Legends">
       <svg x="70" y="22" width="160" height="90" viewBox="304 352 286 160">
-        <g fill="#F2F4F5">
-          <path d="M441.12 431.1c0 31.99-25.93 57.92-57.92 57.92s-57.92-25.93-57.92-57.92 25.93-57.92 57.92-57.92h3" fill="none" stroke="#F2F4F5" strokeWidth="27.7" />
+        <g fill="var(--text)">
+          <path d="M441.12 431.1c0 31.99-25.93 57.92-57.92 57.92s-57.92-25.93-57.92-57.92 25.93-57.92 57.92-57.92h3" fill="none" stroke="var(--text)" strokeWidth="27.7" />
           <rect x="383.2" y="359.33" width="156.49" height="27.7" />
           <rect x="381.1" y="417.25" width="73.87" height="27.7" />
           <rect x="427.27" y="429.1" width="27.7" height="75.87" />
           <rect x="484.15" y="417.25" width="28.7" height="85.62" />
-          <path d="M536.55 373.18h3c15.99 0 28.96 12.97 28.96 28.96s-12.97 28.96-28.96 28.96h-3" fill="none" stroke="#F2F4F5" strokeWidth="27.7" />
+          <path d="M536.55 373.18h3c15.99 0 28.96 12.97 28.96 28.96s-12.97 28.96-28.96 28.96h-3" fill="none" stroke="var(--text)" strokeWidth="27.7" />
           <rect x="510.85" y="417.25" width="29.7" height="28.7" />
           <path d="M510.8 443.95l37.91 58.92h32.94l-37.91-58.92z" />
           <circle cx="381.1" cy="431.1" r="13.85" />
         </g>
       </svg>
       <rect x="44" y="146" width="22" height="4" rx="2" fill="#3BBC4A" />
-      <text x="153" y="157" textAnchor="middle" fill="#F2F4F5" fontFamily="Rubik, Arial, sans-serif" fontSize="26" fontWeight="800" letterSpacing="10">
+      <text x="153" y="157" textAnchor="middle" fill="var(--text)" fontFamily="Rubik, Arial, sans-serif" fontSize="26" fontWeight="800" letterSpacing="10">
         LEGENDS
       </text>
       <rect x="234" y="146" width="22" height="4" rx="2" fill="#3BBC4A" />

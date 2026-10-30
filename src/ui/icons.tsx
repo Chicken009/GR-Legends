@@ -82,13 +82,13 @@ export function StrokeIcon({ d, size = 22, color = 'currentColor', width = 2 }: 
 }
 
 export const ChevronLeft = ({ color = 'currentColor' }: { color?: string }) => <StrokeIcon d="M15 6l-6 6 6 6" color={color} width={2.2} />
-export const ChevronRight = ({ color = '#9AA3AD', size = 16 }: { color?: string; size?: number }) => <StrokeIcon d="M9 6l6 6-6 6" color={color} size={size} />
-export const ChevronDown = () => <StrokeIcon d="M6 9l6 6 6-6" color="#9AA3AD" size={20} />
+export const ChevronRight = ({ color = 'var(--muted)', size = 16 }: { color?: string; size?: number }) => <StrokeIcon d="M9 6l6 6-6 6" color={color} size={size} />
+export const ChevronDown = () => <StrokeIcon d="M6 9l6 6 6-6" color="var(--muted)" size={20} />
 export const ShareIcon = () => <StrokeIcon d="M12 15V3M8 7l4-4 4 4M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7" size={18} />
 export const SearchIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
-    <circle cx="11" cy="11" r="7" fill="none" stroke="#9AA3AD" strokeWidth="2" />
-    <path d="M20 20l-4-4" stroke="#9AA3AD" strokeWidth="2" strokeLinecap="round" />
+    <circle cx="11" cy="11" r="7" fill="none" stroke="var(--muted)" strokeWidth="2" />
+    <path d="M20 20l-4-4" stroke="var(--muted)" strokeWidth="2" strokeLinecap="round" />
   </svg>
 )
 export const BulbIcon = ({ color }: { color: string }) => (
@@ -266,7 +266,7 @@ export function Target({ size = 20, label }: IconProps) {
         </mask>
       </defs>
       <circle mask={`url(#${id})`} cx="10.5" cy="13.5" r="8.5" fill="#5EC8FF" />
-      <path d="M10.5 13.5L20.4 3.6" stroke="#F2F4F5" strokeWidth="2" strokeLinecap="round" />
+      <path d="M10.5 13.5L20.4 3.6" stroke="var(--text)" strokeWidth="2" strokeLinecap="round" />
       <path d="M17.4 6.6L20.4 3.6 21.8 4.9 18.6 7.6z" fill="#FF4D4D" stroke="#FF4D4D" strokeWidth="0.6" strokeLinejoin="round" />
       <path d="M17.4 6.6L20.4 3.6 19.1 2.2 16.4 5.4z" fill="#E03434" stroke="#E03434" strokeWidth="0.6" strokeLinejoin="round" />
     </Svg>
@@ -285,8 +285,8 @@ export function Shield({ size = 20, label }: IconProps) {
 export function PoleFlag({ size = 20, label }: IconProps) {
   return (
     <Svg size={size} label={label}>
-      <path d="M5 21.5V3" stroke="#F2F4F5" strokeWidth="2.4" strokeLinecap="round" />
-      <path d="M6.5 3.5c4-1.6 7 1.6 13 0v9.5c-6 1.6-9-1.6-13 0z" fill="#F2F4F5" />
+      <path d="M5 21.5V3" stroke="var(--text)" strokeWidth="2.4" strokeLinecap="round" />
+      <path d="M6.5 3.5c4-1.6 7 1.6 13 0v9.5c-6 1.6-9-1.6-13 0z" fill="#F2F4F5" stroke="var(--faint-2)" strokeWidth="0.6" />
       <path
         d="M9.7 3.2v3.3H6.5V3.5c1.2-.4 2.2-.4 3.2-.3zM16.2 4.2v3.2H13V4.4c1 .2 2 .1 3.2-.2zM13 6.5v3.3H9.7V6.5c1.1.1 2.2.2 3.3 0zM19.5 7.2v3.1h-3.3V7.4c1 0 2.1 0 3.3-.2zM9.7 9.8v3.1c-1.1-.1-2.2 0-3.2.3V9.9c1-.2 2.1-.2 3.2-.1zM16.2 10.3v3.2c-1.2.2-2.2.2-3.2 0V9.8c1 .3 2 .5 3.2.5z"
         fill="#0E1013"
@@ -396,9 +396,9 @@ export function CarSilhouette({ width = 270 }: { width?: number }) {
   return (
     <svg width={width} height={width * 0.37} viewBox="0 0 270 100" aria-hidden="true">
       <g transform="translate(270 0) scale(-1 1)">
-        <path d="M20 78c0-6 4-10 12-11l60-9 40-10h40l30-8h30V24h18v52H20z" fill="#2A2F38" />
-        <circle cx="78" cy="78" r="16" fill="#1A1E24" />
-        <circle cx="214" cy="78" r="17" fill="#1A1E24" />
+        <path d="M20 78c0-6 4-10 12-11l60-9 40-10h40l30-8h30V24h18v52H20z" fill="var(--line-2)" />
+        <circle cx="78" cy="78" r="16" fill="var(--faint-2)" />
+        <circle cx="214" cy="78" r="17" fill="var(--faint-2)" />
       </g>
     </svg>
   )

@@ -49,7 +49,7 @@ export function RadarChart({ series, label, size = 320 }: { series: RadarSeries[
           {[0.25, 0.75, 1].map((ring) => (
             <polygon key={ring} points={poly(axes.map(() => ring))} fill="none" stroke={GRID} strokeWidth="1" />
           ))}
-          <polygon points={poly(axes.map(() => 0.5))} fill="none" stroke="#3A404A" strokeWidth="1.2" strokeDasharray="4 4" />
+          <polygon points={poly(axes.map(() => 0.5))} fill="none" stroke="var(--line-3)" strokeWidth="1.2" strokeDasharray="4 4" />
           {axes.map((_, i) => {
             const [x, y] = pt(i, 1)
             return <path key={i} d={`M${cx} ${cy}L${x.toFixed(1)} ${y.toFixed(1)}`} stroke={GRID} />
@@ -61,7 +61,7 @@ export function RadarChart({ series, label, size = 320 }: { series: RadarSeries[
             s.axes.map((a, ai) => {
               const [x, y] = pt(ai, a.score)
               const active = open?.s === si && open.a === ai
-              return <circle key={`${si}-${ai}`} cx={x} cy={y} r={active ? 6 : 4.5} fill={s.color} stroke="#1A1E24" strokeWidth="2" />
+              return <circle key={`${si}-${ai}`} cx={x} cy={y} r={active ? 6 : 4.5} fill={s.color} stroke="var(--card)" strokeWidth="2" />
             }),
           )}
           {axes.map((a, i) => {

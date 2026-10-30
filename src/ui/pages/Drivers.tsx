@@ -158,7 +158,7 @@ export function Drivers() {
                     <StatusIcons list={statuses.get(r.name)} size={16} max={2} />
                   </span>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 4, borderTop: `1px solid ${isMe ? 'rgba(255,255,255,.12)' : '#262B33'}`, paddingTop: 8 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 4, borderTop: `1px solid ${isMe ? 'var(--tint-5)' : 'var(--track)'}`, paddingTop: 8 }}>
                   <Mini v={d?.races ?? 0} l="Rennen" />
                   <Mini v={d?.wins ?? 0} l="Siege" />
                   <Mini v={fmtPct(d?.beatShare)} l="Ø geschl." />
@@ -203,7 +203,7 @@ function Trend({ row }: { row: RankRow }) {
   if (row.rankStart == null) return <span style={{ color: 'var(--faint)' }}>neu</span>
   const d = row.rankStart - row.rank
   if (d === 0) return <span style={{ color: 'var(--faint)' }}>–</span>
-  return <span style={{ color: d > 0 ? '#7BDB8A' : '#FF8A7A', fontWeight: 600 }}>{d > 0 ? `▲ ${d}` : `▼ ${-d}`}</span>
+  return <span style={{ color: d > 0 ? 'var(--good)' : 'var(--crash-text)', fontWeight: 600 }}>{d > 0 ? `▲ ${d}` : `▼ ${-d}`}</span>
 }
 
 function Mini({ v, l }: { v: string | number; l: string }) {

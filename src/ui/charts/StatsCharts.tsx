@@ -38,7 +38,7 @@ export function BumpChart({
     <div ref={ref} className="chart" style={{ height }}>
       <svg width={width} height={height} role="img" aria-label={`Rangverlauf: ${labels.map((l) => `${l.s.name} Platz ${l.rank}`).join(', ')}`}>
         {Array.from({ length: maxRank }, (_, i) => (
-          <path key={i} d={`M0 ${sy(i + 1)}H${width - labelW + 8}`} stroke="#1E2228" />
+          <path key={i} d={`M0 ${sy(i + 1)}H${width - labelW + 8}`} stroke="var(--grid)" />
         ))}
         {ordered.map((s) => {
           const segs: [number, number][][] = []
@@ -97,7 +97,7 @@ export function DuelMatrix({ names, h2h, me, onPick }: { names: string[]; h2h: (
             const ring = a === me || b === me ? 'inset 0 0 0 1px rgba(59,188,74,.4)' : 'none'
             if (w + l === 0)
               return (
-                <span key={b} role="cell" aria-label={`${a} gegen ${b}: kein Duell`} style={{ height: 34, borderRadius: 8, background: '#1A1E24', color: '#4A515C', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, boxShadow: ring }}>
+                <span key={b} role="cell" aria-label={`${a} gegen ${b}: kein Duell`} style={{ height: 34, borderRadius: 8, background: 'var(--inner-2)', color: 'var(--faint-2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, boxShadow: ring }}>
                   –
                 </span>
               )
@@ -113,8 +113,8 @@ export function DuelMatrix({ names, h2h, me, onPick }: { names: string[]; h2h: (
                   borderRadius: 8,
                   border: 'none',
                   padding: 0,
-                  background: share > 0.5 ? `rgba(59,188,74,${(0.2 + (share - 0.5) * 1.2).toFixed(2)})` : '#262B33',
-                  color: share > 0.5 ? '#F2F4F5' : '#9AA3AD',
+                  background: share > 0.5 ? `rgba(59,188,74,${(0.2 + (share - 0.5) * 1.2).toFixed(2)})` : 'var(--track)',
+                  color: share > 0.5 ? 'var(--text)' : 'var(--muted)',
                   fontSize: 11,
                   fontWeight: 600,
                   fontVariantNumeric: 'tabular-nums',
@@ -159,13 +159,13 @@ export function TrendChart({ days, color }: { days: { date: string; best: number
         <path
           d={linePath(days.flatMap((d, i) => (d.typical != null ? [[sx(i), sy(d.typical)] as [number, number]] : [])))}
           fill="none"
-          stroke="#6B7480"
+          stroke="var(--faint)"
           strokeWidth="2"
           strokeDasharray="4 3"
           strokeLinejoin="round"
         />
         <path d={linePath(days.map((d, i) => [sx(i), sy(d.best)]))} fill="none" stroke={color} strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
-        <circle cx={sx(bestIdx)} cy={sy(days[bestIdx].best)} r="5" fill="url(#gGold)" stroke="#171A1F" strokeWidth="2" />
+        <circle cx={sx(bestIdx)} cy={sy(days[bestIdx].best)} r="5" fill="url(#gGold)" stroke="var(--card)" strokeWidth="2" />
         {years.map(({ y, i }) => (
           <text key={y} x={sx(i)} y={height - 4} fill={AXIS} fontSize="10" textAnchor={i === 0 ? 'start' : 'middle'}>
             {y}
@@ -189,14 +189,14 @@ export function TrendChart({ days, color }: { days: { date: string; best: number
 }
 
 /** Horizontale Balken (HTML) */
-export function BarList({ rows, color = '#5B6573', highlight, highlightColor = '#3BBC4A', format = (v) => String(v) }: { rows: { label: string; value: number; key?: string }[]; color?: string; highlight?: string | null; highlightColor?: string; format?: (v: number) => string }) {
+export function BarList({ rows, color = 'var(--faint-2)', highlight, highlightColor = '#3BBC4A', format = (v) => String(v) }: { rows: { label: string; value: number; key?: string }[]; color?: string; highlight?: string | null; highlightColor?: string; format?: (v: number) => string }) {
   const max = Math.max(1, ...rows.map((r) => r.value))
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
       {rows.map((r) => (
         <div key={r.key ?? r.label} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <span style={{ fontSize: 12, width: 120, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--text-2)' }}>{r.label}</span>
-          <div style={{ flex: 1, height: 12, borderRadius: 6, background: '#22262D', display: 'flex' }}>
+          <div style={{ flex: 1, height: 12, borderRadius: 6, background: 'var(--grid)', display: 'flex' }}>
             <div style={{ width: `${(r.value / max) * 100}%`, borderRadius: 6, background: r.key === highlight || r.label === highlight ? highlightColor : color }} />
           </div>
           <span className="num" style={{ fontSize: 12, fontWeight: 700, minWidth: 28, textAlign: 'right' }}>

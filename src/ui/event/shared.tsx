@@ -204,7 +204,7 @@ export function StandingsList({ state, me, steps }: { state: EventState; me: str
             )}
             {!place && steps && steps.length > 2 && (
               <span style={{ paddingTop: 8 }}>
-                <Sparkline values={steps.map((s) => s.totals.get(r.name) ?? 0)} color={r.name === me ? ME : '#8A94A0'} label={`Punkteverlauf ${r.name}`} />
+                <Sparkline values={steps.map((s) => s.totals.get(r.name) ?? 0)} color={r.name === me ? ME : 'var(--muted)'} label={`Punkteverlauf ${r.name}`} />
               </span>
             )}
           </>
@@ -400,9 +400,9 @@ export function CarChips({ cars, size = 32, label }: { cars: string[]; size?: nu
 export function GridSlot({ n, size = 24 }: { n: number | null; size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" role={n == null ? undefined : 'img'} aria-label={n == null ? undefined : `Startplatz ${n}`} aria-hidden={n == null ? true : undefined} style={{ flexShrink: 0 }}>
-      <path d="M9 3H4v18h5" fill="none" stroke="#E3E7EB" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M9 3H4v18h5" fill="none" stroke="var(--text)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
       {n != null && (
-        <text x="14.5" y="16.5" textAnchor="middle" fill="#F2F4F5" fontSize={n > 9 ? 10 : 13} fontWeight="800">
+        <text x="14.5" y="16.5" textAnchor="middle" fill="var(--text)" fontSize={n > 9 ? 10 : 13} fontWeight="800">
           {n}
         </text>
       )}

@@ -1,16 +1,17 @@
 /** Feste Farben für Fahrer in Diagrammen (Grün ist für „Ich“ reserviert). */
 // Reihenfolge auf Farbsehschwäche geprüft: benachbarte Farben bleiben unterscheidbar
 export const SERIES = ['#3987E5', '#D95926', '#2BA8A0', '#C98500', '#8E7CF0', '#D55181', '#7F9A3A', '#B5534A']
-export const ME = '#3BBC4A'
+// Bereichs- und Ich-Farbe als CSS-Variablen: im hellen Modus dunkler, damit Schrift lesbar bleibt
+export const ME = 'var(--me)'
 
 export const AREA = {
-  drivers: '#3BBC4A',
-  cars: '#AE6DEE',
-  stats: '#F75F4C',
-  history: '#EE9E10',
-  home: '#F2F4F5',
-  season: '#4AA8F0',
-  events: '#E2559A',
+  drivers: 'var(--drivers)',
+  cars: 'var(--cars)',
+  stats: 'var(--stats)',
+  history: 'var(--history)',
+  home: 'var(--text)',
+  season: 'var(--season)',
+  events: 'var(--events)',
 } as const
 
 export type Area = keyof typeof AREA

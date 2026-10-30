@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react'
-import { Sheet } from './components'
+import { Segment, Sheet } from './components'
+import { setThemePref, useThemePref, type ThemePref } from './theme'
 
 /**
  * Kontakt des Verantwortlichen – absichtlich nicht als Klartext im Code, damit ihn Suchmaschinen,
@@ -96,7 +97,7 @@ export function PrivacySheet({ onClose }: { onClose: () => void }) {
             Die App setzt keine Cookies und nutzt keine Analyse- oder Werbedienste. Schriften und Programmteile werden von der Seite selbst geladen, nicht von fremden Servern.
           </p>
           <p style={{ margin: 0 }}>
-            Im Speicher deines Browsers merkt sich die App Einstellungen auf deinem Gerät, z. B. wer du bist („Das bin ich“), gewählte Ansichten und schon gesehene Medaillen. Außerdem legt sie die
+            Im Speicher deines Browsers merkt sich die App Einstellungen auf deinem Gerät, z. B. wer du bist („Das bin ich“), gewählte Ansichten, das Design (hell/dunkel) und schon gesehene Medaillen. Außerdem legt sie die
             öffentlichen Rennergebnisse aus dem Google-Drive-Ordner dort ab, damit sie nicht bei jedem Besuch neu geladen werden; Dateien, die aus dem Ordner verschwinden, werden auch dort gelöscht. Diese
             Angaben verlassen dein Gerät nicht und lassen sich über die Browsereinstellungen jederzeit löschen.
           </p>
@@ -120,8 +121,20 @@ export function PrivacySheet({ onClose }: { onClose: () => void }) {
 /** Kleiner Link ganz unten auf den Seiten */
 export function PrivacyFooter() {
   const [open, setOpen] = useState(false)
+  const theme = useThemePref()
   return (
-    <footer style={{ display: 'flex', justifyContent: 'center', padding: '8px 16px 20px' }}>
+    <footer style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '8px 16px 20px' }}>
+      <Segment<ThemePref>
+        small
+        label="Design"
+        value={theme}
+        onChange={setThemePref}
+        options={[
+          ['auto', 'Automatisch'],
+          ['light', 'Hell'],
+          ['dark', 'Dunkel'],
+        ]}
+      />
       <button onClick={() => setOpen(true)} style={{ background: 'none', border: 'none', color: 'var(--faint)', fontSize: 12, textDecoration: 'underline', cursor: 'pointer', padding: 8 }}>
         Datenschutz
       </button>

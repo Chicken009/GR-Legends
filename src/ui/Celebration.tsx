@@ -78,7 +78,7 @@ export function Celebration() {
     }
   }
   return (
-    <div className="celebrate" role="dialog" aria-modal="true" aria-label={`Neue Medaille: ${medal.name}`}>
+    <div className="celebrate theme-dark" role="dialog" aria-modal="true" aria-label={`Neue Medaille: ${medal.name}`}>
       {CONFETTI.map((c, i) => (
         <span key={i} className="confetti" style={{ left: `${8 + i * 9}%`, background: c, animationDelay: `${(i * 0.37) % 3}s` }} />
       ))}
@@ -172,7 +172,7 @@ function LevelUp({ me }: { me: string }) {
     }
   }
   return (
-    <div className="celebrate" role="dialog" aria-modal="true" aria-label={`Level ${career.level} erreicht`}>
+    <div className="celebrate theme-dark" role="dialog" aria-modal="true" aria-label={`Level ${career.level} erreicht`}>
       {CONFETTI.map((c, i) => (
         <span key={i} className="confetti" style={{ left: `${8 + i * 9}%`, background: c, animationDelay: `${(i * 0.37) % 3}s` }} />
       ))}

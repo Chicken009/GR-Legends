@@ -3,9 +3,20 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#0E1013" />
-    <!-- Die Seite ist bereits dunkel: verhindert, dass Browser (z. B. Samsung Internet) sie zusätzlich umfärben -->
-    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#0B0D10" />
+    <!-- Die Seite bringt Hell und Dunkel selbst mit: verhindert, dass Browser (z. B. Samsung Internet) sie zusätzlich umfärben -->
+    <meta name="color-scheme" content="dark light" />
+    <script>
+      // Gewähltes Design vor dem ersten Zeichnen setzen (sonst blitzt kurz das falsche auf); wie `src/ui/theme.ts`
+      ;(function () {
+        try {
+          var t = localStorage.getItem('gr-legends:theme')
+          var light = t === 'light' || (t !== 'dark' && window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches)
+          if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', light ? '#ECEFF3' : '#0B0D10')
+        } catch (e) {}
+      })()
+    </script>
     <!-- Nicht in Suchmaschinen aufnehmen: die Seite ist nur über den Link erreichbar -->
     <meta name="robots" content="noindex, nofollow, noarchive" />
     <meta name="description" content="GR Legends – Rennergebnisse, Wertung und Rekorde" />

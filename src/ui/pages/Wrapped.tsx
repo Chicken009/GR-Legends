@@ -751,11 +751,14 @@ export function Wrapped() {
             </button>
           </div>
         </div>
-        {cards.map((c, i) => (
-          <CardFrame key={c.key} i={i} card={c}>
-            {c.body}
-          </CardFrame>
-        ))}
+        {/* Rückblick-Karten bleiben auch im hellen Design dunkel (wie in der Story) */}
+        <div className="theme-dark" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {cards.map((c, i) => (
+            <CardFrame key={c.key} i={i} card={c}>
+              {c.body}
+            </CardFrame>
+          ))}
+        </div>
       </div>
     </>
   )

@@ -51,12 +51,12 @@ export function PointsChart({ dates, series, label, axis, tips, short = shortNam
         ))}
         {dates.map((d, i) =>
           i % step === 0 || i === dates.length - 1 ? (
-            <text key={d} x={sx(i)} y={h - 6} textAnchor={i === 0 ? 'start' : i === dates.length - 1 ? 'end' : 'middle'} fill={i === open ? '#F2F4F5' : AXIS} fontSize="10">
+            <text key={d} x={sx(i)} y={h - 6} textAnchor={i === 0 ? 'start' : i === dates.length - 1 ? 'end' : 'middle'} fill={i === open ? 'var(--text)' : AXIS} fontSize="10">
               {axis ? axis[i] : formatDate(d).slice(0, 5)}
             </text>
           ) : null,
         )}
-        {open != null && <path d={`M${sx(open)} ${top}V${h - bottom}`} stroke="#3A404A" strokeWidth="1.5" />}
+        {open != null && <path d={`M${sx(open)} ${top}V${h - bottom}`} stroke="var(--line-3)" strokeWidth="1.5" />}
         {series.map((s) => {
           const pts = s.values.map((v, i) => (v != null ? ([sx(i), sy(v)] as [number, number]) : null)).filter((p): p is [number, number] => p != null)
           return <path key={s.name} d={linePath(pts)} fill="none" stroke={s.color} strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round" />
@@ -65,13 +65,13 @@ export function PointsChart({ dates, series, label, axis, tips, short = shortNam
         {series.map((s, si) => {
           const lastIdx = s.values.map((v, i) => (v != null ? i : -1)).filter((i) => i >= 0).pop()
           return [lastIdx, open].map((i, k) =>
-            i == null || s.values[i] == null || (k === 1 && i === lastIdx) ? null : <circle key={`${si}-${k}`} cx={sx(i)} cy={sy(s.values[i]!)} r={k === 1 ? 5 : 4} fill={s.color} stroke="#1A1E24" strokeWidth="2" />,
+            i == null || s.values[i] == null || (k === 1 && i === lastIdx) ? null : <circle key={`${si}-${k}`} cx={sx(i)} cy={sy(s.values[i]!)} r={k === 1 ? 5 : 4} fill={s.color} stroke="var(--card)" strokeWidth="2" />,
           )
         })}
         {labels.map(({ si, y }) => (
           <g key={series[si].name}>
             <rect x={width - right + 6} y={y - 3} width="6" height="6" rx="1.5" fill={series[si].color} />
-            <text x={width - right + 16} y={y + 4} fill="#C5CCD3" fontSize="11" fontWeight="600">
+            <text x={width - right + 16} y={y + 4} fill="var(--text-2)" fontSize="11" fontWeight="600">
               {short(series[si].name)}
             </text>
           </g>
@@ -108,7 +108,7 @@ export function PointsChart({ dates, series, label, axis, tips, short = shortNam
                     <b className="num">{fmtV(v)}</b>
                   </span>
                 ))}
-                {at.length > 8 && <span style={{ color: '#9AA3AD' }}>+ {at.length - 8} weitere</span>}
+                {at.length > 8 && <span style={{ color: 'var(--muted)' }}>+ {at.length - 8} weitere</span>}
               </span>
             ),
           }}

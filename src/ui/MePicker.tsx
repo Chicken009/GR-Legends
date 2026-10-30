@@ -51,7 +51,7 @@ export function MePicker() {
                 padding: '0 12px',
                 borderRadius: 14,
                 border: `2px solid ${sel ? 'rgba(59,188,74,.53)' : 'transparent'}`,
-                background: sel ? 'linear-gradient(90deg, rgba(59,188,74,.3) 0%, rgba(59,188,74,.08) 60%, #1A1E24 100%)' : 'var(--inner-2)',
+                background: sel ? 'linear-gradient(90deg, rgba(59,188,74,.3) 0%, rgba(59,188,74,.08) 60%, var(--card) 100%)' : 'var(--inner-2)',
                 textAlign: 'left',
                 boxShadow: 'var(--sh-row)',
                 flexShrink: 0,
