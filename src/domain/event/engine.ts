@@ -63,6 +63,13 @@ export interface Heat {
   teamPoints: Map<string, number> | null
   /** Teamrennen: Punkte nur gegen Fahrer anderer Teams – Grundlage der Teampunkte */
   rivalPoints: Map<string, number> | null
+  /**
+   * Teamrennen: Anteil jedes Fahrers an den Teampunkten dieses Laufs (hochgerechnet auf die größte
+   * Laufgröße, Schnitt mit Teamkollegen im Lauf, Siegbonus fürs Team anteilig). Summe = Teampunkte.
+   */
+  teamShare: Map<string, number> | null
+  /** Teamrennen: Faktor der Hochrechnung (1 = Lauf so groß wie der größte) */
+  teamScale: number | null
   /** „Knapp verloren zählt“: in `points` enthaltene Punkte für knappe Niederlagen */
   close: Map<string, number> | null
   /** Aufstiegsleiter / K.-o.: wer aus diesem Lauf weiterkommt (Punkte gibt es hier erst für den Endstand) */
@@ -163,6 +170,8 @@ export interface EventState {
   heats: Heat[]
   standings: Standing[]
   teamStandings: TeamStanding[]
+  /** Anteil der eigenen Boni an der Teamwertung (nach Einsätzen gewichtet; leer bei getrennter Wertung) */
+  teamBonusShare: Map<string, number>
   /** Einzel- und Teamwertung getrennt: Einzelpunkte nur aus Einzelrennen, Teampunkte nur aus Teamrennen */
   separate: boolean
   next: Heat | null
@@ -532,6 +541,8 @@ function addHeat(
     points: new Map(),
     teamPoints: null,
     rivalPoints: null,
+    teamShare: null,
+    teamScale: null,
     close: null,
     advancing: null,
     grid: null,
@@ -1187,9 +1198,21 @@ function sectionTeam(env: Env, sec: SectionDef, teams: TeamState[], per: number)
     const scale = e > 0 && ref > 0 ? ref / e : 1
     h.teamPoints = new Map([...byTeam].map(([t, ps]) => [t, Math.round((ps.reduce((a, b) => a + b, 0) / ps.length) * scale * 10) / 10]))
     // Siegbonus nach Teampunkten: an das Team mit den meisten Punkten im Rennen, bei Gleichstand an niemanden
+    let bonusTeam: string | null = null
     if (sec.teamWin && h.rivalPoints && h.teamPoints.size > 1) {
       const sorted = [...h.teamPoints].sort((a, b) => b[1] - a[1])
-      if (sorted[0][1] > sorted[1][1]) h.teamPoints.set(sorted[0][0], Math.round((sorted[0][1] + env.def.scoring.win) * 10) / 10)
+      if (sorted[0][1] > sorted[1][1]) {
+        bonusTeam = sorted[0][0]
+        h.teamPoints.set(bonusTeam, Math.round((sorted[0][1] + env.def.scoring.win) * 10) / 10)
+      }
+    }
+    // Anteil je Fahrer: so wie er in die Teampunkte eingeht
+    h.teamScale = scale
+    h.teamShare = new Map()
+    for (const [n, p] of h.rivalPoints ?? h.points) {
+      const t = h.teamOf?.[n] ?? teamOfAll[n]
+      const size = t ? (byTeam.get(t)?.length ?? 1) : 1
+      if (t) h.teamShare.set(n, Math.round(((p * scale + (t === bonusTeam ? env.def.scoring.win : 0)) / size) * (most / Math.max(1, planned.get(t) ?? most)) * 10) / 10)
     }
     for (const [t, p] of h.teamPoints) teamSum.set(t, (teamSum.get(t) ?? 0) + p * (most / Math.max(1, planned.get(t) ?? most)))
   }
@@ -1474,6 +1497,13 @@ function computeByPoints(def: EventDef, ctx: EventContext): EventState {
     const n = t.drivers.reduce((a, d) => a + (starts.get(d) ?? 0), 0)
     return n ? (t.drivers.reduce((a, d) => a + bonusOf(d), 0) / n) * perDriver : 0
   }
+  const teamBonusShare = new Map<string, number>()
+  if (!separate) {
+    for (const t of teams) {
+      const n = t.drivers.reduce((a, d) => a + (starts.get(d) ?? 0), 0)
+      for (const d of t.drivers) teamBonusShare.set(d, n ? (bonusOf(d) / n) * perDriver : 0)
+    }
+  }
   const teamStandings: TeamStanding[] = teams
     .map((t) => {
       const pts = t.drivers.map((d) => (rows.get(d)?.total ?? 0) - bonusOf(d))
@@ -1493,6 +1523,7 @@ function computeByPoints(def: EventDef, ctx: EventContext): EventState {
     heats,
     standings,
     teamStandings,
+    teamBonusShare,
     separate,
     next,
     unmatched,

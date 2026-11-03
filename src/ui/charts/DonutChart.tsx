@@ -7,6 +7,8 @@ export interface DonutPart {
   color: string
   /** Zweite Zeile der Beschriftung statt „Wert · Anteil“ (z. B. „noch nicht gefahren“) */
   note?: string
+  /** Kleine dritte Zeile in Gold (z. B. Boni „PB +1“), nur mit `labeled` */
+  hint?: string
 }
 
 /**
@@ -25,10 +27,11 @@ export function DonutChart({ parts, center, sub, label, size = 150, format = Str
   // Mit Beschriftung: links und rechts Platz für Namen
   const side = labeled ? 96 : 0
   const cx = size / 2 + side
-  // Oben und unten Platz für Beschriftungen über bzw. unter dem Ring
-  const cy = size / 2 + (labeled ? 30 : 0)
+  // Oben und unten Platz für Beschriftungen über bzw. unter dem Ring (mit dritter Zeile mehr)
+  const extra = labeled && parts.some((p) => p.hint) ? 16 : 0
+  const cy = size / 2 + (labeled ? 30 + extra : 0)
   const svgW = size + side * 2
-  const svgH = size + (labeled ? 60 : 0)
+  const svgH = size + (labeled ? 60 + extra * 2 : 0)
   // Anteil am Ring: Nullen bekommen minShare, der Rest teilt sich den übrigen Platz nach Wert
   const zeros = minShare > 0 ? parts.filter((p) => p.value <= 0).length : 0
   const share = (p: DonutPart) => (p.value <= 0 ? (zeros ? minShare : 0) : (p.value / total) * (1 - zeros * minShare))
@@ -59,7 +62,7 @@ export function DonutChart({ parts, center, sub, label, size = 150, format = Str
             if (!drawn(p)) return null
             const lx = cx + Math.cos(mid) * (r + 18)
             // Über dem Ring zweizeilig nach oben ausweichen, damit die zweite Zeile den Ring nicht berührt
-            const ly = cy + Math.sin(mid) * (r + 18) + (Math.sin(mid) < -0.6 ? -12 : Math.sin(mid) > 0.6 ? 8 : 0)
+            const ly = cy + Math.sin(mid) * (r + 18) + (Math.sin(mid) < -0.6 ? (p.hint ? -26 : -12) : Math.sin(mid) > 0.6 ? 8 : 0)
             const anchor = Math.cos(mid) > 0.25 ? 'start' : Math.cos(mid) < -0.25 ? 'end' : 'middle'
             const short = p.label.length > 13 ? p.label.slice(0, 12) + '…' : p.label
             return (
@@ -70,6 +73,11 @@ export function DonutChart({ parts, center, sub, label, size = 150, format = Str
                 <text x={lx} y={ly + 12} textAnchor={anchor} fill="var(--muted)" fontSize="11">
                   {p.note ?? `${format(p.value)} · ${Math.round((p.value / total) * 100)} %`}
                 </text>
+                {p.hint && (
+                  <text x={lx} y={ly + 26} textAnchor={anchor} fill="var(--gold)" fontSize="10" fontWeight="700">
+                    {p.hint}
+                  </text>
+                )}
               </g>
             )
           })}

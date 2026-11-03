@@ -383,7 +383,7 @@ function SectionResult({ sec, state, me }: { sec: EventState['sections'][number]
               </span>
               {r.detail && <span className="sub">{r.detail}</span>}
             </span>
-            {r.points != null && <Pts value={r.points} size={15} color={team ? r.color : undefined} />}
+            {r.points != null && <Pts value={r.points} size={15} color={team ? r.color : undefined} plus />}
           </div>
         ))}
       </div>

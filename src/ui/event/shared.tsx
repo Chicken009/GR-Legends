@@ -142,9 +142,11 @@ export function TeamScore({ state, value, color, size = 18 }: { state: EventStat
 }
 
 /** Punkte wie überall in der App: große Zahl, dahinter klein „Pkt.“ */
-export function Pts({ value, color, size = 18 }: { value: number; color?: string; size?: number }) {
+/** `plus`: gewonnene Punkte (z. B. aus einem Abschnitt) statt eines Gesamtstands – „+8 Pkt.“ */
+export function Pts({ value, color, size = 18, plus }: { value: number; color?: string; size?: number; plus?: boolean }) {
   return (
     <span className="num" style={{ fontSize: size, fontWeight: 800, color, whiteSpace: 'nowrap' }}>
+      {plus ? '+' : ''}
       {fmtPts(value)}
       <span style={{ fontSize: Math.max(10, Math.round(size * 0.6)), fontWeight: 700, marginLeft: 3, opacity: 0.85 }}>Pkt.</span>
     </span>
@@ -449,7 +451,9 @@ export function HeatCard({ heat, state, me, children, plain }: { heat: Heat; sta
       {heat.status === 'done'
         ? heat.order.map((n, i) => {
             const r = results?.get(n)
-            const pts = heat.advancing?.includes(n) ? '↑ weiter' : !placeMode(state) && heat.kind === 'race' && heat.points.has(n) ? `+${fmtPts(heat.points.get(n)!)}` : ''
+            // Teamrennen: der Anteil an den Teampunkten (schon hochgerechnet), sonst die Laufpunkte
+            const value = heat.teamShare?.get(n) ?? heat.points.get(n)
+            const pts = heat.advancing?.includes(n) ? '↑ weiter' : !placeMode(state) && heat.kind === 'race' && value != null ? `+${fmtPts(value)}` : ''
             const lines = why === n && !placeMode(state) ? heatPointsExplained(state, heat, n) : []
             return (
               <Fragment key={n}>
@@ -621,7 +625,7 @@ export function TeamCard({ state, team, me }: { state: EventState; team: TeamSta
           <span className="card-title" style={{ color }}>
             {team.rank}. {team.name}
           </span>
-          <span style={{ fontSize: 12, color: 'var(--muted)' }}>{teamEloText(team, state.teamStandings)}</span>
+          <span style={{ fontSize: 12, color: 'var(--muted)' }}>Ø Elo {fmtElo(team.drivers.length ? team.elo / team.drivers.length : 0)}</span>
         </span>
         <TeamScore state={state} value={team.points} color={color} size={20} />
       </div>
@@ -640,7 +644,7 @@ export function TeamCard({ state, team, me }: { state: EventState; team: TeamSta
       ) : total > 0 ? (
         <>
           <span className="part-label" style={{ fontSize: 11, fontWeight: 800, letterSpacing: 1.5, textTransform: 'uppercase', color: 'var(--muted)' }}>
-            {byTotal ? 'Punkte der Mitglieder' : 'Punkte in den Teamrennen'}
+            {byTotal ? 'Punkte der Mitglieder' : state.separate ? 'Punkte in den Teamrennen' : 'Teampunkte und Boni'}
           </span>
           <DonutChart
             parts={parts.map((p, i) => ({
@@ -649,9 +653,11 @@ export function TeamCard({ state, team, me }: { state: EventState; team: TeamSta
               color: shade(color, i),
               // Ohne Punkte: kleiner, blasser Abschnitt – so fehlt niemand
               note: p.points > 0 ? undefined : p.races ? `0 Pkt. aus ${p.races} ${p.races === 1 ? 'Lauf' : 'Läufen'}` : 'noch nicht gefahren',
+              // Boni: eingerechnet (so, wie sie fürs Team zählen), hier nur als Hinweis
+              hint: p.bonuses.length ? p.bonuses.map((b) => `${BONUS_ICON[b.kind]} +${fmtPts(b.points)}`).join(' · ') : undefined,
             }))}
             minShare={0.06}
-            center={fmtPts(Math.round(total * 10) / 10)}
+            center={fmtPts(byTotal ? Math.round(total * 10) / 10 : team.points)}
             sub="Pkt. gesamt"
             label={`Beiträge im ${team.name}`}
             size={150}

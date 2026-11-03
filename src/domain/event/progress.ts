@@ -1,10 +1,11 @@
 import { isGuest } from '../drivers'
-import { CLOSE_LOSS_LAPS, computeEvent, type EventContext, type EventState, type Heat } from './engine'
+import { CLOSE_LOSS_LAPS, computeEvent, type Bonus, type EventContext, type EventState, type Heat } from './engine'
 import { endSentence, type Story } from './insights'
 import { changeoverMinutes, heatDriveMs } from './simulate'
 import type { EventDef } from './types'
 
 const fmt1 = (v: number) => v.toLocaleString('de-DE', { maximumFractionDigits: 1 })
+const fmt2 = (v: number) => v.toLocaleString('de-DE', { maximumFractionDigits: 2 })
 const fmtSec = (ms: number, digits = 3) => `${(ms / 1000).toLocaleString('de-DE', { minimumFractionDigits: digits, maximumFractionDigits: digits })} s`
 
 // ---- Punkteverlauf ---------------------------------------------------------------------------
@@ -201,9 +202,21 @@ export function heatPointsExplained(state: EventState, heat: Heat, name: string)
   const biggest = Math.max(0, ...(sec?.heats.filter((h) => h.kind === heat.kind).map((h) => h.entrants.length) ?? []))
   const raw = beaten * sc.perBeaten + (won ? sc.win : 0) + close
   if (fair && !close) out.push('Gegen Stärkere mehr, gegen Schwächere weniger.')
-  else if (raw > 0 && Math.abs(raw - pts) > 0.05) out.push(`Hochgerechnet auf ${biggest} Fahrer.`)
-  if (sec?.def.format === 'team') out.push(state.separate ? 'Zählt nur für die Teamwertung.' : 'Zählt als Teampunkte (Schnitt im Team).')
-  else {
+  else if (sec?.def.format !== 'team' && raw > 0 && Math.abs(raw - pts) > 0.05) out.push(`Hochgerechnet auf ${biggest} Fahrer.`)
+  if (sec?.def.format === 'team') {
+    // Teamrennen: Wie aus den Laufpunkten die Teampunkte werden (nur, was tatsächlich angewendet wurde)
+    const rival = heat.rivalPoints?.get(name)
+    const share = heat.teamShare?.get(name)
+    const scale = heat.teamScale ?? 1
+    const team = heat.teamOf?.[name]
+    const mates = heat.order.filter((n) => n !== name && heat.teamOf?.[n] === team).length
+    if (rival != null && Math.abs(rival - pts) > 0.05) out.push(`Nur Gegner aus anderen Teams zählen: ${fmt1(rival)} Pkt.`)
+    if (Math.abs(scale - 1) > 0.001) out.push(`Rennen mit ${heat.order.length} statt ${biggest} Fahrern: × ${fmt2(scale)} hochgerechnet = ${fmt1((rival ?? pts) * scale)} Pkt.`)
+    if (mates) out.push(`Schnitt mit ${mates === 1 ? 'Teamkollege' : `${mates} Teamkollegen`} im Rennen.`)
+    const base = ((rival ?? pts) * scale) / (mates + 1)
+    if (share != null && share - base > 0.05 && sec.def.teamWin) out.push(`Siegbonus fürs Team: +${fmt1(sc.win / (mates + 1))} Pkt.`)
+    if (state.separate) out.push('Zählt nur für die Teamwertung.')
+  } else {
     const f = sectionFactor(state, heat.sectionId)
     if (f === 0) out.push('Zählt nur für die Startreihenfolge.')
     else if (f !== 1) out.push(`Zählt ×${fmt1(f)} in der Gesamtwertung.`)
@@ -230,9 +243,10 @@ export function eventKind(state: EventState): EventKind {
 
 /**
  * Wer hat seinem Team wie viel beigetragen? Zählt die Teamwertung den Schnitt der Gesamtpunkte, ist
- * es die Gesamtpunktzahl jedes Mitglieds; sonst die Punkte, die es in den Teamrennen geholt hat.
+ * es die Gesamtpunktzahl jedes Mitglieds; sonst sein Anteil an den Teampunkten (hochgerechnet wie in
+ * der Wertung) plus seine Boni, so wie sie fürs Team zählen. Die Summe ist die Teamwertung.
  */
-export function teamContributions(state: EventState, teamId: string): { name: string; points: number; races: number }[] {
+export function teamContributions(state: EventState, teamId: string): { name: string; points: number; races: number; bonuses: Bonus[] }[] {
   const team = state.teams.find((t) => t.id === teamId)
   if (!team) return []
   const byTotal = eventKind(state) === 'mixed' && !state.separate
@@ -240,10 +254,11 @@ export function teamContributions(state: EventState, teamId: string): { name: st
   const heats = state.heats.filter((h) => h.status === 'done' && teamSections.has(h.sectionId))
   return team.drivers
     .map((name) => {
-      const raw = byTotal ? (state.standings.find((s) => s.name === name)?.total ?? 0) : heats.reduce((a, h) => a + (h.points.get(name) ?? 0), 0)
+      const row = state.standings.find((s) => s.name === name)
+      const raw = byTotal ? (row?.total ?? 0) : heats.reduce((a, h) => a + (h.teamShare?.get(name) ?? h.points.get(name) ?? 0), 0) + (state.teamBonusShare.get(name) ?? 0)
       // Läufe, die zählen: alle Rennen (Schnitt der Gesamtpunkte) bzw. die Teamrennen
-      const races = byTotal ? (state.standings.find((s) => s.name === name)?.races ?? 0) : heats.filter((h) => h.order.includes(name)).length
-      return { name, points: Math.round(raw * 10) / 10, races }
+      const races = byTotal ? (row?.races ?? 0) : heats.filter((h) => h.order.includes(name)).length
+      return { name, points: Math.round(raw * 10) / 10, races, bonuses: !byTotal && !state.separate ? (row?.bonuses ?? []) : [] }
     })
     .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name))
 }

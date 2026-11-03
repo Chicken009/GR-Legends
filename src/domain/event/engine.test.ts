@@ -7,6 +7,7 @@ import { changeoverMinutes, playThrough, simulate } from './simulate'
 import { eventContext } from './context'
 import { computeRatings } from '../rating'
 import { newSection } from './templates'
+import { teamContributions } from './progress'
 import type { EventDef } from './types'
 
 const ELO: Record<string, number> = { A: 700, B: 650, C: 600, D: 550, E: 500, F: 450, G: 400 }
@@ -280,6 +281,29 @@ describe('Rennen, K.-o. und Teams', () => {
     expect(['D', 'E', 'J', 'K'].map((n) => full.get(n))).toEqual([3, 3, 3, 3])
     // vor dem Stichtag bleibt es bei den Positionsduellen mit Joker
     expect(make(false, '2026-06-01').heats).toHaveLength(6)
+  })
+
+  it('Anteile an den Teampunkten: hochgerechnet, Summe = Teamrennen, Ring = Teamwertung', () => {
+    const drivers = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K']
+    const teams = { mode: 'manual' as const, size: 2, teams: [{ name: 'T1', drivers: ['A', 'B', 'C'] }, { name: 'T2', drivers: ['D', 'E'] }, { name: 'T3', drivers: ['F', 'G'] }, { name: 'T4', drivers: ['H', 'I'] }, { name: 'T5', drivers: ['J', 'K'] }] }
+    const d = def({ start: '2026-11-01', drivers, maxPerHeat: 3, scoring: { pole: 0, fastestLap: 0, driverOfDay: 0, personalBest: 1 }, teams, sections: [newSection('team', { id: 't', teamMode: 'single' })] } as never)
+    // Alle geplanten Läufe in Startreihenfolge fahren lassen
+    const plan = computeEvent(d, ctx()).heats
+    const s = computeEvent(d, ctx(plan.map((h) => run('race', h.entrants.map((e) => e.name!)))))
+    const heats = s.heats.filter((h) => h.status === 'done')
+    expect(heats.length).toBe(plan.length)
+    const two = heats.find((h) => h.order.length === 2)!
+    // Rennen zu zweit: Anteil = Laufpunkte × Hochrechnung
+    expect(two.teamScale).toBeGreaterThan(1)
+    expect(two.teamShare!.get(two.order[0])).toBeCloseTo(two.points.get(two.order[0])! * two.teamScale!, 1)
+    const sec = s.sections[0]
+    for (const t of s.teams) {
+      const sum = heats.reduce((a, h) => a + t.drivers.reduce((x, n) => x + (h.teamShare?.get(n) ?? 0), 0), 0)
+      expect(sum).toBeCloseTo(sec.teamRanking!.find((r) => r.name === t.id)!.points, 0)
+      // Ring: Anteile plus Boni ergeben die Teamwertung
+      const ring = teamContributions(s, t.id).reduce((a, c) => a + c.points, 0)
+      expect(Math.abs(ring - s.teamStandings.find((x) => x.id === t.id)!.points)).toBeLessThan(0.3)
+    }
   })
 
   it('punktgleiche Teammitglieder teilen sich den Platz, der Probelauf teilt den Sieg', () => {
