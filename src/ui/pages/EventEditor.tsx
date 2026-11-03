@@ -669,7 +669,7 @@ function TeamEditor({ def, update, teams, warnings }: { def: EventDef; update: (
           : 'Ausgeglichene Teams per Schlangenverteilung (1-2-3-3-2-1) nach Elo – jedes Gerät rechnet dasselbe.')}
         {rule.mode === 'random' && 'Ausgelost mit festem Startwert – überall dieselbe Auslosung. „Neu losen“ ändert den Startwert.'}
         {rule.mode === 'manual' && 'Teams selbst einteilen. „Nach Elo“ oder „Ausgelost“ wählen und dann „Festschreiben“ übernimmt die Teams hierher.'}
-        {uneven && ` ${def.drivers.length} Fahrer bei Teamgröße ${rule.size} gehen nicht auf: ${teamSplit(teams)}. Gewertet wird mit dem Schnitt der Mitglieder, das bleibt fair; in Positionsduellen fährt der Schwächste des kleineren Teams doppelt.`}
+        {uneven && ` ${def.drivers.length} Fahrer bei Teamgröße ${rule.size} gehen nicht auf: ${teamSplit(teams)}. Einzeln zählt der eigene Anteil (hochgerechnet), fürs Team die Teampunkte, das bleibt fair; in Positionsduellen fährt der Schwächste des kleineren Teams doppelt.`}
       </span>
       {rule.mode !== 'manual' && (
         <div className="filters">
@@ -1096,7 +1096,7 @@ function SimResult({ sim, note }: { sim: Simulation; note: string | null }) {
           ))}
         </>
       )}
-      <span style={{ fontSize: 12, color: 'var(--muted)' }}>{teamChances.length ? 'Gesamtsieg einzeln (Teampunkte zählen für alle Mitglieder)' : 'Siegchance laut Probelauf'}</span>
+      <span style={{ fontSize: 12, color: 'var(--muted)' }}>{teamChances.length ? 'Gesamtsieg einzeln (eigener Anteil an den Teampunkten plus Boni)' : 'Siegchance laut Probelauf'}</span>
       {chances.map(([n, c]) => (
         <ChanceBar key={n} name={n} share={c} />
       ))}

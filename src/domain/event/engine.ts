@@ -120,6 +120,8 @@ export interface SectionState {
   started: boolean
   complete: boolean
   teamPlan?: TeamPlan
+  /** Teamrennen: geplante Läufe je Fahrer und die meisten eines Fahrers (Hochrechnung der Einzelwertung) */
+  runs?: { planned: Map<string, number>; most: number }
 }
 
 export interface Bonus {
@@ -155,7 +157,7 @@ export interface TeamStanding {
   name: string
   drivers: string[]
   rank: number
-  /** Punkte aus den Teamrennen (getrennte Wertung) bzw. Schnitt der Gesamtpunkte der Mitglieder */
+  /** Punkte aus den Teamrennen (getrennte Wertung) bzw. Teampunkte + Schnitt der übrigen Abschnitte + Boni */
   points: number
   /** Summe der Elo der Mitglieder zu Beginn des Wettkampfs */
   elo: number
@@ -1217,13 +1219,28 @@ function sectionTeam(env: Env, sec: SectionDef, teams: TeamState[], per: number)
     for (const [t, p] of h.teamPoints) teamSum.set(t, (teamSum.get(t) ?? 0) + p * (most / Math.max(1, planned.get(t) ?? most)))
   }
   const teamRows = [...teamSum].sort((a, b) => b[1] - a[1]).map(([id, points], i) => ({ name: id, rank: i + 1, points: Math.round(points * 10) / 10, detail: teams.find((t) => t.id === id)!.name }))
+  // Einzelwertung: nur der eigene Anteil an den Teampunkten. Wer laut Plan seltener fährt (größeres
+  // Team), wird auf die meisten Läufe eines Fahrers hochgerechnet.
+  const plannedRuns = new Map<string, number>()
+  for (const h of heats) for (const e of h.entrants) if (e.name) plannedRuns.set(e.name, (plannedRuns.get(e.name) ?? 0) + 1)
+  const mostRuns = Math.max(1, ...plannedRuns.values())
+  const own = new Map<string, number>()
+  for (const h of heats) {
+    if (h.status !== 'done' || !h.teamShare) continue
+    for (const [n, p] of h.teamShare) {
+      const t = h.teamOf?.[n] ?? teamOfAll[n]
+      // Anteil ohne den Ausgleich für seltenere Teameinsätze – der Fahrer wird selbst hochgerechnet
+      const teamCorr = t ? most / Math.max(1, planned.get(t) ?? most) : 1
+      own.set(n, (own.get(n) ?? 0) + p / teamCorr)
+    }
+  }
   const ranking = teams
-    .flatMap((t) => t.drivers.map((d) => ({ name: d, points: teamSum.get(t.id) ?? 0, detail: t.name })))
+    .flatMap((t) => t.drivers.map((d) => ({ name: d, points: (own.get(d) ?? 0) * (mostRuns / Math.max(1, plannedRuns.get(d) ?? mostRuns)), detail: t.name })))
     .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name))
     .map((r) => ({ ...r, points: Math.round(r.points * 10) / 10, rank: 0 }))
   // Gleiche Teampunkte = gleicher Platz (sonst entschiede das Alphabet zwischen Teammitgliedern)
   ranking.forEach((r, i) => (r.rank = i > 0 && ranking[i - 1].points === r.points ? ranking[i - 1].rank : i + 1))
-  return { heats, ranking, teamRanking: teamRows, started: heats.some((h) => h.status === 'done'), complete: heats.every((h) => h.status === 'done'), teamPlan: plan }
+  return { heats, ranking, teamRanking: teamRows, started: heats.some((h) => h.status === 'done'), complete: heats.every((h) => h.status === 'done'), teamPlan: plan, runs: { planned: plannedRuns, most: mostRuns } }
 }
 
 function sectionCustom(env: Env, sec: SectionDef, drivers: string[]): Omit<SectionState, 'def'> {
@@ -1479,35 +1496,51 @@ function computeByPoints(def: EventDef, ctx: EventContext): EventState {
   const standings = [...rows.values()].sort((a, b) => b.total - a.total || lastRank(a.name) - lastRank(b.name) || b.wins - a.wins || a.name.localeCompare(b.name))
   standings.forEach((s, i) => (s.rank = i > 0 && standings[i - 1].total === s.total && lastRank(standings[i - 1].name) === lastRank(s.name) ? standings[i - 1].rank : i + 1))
 
-  // Teamwertung: bei getrennter Wertung die Punkte aus den Teamrennen, sonst Schnitt der Mitglieder
+  // Teamwertung: bei getrennter Wertung nur die Teamrennen, sonst zusätzlich Boni und die übrigen Abschnitte
   const teamRacePoints = (id: string) =>
     sections.reduce((sum, s, i) => {
       if (s.def.format !== 'team' || !s.teamRanking || !s.started) return sum
       const row = s.teamRanking.find((r) => r.name === id)
       return sum + (row?.points ?? 0) * s.def.weight * (i === lastOverall ? sc.finaleFactor : 1)
     }, 0)
-  // Boni fürs Team nach Einsätzen gewichtet: Boni je Einsatz × Einsätze eines Fahrers im Schnitt.
-  // Fahren alle gleich oft, ist das der Schnitt der Mitglieder; wer öfter fährt, hat nicht mehr Chancen.
   const starts = new Map<string, number>()
   for (const h of heats) if (h.status === 'done') for (const n of h.order) starts.set(n, (starts.get(n) ?? 0) + 1)
   const members = teams.flatMap((t) => t.drivers)
   const perDriver = members.length ? members.reduce((a, d) => a + (starts.get(d) ?? 0), 0) / members.length : 0
-  const bonusOf = (d: string) => rows.get(d)?.bonuses.reduce((a, b) => a + b.points, 0) ?? 0
-  const teamBonus = (t: TeamState) => {
+  // Läufe je Team: Rennen, in denen das Team dabei war
+  const teamRaces = new Map<string, number>()
+  for (const h of heats) {
+    if (h.status !== 'done' || h.kind !== 'race') continue
+    const inHeat = new Set(h.order.map((n) => h.teamOf?.[n] ?? teamOf.get(n)?.id).filter((x): x is string => !!x))
+    for (const t of inHeat) teamRaces.set(t, (teamRaces.get(t) ?? 0) + 1)
+  }
+  const avgTeamRaces = teams.length ? teams.reduce((a, t) => a + (teamRaces.get(t.id) ?? 0), 0) / teams.length : 0
+  /**
+   * Was ein Bonus fürs Team zählt:
+   * - „Fair“: zweistufig. 1. Je Bonusart: erhalten / so oft, wie das Team ihn höchstens bekommen kann
+   *   (Fahrer des Tages, schnellste Runde, Pole: 1; Bestzeit: je Mitglied; ohne Abflug: je Rennen).
+   *   2. Nach Läufen gewichtet: Teams mit weniger Läufen zählen stärker (gleich viele Läufe = egal).
+   * - sonst: Boni je Einsatz × Einsätze eines Fahrers im Schnitt
+   */
+  const fairBonus = sc.method === 'fair'
+  const bonusWorth = (t: TeamState, b: Bonus) => {
+    if (fairBonus) {
+      const most = b.kind === 'personalBest' ? t.drivers.length : b.kind === 'clean' ? Math.max(1, t.drivers.reduce((a, d) => a + (rows.get(d)?.races ?? 0), 0)) : 1
+      const races = teamRaces.get(t.id) ?? 0
+      return (b.points / most) * (races && avgTeamRaces ? avgTeamRaces / races : 1)
+    }
     const n = t.drivers.reduce((a, d) => a + (starts.get(d) ?? 0), 0)
-    return n ? (t.drivers.reduce((a, d) => a + bonusOf(d), 0) / n) * perDriver : 0
+    return n ? (b.points / n) * perDriver : 0
   }
   const teamBonusShare = new Map<string, number>()
-  if (!separate) {
-    for (const t of teams) {
-      const n = t.drivers.reduce((a, d) => a + (starts.get(d) ?? 0), 0)
-      for (const d of t.drivers) teamBonusShare.set(d, n ? (bonusOf(d) / n) * perDriver : 0)
-    }
-  }
+  if (!separate) for (const t of teams) for (const d of t.drivers) teamBonusShare.set(d, (rows.get(d)?.bonuses ?? []).reduce((a, b) => a + bonusWorth(t, b), 0))
+  const teamBonus = (t: TeamState) => t.drivers.reduce((a, d) => a + (teamBonusShare.get(d) ?? 0), 0)
+  // Teamwertung: Teampunkte aus den Teamrennen + Schnitt der Mitglieder aus den übrigen Abschnitten + Boni
+  const isTeamSec = sections.map((s) => s.def.format === 'team')
   const teamStandings: TeamStanding[] = teams
     .map((t) => {
-      const pts = t.drivers.map((d) => (rows.get(d)?.total ?? 0) - bonusOf(d))
-      const points = separate ? teamRacePoints(t.id) : pts.length ? pts.reduce((a, b) => a + b, 0) / pts.length + teamBonus(t) : 0
+      const other = t.drivers.map((d) => (rows.get(d)?.sections ?? []).reduce((a, v, i) => a + (isTeamSec[i] ? 0 : v), 0))
+      const points = separate ? teamRacePoints(t.id) : teamRacePoints(t.id) + (other.length ? other.reduce((a, b) => a + b, 0) / other.length : 0) + teamBonus(t)
       return { id: t.id, name: t.name, drivers: t.drivers, elo: t.elo, rank: 0, points: Math.round(points * 10) / 10 }
     })
     .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name))

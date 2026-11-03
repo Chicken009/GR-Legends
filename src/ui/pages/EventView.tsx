@@ -37,9 +37,13 @@ import {
   useEventHistory,
   useEventState,
   useLapMs,
+  flashTo,
+  type PickTarget,
 } from '../event/shared'
 
 type Tab = 'stand' | 'team' | 'ablauf' | 'punkte'
+/** Wertung: Einzel- oder Teamwertung */
+type Board = 'einzel' | 'team'
 
 export function EventView() {
   const { id = '' } = useParams()
@@ -52,6 +56,7 @@ export function EventView() {
   const known = useMyName()
   const me = picked && state?.drivers.includes(picked) ? picked : known
   const [stored, setTab] = useStored<Tab>('event:tab', 'stand')
+  const [storedBoard, setBoard] = useStored<Board>('event:board', 'einzel')
   if (!folder || !state) {
     return (
       <div className="page">
@@ -70,7 +75,15 @@ export function EventView() {
   const inEvent = !!me && state.drivers.includes(me)
   const progress = eventProgress(state, lapMs)
   const hasTeams = state.teams.length > 0
-  const tab: Tab = stored === 'ablauf' || stored === 'punkte' || (stored === 'team' && hasTeams) ? stored : 'stand'
+  // „Stand“ und „Teams“ sind jetzt ein Tab „Wertung“ (alte gespeicherte Werte führen dorthin)
+  const tab: Tab = stored === 'ablauf' || stored === 'punkte' ? stored : 'stand'
+  const board: Board = hasTeams && (storedBoard === 'team' || stored === 'team') ? 'team' : 'einzel'
+  // Im Ablauf einen Fahrer oder ein Team antippen: zur Wertung an die passende Stelle
+  const pick = (t: PickTarget) => {
+    setTab('stand')
+    if (hasTeams) setBoard(t.kind === 'team' ? 'team' : 'einzel')
+    flashTo(t)
+  }
   return (
     <div className="page" style={{ ['--accent' as string]: EVENT_ACCENT }}>
       <PageHead title={def.name} kicker={`Wettkampf · ${dateRange(def)}`} color={EVENT_ACCENT} back={{ to: '/wettkampf', label: 'Alle Wettkämpfe' }}>
@@ -142,15 +155,43 @@ export function EventView() {
         value={tab}
         onChange={setTab}
         label="Ansicht"
-        options={[['stand', 'Stand'], ...(hasTeams ? [['team', 'Teams'] as [Tab, string]] : []), ['ablauf', 'Ablauf'], ['punkte', placeMode(state) ? 'Wertung' : 'Punkte']]}
+        options={[['stand', 'Wertung'], ['ablauf', 'Ablauf'], ['punkte', placeMode(state) ? 'Regeln' : 'Punkte']]}
       />
 
+      {tab === 'stand' && hasTeams && state.started && (
+        <Segment
+          small
+          value={board}
+          onChange={(b) => {
+            setBoard(b)
+            if (stored === 'team') setTab('stand')
+          }}
+          label="Wertung"
+          options={[
+            ['einzel', 'Einzelwertung'],
+            ['team', 'Teamwertung'],
+          ]}
+        />
+      )}
+
       {tab === 'stand' &&
+        board === 'team' &&
+        state.started && (
+          <>
+            {state.teamStandings.map((t) => (
+              <TeamCard key={t.id} state={state} team={t} me={me} />
+            ))}
+            <EventCharts state={state} steps={steps} me={me} teamsFirst />
+          </>
+        )}
+
+      {tab === 'stand' &&
+        board === 'einzel' &&
         (state.started ? (
           <>
             <section className="card" style={{ gap: 2 }}>
               <div className="card-head">
-                <span className="card-title">{state.separate ? 'Einzelwertung' : 'Gesamtwertung'}</span>
+                <span className="card-title">{hasTeams ? 'Einzelwertung' : 'Gesamtwertung'}</span>
                 <span className="hint">{placeMode(state) ? 'nach Platzierung' : state.separate ? 'nur Einzelrennen' : 'Punkte · Verlauf'}</span>
               </div>
               <StandingsList state={state} me={me} steps={steps} />
@@ -165,21 +206,9 @@ export function EventView() {
           </>
         ))}
 
-      {tab === 'team' &&
-        (state.started ? (
-          <>
-            {state.teamStandings.map((t) => (
-              <TeamCard key={t.id} state={state} team={t} me={me} />
-            ))}
-            <EventCharts state={state} steps={steps} me={me} teamsFirst />
-          </>
-        ) : (
-          <TeamList state={state} />
-        ))}
-
       {tab === 'ablauf' &&
         (showPlan ? (
-          state.sections.map((sec) => <SectionCard key={sec.def.id} sec={sec} state={state} me={me} />)
+          state.sections.map((sec) => <SectionCard key={sec.def.id} sec={sec} state={state} me={me} onPick={pick} />)
         ) : (
           <section className="card">
             <span style={{ fontSize: 14, color: 'var(--text-2)' }}>Der Ablauf wird {planFromText(def)} sichtbar.</span>
@@ -308,7 +337,7 @@ function AfterRow({ heat, me }: { heat: Heat; me: string | null }) {
 }
 
 /** Abschnitt im Ablauf: alle Läufe als Karten, der nächste hervorgehoben */
-function SectionCard({ sec, state, me }: { sec: EventState['sections'][number]; state: EventState; me: string | null }) {
+function SectionCard({ sec, state, me, onPick }: { sec: EventState['sections'][number]; state: EventState; me: string | null; onPick: (t: PickTarget) => void }) {
   const done = sec.heats.filter((h) => h.status === 'done')
   return (
     <section className="card" style={{ gap: 8 }}>
@@ -322,9 +351,9 @@ function SectionCard({ sec, state, me }: { sec: EventState['sections'][number]; 
       </div>
       {sec.heats.length === 0 && <span style={{ fontSize: 13, color: 'var(--muted)' }}>Noch keine Läufe.</span>}
       {sec.heats.map((h) => (
-        <HeatCard key={h.id} heat={h} state={state} me={me} />
+        <HeatCard key={h.id} heat={h} state={state} me={me} onPick={onPick} />
       ))}
-      {sec.started && (sec.def.format === 'team' ? (sec.teamRanking?.length ?? 0) > 0 : sec.ranking.length > 0) && <SectionResult sec={sec} state={state} me={me} />}
+      {sec.started && (sec.def.format === 'team' ? (sec.teamRanking?.length ?? 0) > 0 : sec.ranking.length > 0) && <SectionResult sec={sec} state={state} me={me} onPick={onPick} />}
     </section>
   )
 }
@@ -334,7 +363,7 @@ function SectionCard({ sec, state, me }: { sec: EventState['sections'][number]; 
  * (Startplätze, ×2 …) und die Rangliste im Stil der Wertung. Lange Listen zeigen erst die besten drei
  * und dich, der Rest auf Knopfdruck.
  */
-function SectionResult({ sec, state, me }: { sec: EventState['sections'][number]; state: EventState; me: string | null }) {
+function SectionResult({ sec, state, me, onPick }: { sec: EventState['sections'][number]; state: EventState; me: string | null; onPick: (t: PickTarget) => void }) {
   const [all, setAll] = useState(false)
   const team = sec.def.format === 'team'
   const f = sectionFactor(state, sec.def.id)
@@ -348,7 +377,7 @@ function SectionResult({ sec, state, me }: { sec: EventState['sections'][number]
     : team
       ? state.separate
         ? 'zählt für die Teamwertung'
-        : 'Teampunkte für alle Mitglieder'
+        : 'zählt als Teampunkte'
       : f === 0
         ? 'bestimmt die Startplätze'
         : f !== 1
@@ -373,7 +402,7 @@ function SectionResult({ sec, state, me }: { sec: EventState['sections'][number]
       </span>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
         {shown.map((r) => (
-          <div key={r.key} className={`row${r.mine && !team ? ' me-row' : ''}`} style={{ padding: '4px 8px', minHeight: 38, ...(r.color ? { borderLeft: `4px solid ${r.color}` } : null) }}>
+          <div key={r.key} role="button" tabIndex={0} title="In der Wertung zeigen" onClick={() => onPick({ kind: team ? 'team' : 'fahrer', key: r.key })} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onPick({ kind: team ? 'team' : 'fahrer', key: r.key })} className={`row${r.mine && !team ? ' me-row' : ''}`} style={{ padding: '4px 8px', minHeight: 38, cursor: 'pointer', ...(r.color ? { borderLeft: `4px solid ${r.color}` } : null) }}>
             <span className={`rank${r.rank <= 3 ? ` r${r.rank}` : ''}`} style={{ minWidth: 22, fontSize: 15 }}>
               {r.rank}
             </span>

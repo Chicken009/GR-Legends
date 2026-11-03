@@ -83,12 +83,23 @@ GR Legends
   Besetzung in Upload-Reihenfolge. Korrigieren oder ignorieren im Editor unter „Dateien zuordnen“.
 - **Zufall** (Teams, Autos) kommt aus einem festen Startwert in der JSON – jedes Gerät sieht
   dieselbe Auslosung. „Festschreiben“ übernimmt Teams fest in die Datei.
-- **Teams, die nicht aufgehen**, werden größer; gewertet wird mit dem Schnitt der Mitglieder. Bei
-  Positionsduellen (Teams passen nicht zusammen auf die Bahn) fährt der Schwächste eines kleineren
-  Teams doppelt. Alle Mitglieder bekommen die Teampunkte – zusammenarbeiten lohnt sich.
+- **Teams, die nicht aufgehen**, werden größer. Bei Positionsduellen (Teams passen nicht zusammen auf
+  die Bahn) fährt der Schwächste eines kleineren Teams doppelt.
+- **Einzelwertung in Teamrennen:** nur die eigenen Punkte – der eigene Anteil an den Teampunkten
+  (hochgerechnet wie im Ablauf) plus die eigenen Boni. Wer wegen eines größeren Teams seltener fährt,
+  wird auf die meisten Rennen eines Fahrers hochgerechnet (z. B. ×1,5 bei 2 statt 3 Rennen).
+- **Teamwertung:** Teampunkte aus den Teamrennen, Schnitt der Mitglieder aus den übrigen Abschnitten,
+  dazu die Boni. Bei „Fair“ zweistufig: Jeder Bonus zählt im Verhältnis dazu, wie oft das Team ihn
+  höchstens bekommen kann (Fahrer des Tages, schnellste Runde, Pole: einmal; Bestzeit: je Mitglied;
+  ohne Abflug: je Rennen), danach werden Teams mit weniger Läufen stärker gewichtet. Sonst zählen die
+  Boni je Einsatz. Gilt für alle Wettkämpfe.
+- **Wettkampfansicht:** „Wertung“ mit Umschalter Einzel-/Teamwertung; im Ablauf führt ein Name
+  dorthin (Fahrer oder Team), die Punkte daneben erklären die Rechnung. Der Verlauf hebt bei vielen
+  Linien die Besten und dich hervor (Chips wechseln die Auswahl) und wird bei vielen Läufen breiter
+  und quer scrollbar.
 - **Einzel- und Teamwertung getrennt** (Wettkämpfe ab 24.10.2026): Gibt es Einzel- und
   Teamrennen, zählen Einzelrennen nur für die eigenen Punkte, Teamrennen nur für die Teamwertung.
-  Reine Teamwettkämpfe: alle bekommen die Teampunkte, ältere Wettkämpfe behalten ihre Wertung.
+  Reine Teamwettkämpfe: einzeln zählt der eigene Anteil (siehe oben).
 - **Aufstiegsleiter:** Das erste Rennen ist voll, fehlen Fahrer, werden die oberen Rennen kleiner
   (Wettkämpfe ab 24.10.2026 oder noch nicht begonnene Leitern). Optional steht eine feste Zahl der
   Besten direkt im Finale, die übrigen Finalplätze füllen die Aufsteiger.

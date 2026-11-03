@@ -17,7 +17,7 @@ import { Sparkline } from '../charts/Sparkline'
 import { BumpChart } from '../charts/StatsCharts'
 import { Avatar, driverPath, Segment, useData } from '../components'
 import { RecapLink } from '../story'
-import { fmtElo, fmtPts, formatDate, formatTime } from '../format'
+import { fmtElo, fmtPts, formatDate, formatTime, shortName } from '../format'
 import { Bolt, Crown, PoleFlag, Rocket, Sword, Trophy } from '../icons'
 import { CarThumb } from '../CarPhoto'
 
@@ -164,6 +164,11 @@ export function StandingsList({ state, me, steps }: { state: EventState; me: str
   const counts = (s: EventState['sections'][number]) => s.def.weight > 0 && s.def.format !== 'free' && !(state.separate && s.def.format === 'team')
   const scoring = state.sections.filter(counts)
   const place = placeMode(state)
+  // Teamrennen: Wer wegen eines größeren Teams seltener fährt, wird hochgerechnet (auf so viele Rennen)
+  const upscaled = (n: string) => {
+    const sec = state.sections.find((s) => counts(s) && s.runs?.planned.has(n) && s.runs.planned.get(n)! < s.runs.most)
+    return sec?.runs ? { most: sec.runs.most, planned: sec.runs.planned.get(n)! } : null
+  }
   return (
     <>
       {state.standings.map((r) => {
@@ -180,6 +185,9 @@ export function StandingsList({ state, me, steps }: { state: EventState; me: str
               <span className="sub">
                 {place && placeDetail(state, r.name) ? `${placeDetail(state, r.name)} · ` : ''}
                 {r.wins} {r.wins === 1 ? 'Sieg' : 'Siege'} · {r.races} Rennen
+                {upscaled(r.name) && (
+                  <span title={`Größeres Team, seltener gefahren: hochgerechnet auf ${upscaled(r.name)!.most} Rennen`}> · ×{fmtPts(Math.round((upscaled(r.name)!.most / upscaled(r.name)!.planned) * 10) / 10)}</span>
+                )}
               </span>
               {!place && (scoring.length > 1 || r.bonuses.length > 0) && (
                 <span style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
@@ -213,11 +221,11 @@ export function StandingsList({ state, me, steps }: { state: EventState; me: str
         )
         const style = { padding: '8px', alignItems: 'flex-start', ...(color ? { borderLeft: `4px solid ${color}` } : null) } as const
         return known ? (
-          <Link key={r.name} to={driverPath(r.name)} state={{ bg: location }} className={`row${r.name === me ? ' me-row' : ''}`} style={style}>
+          <Link key={r.name} id={rankAnchor({ kind: 'fahrer', key: r.name })} to={driverPath(r.name)} state={{ bg: location }} className={`row${r.name === me ? ' me-row' : ''}`} style={style}>
             {body}
           </Link>
         ) : (
-          <div key={r.name} className={`row${r.name === me ? ' me-row' : ''}`} style={style}>
+          <div key={r.name} id={rankAnchor({ kind: 'fahrer', key: r.name })} className={`row${r.name === me ? ' me-row' : ''}`} style={style}>
             {body}
           </div>
         )
@@ -277,6 +285,8 @@ export function EventCharts({ state, steps, me, teamsFirst }: { state: EventStat
   const st = stages(state, steps)
   const canStage = st.length >= 3 && st.length < steps.length
   const [by, setBy] = useState<'etappen' | 'laeufe'>(canStage && steps.length > 7 ? 'etappen' : 'laeufe')
+  // Hervorgehoben (null = Standard): bei vielen Linien die drei Besten und du, der Rest grau
+  const [picked, setPicked] = useState<string[] | null>(null)
   if (steps.length < 3) return null
   // Platzierung: keine Punkte, nur der Platz (bei Teams: kleinerer Durchschnittsplatz ist besser)
   const place = placeMode(state)
@@ -289,6 +299,13 @@ export function EventCharts({ state, steps, me, teamsFirst }: { state: EventStat
   const names = state.standings.map((x) => x.name)
   let i = 0
   const driverColor = new Map(names.map((n) => [n, n === me ? ME : SERIES[i++ % SERIES.length]]))
+  // Auswahl: wer farbig und beschriftet ist (Teams: Name, Fahrer: Name)
+  const all = shownWho === 'teams' ? state.teamStandings.map((t) => t.name) : names
+  const many = all.length > 6
+  const focus = picked ?? (many ? [...new Set([...all.slice(0, 3), ...(me && all.includes(me) ? [me] : [])])] : all)
+  const dim = new Set(all.filter((n) => !focus.includes(n)))
+  const toggle = (n: string) => setPicked(focus.includes(n) ? focus.filter((x) => x !== n) : [...focus, n])
+  const colorOf = (n: string) => (shownWho === 'teams' ? teamColor(state.teamStandings.find((t) => t.name === n)?.id, n) : driverColor.get(n)!)
   return (
     <section className="card" style={{ gap: 10 }}>
       <div className="card-head">
@@ -297,8 +314,35 @@ export function EventCharts({ state, steps, me, teamsFirst }: { state: EventStat
       </div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         {!place && <Segment small value={metric} onChange={setMetric} label="Wert" options={[['punkte', 'Punkte'], ['platz', 'Platz']]} />}
-        {teams && <Segment small value={shownWho} onChange={setWho} label="Für" options={[['fahrer', 'Fahrer'], ['teams', 'Teams']]} />}
+        {teams && (
+          <Segment
+            small
+            value={shownWho}
+            onChange={(w) => {
+              setWho(w)
+              setPicked(null)
+            }}
+            label="Für"
+            options={[['fahrer', 'Fahrer'], ['teams', 'Teams']]}
+          />
+        )}
       </div>
+      {many && (
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }} role="group" aria-label="Hervorheben">
+          {all.map((n) => {
+            const on = focus.includes(n)
+            return (
+              <button key={n} className="pill" aria-pressed={on} onClick={() => toggle(n)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, opacity: on ? 1 : 0.55, ...(on ? { color: 'var(--text)' } : null) }}>
+                <span style={{ width: 8, height: 8, borderRadius: 2, background: on ? colorOf(n) : 'var(--line-3)' }} />
+                {n === me ? 'Du' : shownWho === 'teams' ? n : shortName(n)}
+              </button>
+            )
+          })}
+          <button className="pill" onClick={() => setPicked(dim.size ? all : [])}>
+            {dim.size ? 'Alle' : 'Keine'}
+          </button>
+        </div>
+      )}
       {shownMetric === 'punkte' ? (
         <PointsChart
           dates={keys}
@@ -311,6 +355,7 @@ export function EventCharts({ state, steps, me, teamsFirst }: { state: EventStat
           }
           label={`Punkteverlauf ${state.def.name}`}
           short={shownWho === 'teams' ? (n) => n : undefined}
+          dim={dim}
         />
       ) : (
         <BumpChart
@@ -324,6 +369,7 @@ export function EventCharts({ state, steps, me, teamsFirst }: { state: EventStat
           colors={shownWho === 'teams' ? new Map(state.teamStandings.map((t) => [t.name, teamColor(t.id, t.name)])) : driverColor}
           me={shownWho === 'teams' ? null : me}
           short={shownWho === 'teams' ? (n) => n : undefined}
+          dim={dim}
         />
       )}
       {canStage && <Segment small value={by} onChange={setBy} label="Einteilung" options={[['etappen', 'Je Etappe'], ['laeufe', 'Je Lauf']]} />}
@@ -415,7 +461,25 @@ export function GridSlot({ n, size = 24 }: { n: number | null; size?: number }) 
 /** Startaufstellung schräg: jeder Platz ein Stück weiter rechts als der davor, wie in der Startgasse */
 export const gridStagger = (i: number, step = 10) => Math.min(i, 5) * step
 
-export function HeatCard({ heat, state, me, children, plain }: { heat: Heat; state: EventState; me: string | null; children?: ReactNode; plain?: boolean }) {
+/** Wohin ein Name im Ablauf springt: Fahrer oder Team in der Wertung */
+export type PickTarget = { kind: 'fahrer' | 'team'; key: string }
+
+/** Element-ID eines Eintrags in der Wertung (Sprungziel aus dem Ablauf) */
+export const rankAnchor = (t: PickTarget) => `wertung-${t.kind}-${t.key.replace(/[^\p{L}\p{N}]+/gu, '-')}`
+
+/** Zum Eintrag scrollen und ihn kurz aufleuchten lassen (sobald er gerendert ist) */
+export function flashTo(t: PickTarget) {
+  setTimeout(() => {
+    const el = document.getElementById(rankAnchor(t))
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    el.classList.remove('flash')
+    void el.offsetWidth
+    el.classList.add('flash')
+  }, 60)
+}
+
+export function HeatCard({ heat, state, me, children, plain, onPick }: { heat: Heat; state: EventState; me: string | null; children?: ReactNode; plain?: boolean; onPick?: (t: PickTarget) => void }) {
   const { model } = useData()
   // Team als farbiger Strich am Zeilenanfang (wie der Rand in den Ranglisten)
   const teamBar = (n: string | null) => {
@@ -455,26 +519,36 @@ export function HeatCard({ heat, state, me, children, plain }: { heat: Heat; sta
             const value = heat.teamShare?.get(n) ?? heat.points.get(n)
             const pts = heat.advancing?.includes(n) ? '↑ weiter' : !placeMode(state) && heat.kind === 'race' && value != null ? `+${fmtPts(value)}` : ''
             const lines = why === n && !placeMode(state) ? heatPointsExplained(state, heat, n) : []
+            const nameText = <span style={{ ...nameStyle(n), minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'left' }}>{n === me ? `Du · ${n}` : n}</span>
             return (
               <Fragment key={n}>
-                <button className="entrant entrant-btn" style={teamBar(n)} aria-expanded={why === n} onClick={() => setWhy(why === n ? null : n)}>
+                {/* Name: springt zur Wertung (wenn möglich) · Rest der Zeile: Punkte erklären */}
+                <div className="entrant entrant-row" style={teamBar(n)}>
                   <span className="num" style={{ minWidth: 18, color: 'var(--muted)' }}>
                     {i + 1}.
                   </span>
-                  <span style={{ ...nameStyle(n), flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'left' }}>{n === me ? `Du · ${n}` : n}</span>
-                  {/* Qualifying: die Zeit zählt; Rennen: das Auto als Bild */}
-                  {heat.kind === 'quali' && (r?.validBestLapMs ?? r?.bestLapMs) != null && (
-                    <span className="num" style={{ fontSize: 12, color: 'var(--best)' }}>
-                      {formatTime(r!.validBestLapMs ?? r!.bestLapMs)}
-                    </span>
+                  {onPick ? (
+                    <button className="entrant-name" onClick={() => onPick({ kind: 'fahrer', key: n })} title="In der Wertung zeigen">
+                      {nameText}
+                    </button>
+                  ) : (
+                    nameText
                   )}
-                  {heat.kind === 'race' && r?.car && <CarThumb car={r.car} size={24} />}
-                  {pts && (
-                    <span className="num" style={{ minWidth: 30, textAlign: 'right', fontWeight: 700, color: heat.advancing?.includes(n) ? EVENT_ACCENT : undefined }}>
-                      {pts}
-                    </span>
-                  )}
-                </button>
+                  <button className="entrant-btn" aria-expanded={why === n} aria-label={`Punkte von ${n} erklären`} onClick={() => setWhy(why === n ? null : n)}>
+                    {/* Qualifying: die Zeit zählt; Rennen: das Auto als Bild */}
+                    {heat.kind === 'quali' && (r?.validBestLapMs ?? r?.bestLapMs) != null && (
+                      <span className="num" style={{ fontSize: 12, color: 'var(--best)' }}>
+                        {formatTime(r!.validBestLapMs ?? r!.bestLapMs)}
+                      </span>
+                    )}
+                    {heat.kind === 'race' && r?.car && <CarThumb car={r.car} size={24} />}
+                    {pts && (
+                      <span className="num" style={{ minWidth: 30, textAlign: 'right', fontWeight: 700, color: heat.advancing?.includes(n) ? EVENT_ACCENT : undefined }}>
+                        {pts}
+                      </span>
+                    )}
+                  </button>
+                </div>
                 {why === n && (
                   <div className="pts-why">
                     {r?.car && (
@@ -515,7 +589,14 @@ export function HeatCard({ heat, state, me, children, plain }: { heat: Heat; sta
           {[...heat.teamPoints].map(([id, p], i) => (
             <span key={id}>
               {i > 0 && ' · '}
-              <span style={{ color: teamColor(id, state.teams.find((t) => t.id === id)?.name), fontWeight: 600 }}>{state.teams.find((t) => t.id === id)?.name ?? id}</span> {fmtPts(p)}
+              {onPick ? (
+                <button className="entrant-name" style={{ color: teamColor(id, state.teams.find((t) => t.id === id)?.name), fontWeight: 600 }} onClick={() => onPick({ kind: 'team', key: id })} title="In der Teamwertung zeigen">
+                  {state.teams.find((t) => t.id === id)?.name ?? id}
+                </button>
+              ) : (
+                <span style={{ color: teamColor(id, state.teams.find((t) => t.id === id)?.name), fontWeight: 600 }}>{state.teams.find((t) => t.id === id)?.name ?? id}</span>
+              )}{' '}
+              {fmtPts(p)}
             </span>
           ))}
         </span>
@@ -619,7 +700,7 @@ export function TeamCard({ state, team, me }: { state: EventState; team: TeamSta
   const total = parts.reduce((a, p) => a + p.points, 0)
   const byTotal = eventKind(state) === 'mixed' && !state.separate
   return (
-    <section className={`card${me && team.drivers.includes(me) ? ' me-row' : ''}`} style={{ gap: 10, borderLeft: `4px solid ${color}` }}>
+    <section id={rankAnchor({ kind: 'team', key: team.id })} className={`card${me && team.drivers.includes(me) ? ' me-row' : ''}`} style={{ gap: 10, borderLeft: `4px solid ${color}` }}>
       <div className="card-head">
         <span style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
           <span className="card-title" style={{ color }}>
@@ -653,8 +734,10 @@ export function TeamCard({ state, team, me }: { state: EventState; team: TeamSta
               color: shade(color, i),
               // Ohne Punkte: kleiner, blasser Abschnitt – so fehlt niemand
               note: p.points > 0 ? undefined : p.races ? `0 Pkt. aus ${p.races} ${p.races === 1 ? 'Lauf' : 'Läufen'}` : 'noch nicht gefahren',
-              // Boni: eingerechnet (so, wie sie fürs Team zählen), hier nur als Hinweis
-              hint: p.bonuses.length ? p.bonuses.map((b) => `${BONUS_ICON[b.kind]} +${fmtPts(b.points)}`).join(' · ') : undefined,
+              // Mit Boni: „5,2+PB+P=6,4“, darunter der Anteil – so sieht man, was die Boni gebracht haben
+              ...(p.bonuses.length && p.points > 0
+                ? { note: `${fmtPts(p.base)}+${p.bonuses.map((b) => BONUS_ICON[b.kind]).join('+')}=${fmtPts(p.points)}`, hint: `${Math.round((p.points / Math.max(total, 0.01)) * 100)} %` }
+                : null),
             }))}
             minShare={0.06}
             center={fmtPts(byTotal ? Math.round(total * 10) / 10 : team.points)}
@@ -736,7 +819,14 @@ export function rulesText(def: EventDef, state: EventState): string[] {
   if (newRules && (sc.method === 'fair' || sc.driverOfDay)) out.push('Wer noch in der Einstufung ist, zählt mit seiner Elo vor dem jeweiligen Rennen – so zählen die Ergebnisse statt des Startwerts. Die Autowertung gilt so, wie sie vor dem jeweiligen Rennen feststand.')
   if (place && def.teams) out.push('Teamwertung: Durchschnittsplatz der Mitglieder – kleiner ist besser.')
   else if (state.separate) out.push('Einzel- und Teamwertung sind getrennt: Einzelrennen zählen für die eigenen Punkte, Teamrennen nur für die Teamwertung (Teampunkte je Lauf: Schnitt der Mitglieder, hochgerechnet).')
-  else if (def.teams) out.push('Teamwertung: Schnitt der Punkte der Mitglieder; Boni nach Einsätzen gewichtet – wer öfter fährt, hat nicht mehr Chancen.')
+  else if (def.teams) {
+    out.push('Einzelwertung: nur die eigenen Punkte – im Teamrennen der eigene Anteil an den Teampunkten plus die eigenen Boni. Wer wegen eines größeren Teams seltener fährt, wird auf die meisten Rennen hochgerechnet.')
+    out.push(
+      sc.method === 'fair'
+        ? 'Teamwertung: Teampunkte plus Boni. Jeder Bonus zählt im Verhältnis dazu, wie oft das Team ihn höchstens bekommen kann (Fahrer des Tages, schnellste Runde, Pole: einmal; Bestzeit: je Mitglied; ohne Abflug: je Rennen), Teams mit weniger Läufen zählen stärker.'
+        : 'Teamwertung: Teampunkte plus Boni, die Boni je Einsatz gewichtet.',
+    )
+  }
   out.push(def.countInStats ? 'Die Läufe zählen auch für Elo und Saison.' : 'Die Läufe zählen nicht für Elo und Saison.')
   return out
 }

@@ -1874,6 +1874,51 @@ select.select:focus {
   }
 }
 
+/* Wettkampf: Name im Ablauf springt zur Wertung, der Rest der Zeile erklärt die Punkte */
+.entrant-row .entrant-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.entrant-name {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  font-size: 13px;
+  color: inherit;
+  cursor: pointer;
+  min-height: 32px;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  text-align: left;
+}
+.entrant-name:hover {
+  text-decoration: underline;
+}
+/* Sprungziel in der Wertung kurz aufleuchten lassen */
+.flash {
+  animation: flash 1.6s ease-out;
+}
+@keyframes flash {
+  0%,
+  30% {
+    box-shadow: 0 0 0 2px var(--accent, var(--text));
+  }
+  100% {
+    box-shadow: 0 0 0 2px transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .flash {
+    animation: none;
+    box-shadow: 0 0 0 2px var(--accent, var(--text));
+  }
+}
+
 /* Wettkampf: Punkte eines Laufs antippen erklärt sie */
 .entrant-btn {
   width: 100%;

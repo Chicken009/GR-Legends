@@ -1,5 +1,7 @@
+import { useLayoutEffect } from 'react'
 import { formatDate, formatTime, shortName } from '../format'
 import { AXIS, GRID, linePath, niceTicks, scale, Tip, useTipState, useWidth } from './common'
+import { MIN_STEP } from './PointsChart'
 
 /** Rangverlauf (Bump-Chart), Namen rechts. `axis` ersetzt die Datumsbeschriftung (z. B. Läufe eines Wettkampfs). */
 export function BumpChart({
@@ -9,6 +11,7 @@ export function BumpChart({
   me,
   axis,
   short = (n: string) => shortName(n).slice(0, 10),
+  dim,
 }: {
   dates: string[]
   series: { name: string; ranks: (number | null)[] }[]
@@ -17,16 +20,25 @@ export function BumpChart({
   axis?: string[]
   /** Kurzname für die Beschriftung rechts (Teams: ganzer Name) */
   short?: (name: string) => string
+  /** Ausgegraut: dünne graue Linie ohne Beschriftung (nur Hintergrund) */
+  dim?: Set<string>
 }) {
-  const [ref, width] = useWidth<HTMLDivElement>()
+  const [ref, boxWidth] = useWidth<HTMLDivElement>()
+  // Viele Stellen: breiter als der Platz, quer scrollbar – anfangs am Ende
+  const width = Math.max(boxWidth, 86 + 8 + Math.max(1, dates.length - 1) * MIN_STEP)
+  useLayoutEffect(() => {
+    if (ref.current && width > boxWidth) ref.current.scrollLeft = width
+  }, [ref, width, boxWidth])
+  const faded = (name: string) => !!dim?.has(name)
   const maxRank = Math.max(4, ...series.flatMap((s) => s.ranks.filter((r): r is number => r != null)))
   const rowH = Math.max(10, Math.min(16, 130 / maxRank))
   const height = rowH * (maxRank - 1) + 40
   const labelW = 86
   const sx = scale(0, Math.max(1, dates.length - 1), 8, width - labelW)
   const sy = (r: number) => 10 + (r - 1) * rowH
-  const ordered = [...series].sort((a, b) => Number(a.name === me) - Number(b.name === me))
+  const ordered = [...series].sort((a, b) => Number(!faded(a.name)) - Number(!faded(b.name)) || Number(a.name === me) - Number(b.name === me))
   const labels = series
+    .filter((s) => !faded(s.name))
     .map((s) => ({ s, rank: s.ranks[s.ranks.length - 1] }))
     .filter((x): x is { s: (typeof series)[number]; rank: number } => x.rank != null)
     .sort((a, b) => a.rank - b.rank)
@@ -35,7 +47,8 @@ export function BumpChart({
   for (const l of labels) labelY.push(Math.max(sy(l.rank), (labelY[labelY.length - 1] ?? -Infinity) + 13))
   const tickIdx = dates.length > 2 ? [0, Math.floor((dates.length - 1) / 2), dates.length - 1] : dates.map((_, i) => i)
   return (
-    <div ref={ref} className="chart" style={{ height }}>
+    <div ref={ref} style={{ overflowX: width > boxWidth ? 'auto' : undefined, overflowY: 'hidden' }}>
+    <div className="chart" style={{ height, width }}>
       <svg width={width} height={height} role="img" aria-label={`Rangverlauf: ${labels.map((l) => `${l.s.name} Platz ${l.rank}`).join(', ')}`}>
         {Array.from({ length: maxRank }, (_, i) => (
           <path key={i} d={`M0 ${sy(i + 1)}H${width - labelW + 8}`} stroke="var(--grid)" />
@@ -51,6 +64,14 @@ export function BumpChart({
           })
           if (cur.length) segs.push(cur)
           const isMe = s.name === me
+          if (faded(s.name))
+            return (
+              <g key={s.name}>
+                {segs.map((seg, j) => (
+                  <path key={j} d={linePath(seg)} fill="none" stroke="var(--line-3)" strokeWidth={1.6} strokeLinejoin="round" strokeLinecap="round" />
+                ))}
+              </g>
+            )
           return (
             <g key={s.name}>
               {segs.map((seg, j) => (
@@ -71,6 +92,7 @@ export function BumpChart({
           </text>
         ))}
       </svg>
+    </div>
     </div>
   )
 }

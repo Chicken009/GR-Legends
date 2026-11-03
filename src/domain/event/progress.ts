@@ -246,7 +246,7 @@ export function eventKind(state: EventState): EventKind {
  * es die Gesamtpunktzahl jedes Mitglieds; sonst sein Anteil an den Teampunkten (hochgerechnet wie in
  * der Wertung) plus seine Boni, so wie sie fürs Team zählen. Die Summe ist die Teamwertung.
  */
-export function teamContributions(state: EventState, teamId: string): { name: string; points: number; races: number; bonuses: Bonus[] }[] {
+export function teamContributions(state: EventState, teamId: string): { name: string; points: number; base: number; races: number; bonuses: Bonus[] }[] {
   const team = state.teams.find((t) => t.id === teamId)
   if (!team) return []
   const byTotal = eventKind(state) === 'mixed' && !state.separate
@@ -255,10 +255,12 @@ export function teamContributions(state: EventState, teamId: string): { name: st
   return team.drivers
     .map((name) => {
       const row = state.standings.find((s) => s.name === name)
-      const raw = byTotal ? (row?.total ?? 0) : heats.reduce((a, h) => a + (h.teamShare?.get(name) ?? h.points.get(name) ?? 0), 0) + (state.teamBonusShare.get(name) ?? 0)
+      // base: Anteil an den Teampunkten (ohne Boni)
+      const base = byTotal ? (row?.total ?? 0) : heats.reduce((a, h) => a + (h.teamShare?.get(name) ?? h.points.get(name) ?? 0), 0)
+      const raw = base + (byTotal ? 0 : (state.teamBonusShare.get(name) ?? 0))
       // Läufe, die zählen: alle Rennen (Schnitt der Gesamtpunkte) bzw. die Teamrennen
       const races = byTotal ? (row?.races ?? 0) : heats.filter((h) => h.order.includes(name)).length
-      return { name, points: Math.round(raw * 10) / 10, races, bonuses: !byTotal && !state.separate ? (row?.bonuses ?? []) : [] }
+      return { name, points: Math.round(raw * 10) / 10, base: Math.round(base * 10) / 10, races, bonuses: !byTotal && !state.separate ? (row?.bonuses ?? []) : [] }
     })
     .sort((a, b) => b.points - a.points || a.name.localeCompare(b.name))
 }

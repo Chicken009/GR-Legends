@@ -1,5 +1,9 @@
+import { useLayoutEffect, useRef } from 'react'
 import { fmtNum, formatDate, shortName } from '../format'
 import { AXIS, GRID, linePath, niceTicks, Tip, useTipState, useWidth } from './common'
+
+/** Mindestabstand je Stelle (px): bei vielen Läufen wird das Diagramm breiter und quer scrollbar */
+export const MIN_STEP = 24
 
 const fmtV = (v: number) => fmtNum(v, Number.isInteger(v) ? 0 : 1)
 
@@ -10,10 +14,18 @@ const fmtV = (v: number) => fmtNum(v, Number.isInteger(v) ? 0 : 1)
  * Angetippt wird eine ganze Spalte: der Tooltip zeigt alle Werte an dieser Stelle, sortiert – so gibt
  * es auch bei vielen Fahrern und Läufen nur wenige, große Tippziele.
  */
-export function PointsChart({ dates, series, label, axis, tips, short = shortName }: { dates: string[]; series: { name: string; color: string; values: (number | null)[] }[]; label: string; axis?: string[]; tips?: string[]; short?: (name: string) => string }) {
-  const [ref, width] = useWidth<HTMLDivElement>()
+export function PointsChart({ dates, series, label, axis, tips, short = shortName, dim }: { dates: string[]; series: { name: string; color: string; values: (number | null)[] }[]; label: string; axis?: string[]; tips?: string[]; short?: (name: string) => string; dim?: Set<string> }) {
+  const [box, boxWidth] = useWidth<HTMLDivElement>()
+  const ref = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useTipState<number>(ref)
+  // Viele Stellen: breiter als der Platz, quer scrollbar – und anfangs am Ende (aktueller Stand)
+  const width = Math.max(boxWidth, 28 + 78 + Math.max(1, dates.length - 1) * MIN_STEP)
+  useLayoutEffect(() => {
+    if (box.current && width > boxWidth) box.current.scrollLeft = width
+  }, [box, width, boxWidth])
   if (dates.length < 2 || !series.length) return null
+  // Ausgegraut: dünn, ohne Beschriftung – nur als Hintergrund
+  const faded = (name: string) => !!dim?.has(name)
   // Viele Linien: höher, damit die Namen rechts nicht gedrängt stehen
   const h = Math.max(210, series.length * 15 + 40)
   const left = 28
@@ -29,6 +41,7 @@ export function PointsChart({ dates, series, label, axis, tips, short = shortNam
   // Namen am Ende nicht überlappen lassen
   const labels = series
     .map((s, si) => {
+      if (faded(s.name)) return null
       const lastIdx = s.values.map((v, i) => (v != null ? i : -1)).filter((i) => i >= 0).pop()
       return lastIdx == null ? null : { si, y: sy(s.values[lastIdx]!) }
     })
@@ -39,7 +52,8 @@ export function PointsChart({ dates, series, label, axis, tips, short = shortNam
   const name = (i: number) => (tips ? tips[i] : `nach dem ${formatDate(dates[i])}`)
   const at = open == null ? [] : series.map((s) => ({ s, v: s.values[open] })).filter((x): x is { s: (typeof series)[number]; v: number } => x.v != null).sort((a, b) => b.v - a.v)
   return (
-    <div ref={ref} className="chart" style={{ height: h }}>
+    <div ref={box} style={{ overflowX: width > boxWidth ? 'auto' : undefined, overflowY: 'hidden' }}>
+    <div ref={ref} className="chart" style={{ height: h, width }}>
       <svg width={width} height={h} role="img" aria-label={label}>
         {ticks.map((t) => (
           <g key={t}>
@@ -57,13 +71,19 @@ export function PointsChart({ dates, series, label, axis, tips, short = shortNam
           ) : null,
         )}
         {open != null && <path d={`M${sx(open)} ${top}V${h - bottom}`} stroke="var(--line-3)" strokeWidth="1.5" />}
-        {series.map((s) => {
+        {/* Ausgegraute zuerst, damit die hervorgehobenen Linien obenauf liegen */}
+        {[...series].sort((a, b) => Number(!faded(a.name)) - Number(!faded(b.name))).map((s) => {
           const pts = s.values.map((v, i) => (v != null ? ([sx(i), sy(v)] as [number, number]) : null)).filter((p): p is [number, number] => p != null)
-          return <path key={s.name} d={linePath(pts)} fill="none" stroke={s.color} strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round" />
+          return faded(s.name) ? (
+            <path key={s.name} d={linePath(pts)} fill="none" stroke="var(--line-3)" strokeWidth="1.4" strokeLinejoin="round" strokeLinecap="round" />
+          ) : (
+            <path key={s.name} d={linePath(pts)} fill="none" stroke={s.color} strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round" />
+          )
         })}
         {/* Punkte nur am Ende jeder Linie und in der angetippten Spalte */}
         {series.map((s, si) => {
           const lastIdx = s.values.map((v, i) => (v != null ? i : -1)).filter((i) => i >= 0).pop()
+          if (faded(s.name)) return null
           return [lastIdx, open].map((i, k) =>
             i == null || s.values[i] == null || (k === 1 && i === lastIdx) ? null : <circle key={`${si}-${k}`} cx={sx(i)} cy={sy(s.values[i]!)} r={k === 1 ? 5 : 4} fill={s.color} stroke="var(--card)" strokeWidth="2" />,
           )
@@ -114,6 +134,7 @@ export function PointsChart({ dates, series, label, axis, tips, short = shortNam
           }}
         />
       )}
+    </div>
     </div>
   )
 }

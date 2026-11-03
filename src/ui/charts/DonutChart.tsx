@@ -7,7 +7,7 @@ export interface DonutPart {
   color: string
   /** Zweite Zeile der Beschriftung statt „Wert · Anteil“ (z. B. „noch nicht gefahren“) */
   note?: string
-  /** Kleine dritte Zeile in Gold (z. B. Boni „PB +1“), nur mit `labeled` */
+  /** Kleine dritte Zeile (z. B. der Anteil, wenn die zweite eine Rechnung zeigt), nur mit `labeled` */
   hint?: string
 }
 
@@ -74,7 +74,7 @@ export function DonutChart({ parts, center, sub, label, size = 150, format = Str
                   {p.note ?? `${format(p.value)} · ${Math.round((p.value / total) * 100)} %`}
                 </text>
                 {p.hint && (
-                  <text x={lx} y={ly + 26} textAnchor={anchor} fill="var(--gold)" fontSize="10" fontWeight="700">
+                  <text x={lx} y={ly + 26} textAnchor={anchor} fill="var(--muted)" fontSize="11">
                     {p.hint}
                   </text>
                 )}

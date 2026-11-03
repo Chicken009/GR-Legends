@@ -219,7 +219,7 @@ describe('Rennen, K.-o. und Teams', () => {
     for (const t of s.teamStandings) expect(t.points).toBeCloseTo(Math.round(expected(t.drivers) * 10) / 10, 5)
   })
 
-  it('wertet Teamrennen mit dem Schnitt und gibt allen Mitgliedern die Teampunkte', () => {
+  it('wertet Teamrennen mit dem Schnitt, einzeln zählt nur der eigene Anteil', () => {
     const d = def({ drivers: ['A', 'B', 'C', 'D'], teams: { mode: 'manual', size: 2, teams: [{ name: 'Rot', drivers: ['A', 'D'] }, { name: 'Blau', drivers: ['B', 'C'] }] }, sections: [newSection('team', { id: 't' })] })
     const s = computeEvent(d, ctx([run('race', ['A', 'B', 'C', 'D'])]))
     const heat = s.sections[0].heats[0]
@@ -227,7 +227,9 @@ describe('Rennen, K.-o. und Teams', () => {
     // nur Gegner zählen: A 2+1 = 3, D 0 → Rot 1,5; B 1, C 1 → Blau 1
     expect(heat.teamPoints!.get('t1')).toBe(1.5)
     expect(heat.teamPoints!.get('t2')).toBe(1)
-    expect(s.standings.find((r) => r.name === 'D')!.sections[0]).toBe(1.5)
+    // einzeln: eigener Anteil (A 3 von 2 Rot-Fahrern = 1,5; D 0)
+    expect(s.standings.find((r) => r.name === 'A')!.sections[0]).toBe(1.5)
+    expect(s.standings.find((r) => r.name === 'D')!.sections[0]).toBe(0)
     expect(s.teamStandings[0].name).toBe('Rot')
   })
 
@@ -306,15 +308,26 @@ describe('Rennen, K.-o. und Teams', () => {
     }
   })
 
-  it('punktgleiche Teammitglieder teilen sich den Platz, der Probelauf teilt den Sieg', () => {
+  it('„Fair“: Boni fürs Team = erhalten / höchstens erreichbar, gewichtet nach Läufen', () => {
+    const teams = { mode: 'manual' as const, size: 2, teams: [{ name: 'Rot', drivers: ['A', 'D'] }, { name: 'Blau', drivers: ['B', 'C', 'E'] }] }
+    const d = def({ drivers: ['A', 'B', 'C', 'D', 'E'], maxPerHeat: 6, scoring: { method: 'fair', fastestLap: 0, pole: 0, driverOfDay: 0, personalBest: 1 }, teams, sections: [newSection('team', { id: 't' })] } as never)
+    // Alle fahren neue Bestzeiten: jedes Team bekommt den Bonus so oft, wie es Mitglieder hat
+    const c = { ...ctx([run('race', ['A', 'B', 'C', 'D', 'E'])]), previousBest: () => 99_999 }
+    const s = computeEvent(d, c)
+    expect(s.heats.every((h) => h.status === 'done')).toBe(true)
+    expect(s.standings.every((r) => r.bonuses.some((b) => b.kind === 'personalBest'))).toBe(true)
+    const race = (id: string) => s.sections[0].teamRanking!.find((r) => r.name === id)!.points
+    for (const t of s.teamStandings) expect(t.points).toBeCloseTo(race(t.id) + 1, 1)
+  })
+
+  it('Einzelwertung im Teamrennen nach eigener Leistung, der Probelauf verteilt den Teamsieg', () => {
     const d = def({ drivers: ['A', 'B', 'C', 'D'], scoring: { fastestLap: 0, pole: 0, driverOfDay: 0, personalBest: 0 }, teams: { mode: 'manual', size: 2, teams: [{ name: 'Rot', drivers: ['A', 'D'] }, { name: 'Blau', drivers: ['B', 'C'] }] }, sections: [newSection('team', { id: 't' })] } as never)
     const s = computeEvent(d, ctx([run('race', ['A', 'B', 'C', 'D'])]))
     const rank = (n: string) => s.standings.find((r) => r.name === n)!.rank
-    expect(rank('A')).toBe(rank('D'))
+    expect(rank('A')).toBeLessThan(rank('D'))
     expect(rank('B')).toBe(rank('C'))
     const sim = simulate(d, ctx(), 10000, 30)
-    // Teammitglieder haben (ohne Einzelboni) die gleiche Siegchance, die Teams zusammen 100 %
-    expect(sim.winChance.get('A')).toBeCloseTo(sim.winChance.get('D') ?? 0, 5)
+    // Die Teams zusammen 100 %
     expect([...sim.teamChance.values()].reduce((a, b) => a + b, 0)).toBeCloseTo(1, 5)
   })
 
