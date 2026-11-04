@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { createContext, useContext, useEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
 import { Link } from 'react-router-dom'
 import { CarPhoto, usePhotoId } from './CarPhoto'
 import { carPath } from './components'
@@ -22,6 +22,14 @@ export const BG = [
 export const CONFETTI = ['#F6C83C', '#3BBC4A', '#FF5A4E', '#4AA8F0', '#AE6DEE', '#F6C83C', '#EE9E10', '#FFFFFF', '#FF5A4E', '#3BBC4A']
 
 export const reduced = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+
+/**
+ * Welche Karte gerade vorn ist: `active` nur für die sichtbare Karte, `epoch` zählt jedes Ankommen auf
+ * einer Karte hoch (als `key` startet eine Animation dann neu), `auto` = Leinwand blättert selbst.
+ * Außerhalb der Story-Ansicht gilt jede Karte als aktiv.
+ */
+export const StoryCardContext = createContext<{ active: boolean; epoch: number; auto: boolean }>({ active: true, epoch: 0, auto: false })
+export const useStoryCard = () => useContext(StoryCardContext)
 
 /** Wird true, sobald das Element (zur Hälfte) sichtbar ist – bleibt dann true */
 export function useInView<T extends Element>(ref: RefObject<T | null>): boolean {
@@ -73,15 +81,17 @@ export function Reveal({ children, delay = 0 }: { children: ReactNode; delay?: n
   )
 }
 
-/** Kurzes Konfetti, sobald die Karte sichtbar ist */
-export function Confetti() {
+/** Kurzes Konfetti, sobald die Karte sichtbar ist; `delay` (ms) z. B. bis der Sieger aufgedeckt ist */
+export function Confetti({ delay = 0 }: { delay?: number }) {
   const ref = useRef<HTMLSpanElement>(null)
   const seen = useInView(ref)
+  const { active, epoch } = useStoryCard()
   return (
     <span ref={ref} aria-hidden="true" style={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none' }}>
       {seen &&
+        active &&
         !reduced() &&
-        CONFETTI.map((c, i) => <span key={i} className="confetti wr-confetti" style={{ left: `${6 + i * 9.5}%`, background: c, animationDelay: `${(i * 0.23) % 1.4}s` }} />)}
+        CONFETTI.map((c, i) => <span key={`${epoch}-${i}`} className="confetti wr-confetti" style={{ left: `${6 + i * 9.5}%`, background: c, animationDelay: `${delay / 1000 + ((i * 0.23) % 1.4)}s` }} />)}
     </span>
   )
 }
@@ -100,7 +110,8 @@ export interface CardDef {
   kicker: string
   /** Großes, blasses Symbol im Hintergrund */
   icon?: string
-  confetti?: boolean
+  /** Konfetti; als Zahl: erst nach so vielen Millisekunden */
+  confetti?: boolean | number
   body: ReactNode
 }
 
@@ -118,19 +129,25 @@ export function CardFrame({ i, card, children, story }: { i: number; card: Pick<
           <StrokeIcon d={card.icon} size={240} color="#FFFFFF" width={1.4} />
         </span>
       )}
-      {card.confetti && <Confetti />}
+      {card.confetti !== undefined && card.confetti !== false && <Confetti delay={typeof card.confetti === 'number' ? card.confetti : 0} />}
       <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: 2.5, textTransform: 'uppercase', color: 'var(--text-2)', position: 'relative' }}>{card.kicker}</span>
       {children}
     </section>
   )
 }
 
-/** Kachel für die Startkarte */
-export function StatTile({ value, label, format }: { value: number | string; label: string; format?: (v: number) => string }) {
+/** Kachel mit großer Zahl (zählt hoch), optional mit Symbol und kurzem Zusatz */
+export function StatTile({ value, label, format, icon, color, sub, style }: { value: number | string; label: string; format?: (v: number) => string; icon?: string; color?: string; sub?: string; style?: CSSProperties }) {
   return (
-    <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: 16, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <span className="num" style={{ fontSize: 30, fontWeight: 800, lineHeight: 1.05 }}>{typeof value === 'number' ? <CountUp value={value} format={format} /> : value}</span>
+    <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: 16, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0, ...style }}>
+      {icon && (
+        <span aria-hidden="true" style={{ marginBottom: 4, display: 'inline-flex' }}>
+          <StrokeIcon d={icon} size={20} color={color ?? 'var(--muted)'} width={1.8} />
+        </span>
+      )}
+      <span className="num" style={{ fontSize: typeof value === 'string' && value.length > 7 ? 19 : typeof value === 'string' && value.length > 5 ? 22 : 30, fontWeight: 800, lineHeight: 1.05, whiteSpace: 'nowrap', color: icon ? undefined : color }}>{typeof value === 'number' ? <CountUp value={value} format={format} /> : value}</span>
       <span style={{ fontSize: 12, color: 'var(--muted)' }}>{label}</span>
+      {sub && <span style={{ fontSize: 11, color: 'var(--text-2)', lineHeight: 1.35, marginTop: 2 }}>{sub}</span>}
     </div>
   )
 }
@@ -184,6 +201,11 @@ export function StoryPager({ cards, label, onDone, auto, doneLabel = 'Zur Übers
     const t = setTimeout(() => goRef.current(index + 1 < total ? index + 1 : 0), auto)
     return () => clearTimeout(t)
   }, [auto, index, total])
+  // Jedes Ankommen auf einer Karte zählt (Animationen starten dann neu)
+  // (im Rendern abgeleitet, damit die neue Karte gleich mit der neuen Zahl erscheint)
+  const [nav, setNav] = useState({ index, arrivals: 0 })
+  if (nav.index !== index) setNav({ index, arrivals: nav.arrivals + 1 })
+  const arrivals = nav.index === index ? nav.arrivals : nav.arrivals + 1
   const last = index === total - 1
   const slide = { flex: '0 0 100%', minWidth: 0, minHeight: 0, padding: '14px max(16px, env(safe-area-inset-left, 0px))', display: 'flex', flexDirection: 'column', overflowY: 'auto', overflowX: 'hidden', touchAction: 'pan-y', overscrollBehavior: 'contain' } as const
   return (
@@ -207,9 +229,11 @@ export function StoryPager({ cards, label, onDone, auto, doneLabel = 'Zur Übers
             // Eigene Scrollfläche: pan-y hier noch einmal, sonst übernimmt der Browser auch waagerechte Wische
             <div key={c.key} style={slide}>
               <div style={{ maxWidth: auto ? 760 : 520, width: '100%', margin: 'auto' }}>
-                <CardFrame i={i} card={c} story>
-                  {c.body}
-                </CardFrame>
+                <StoryCardContext.Provider value={{ active: i === index, epoch: i === index ? arrivals : -1, auto: !!auto }}>
+                  <CardFrame i={i} card={c} story>
+                    {c.body}
+                  </CardFrame>
+                </StoryCardContext.Provider>
               </div>
             </div>
           ))}

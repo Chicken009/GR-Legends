@@ -283,7 +283,7 @@ export interface RecapFacts {
   /** Seit diesem Lauf führt der jetzige Führende */
   turn: { name: string; label: string } | null
   /** Größter Sprung in einem Lauf */
-  jump: { name: string; from: number; to: number; label: string } | null
+  jump: { name: string; from: number; to: number; label: string; /** Index in den Ständen */ step: number } | null
   /** Schlechtester Zwischenplatz gegen jetzigen Platz (anderer Fahrer als beim Sprung) */
   comeback: { name: string; worst: number; label: string; final: number } | null
   /** Knappster Abstand Platz 1 zu 2 in einem Rennen (unter 3 s) */
@@ -315,7 +315,7 @@ export function recapFacts(state: EventState, steps: ProgressStep[]): RecapFacts
   for (let i = 2; i < steps.length; i++) {
     for (const [n, to] of steps[i].ranks) {
       const from = steps[i - 1].ranks.get(n)
-      if (from != null && from - to >= 2 && (!jump || from - to > jump.from - jump.to)) jump = { name: n, from, to, label: steps[i].label }
+      if (from != null && from - to >= 2 && (!jump || from - to > jump.from - jump.to)) jump = { name: n, from, to, label: steps[i].label, step: i }
     }
   }
   let comeback: RecapFacts['comeback'] = null

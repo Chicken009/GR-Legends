@@ -2118,3 +2118,190 @@ select.select:focus {
   text-transform: uppercase;
   color: var(--text-2);
 }
+
+/* ---- Wettkampf-Rückblick: Inhalte nacheinander, Rennen, Umdrehen --------------------------- */
+.stg .stg-i {
+  opacity: 0;
+}
+.stg.go .stg-i {
+  animation: stg-in 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: var(--d, 0ms);
+}
+@keyframes stg-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Podest: Platz 3, dann 2, zuletzt 1 (Reihenfolge im Raster: 2 – 1 – 3) */
+.podium-stg .podium > * {
+  opacity: 0;
+}
+.podium-stg.go .podium > * {
+  animation: podium-rise 0.75s cubic-bezier(0.2, 0.9, 0.25, 1.15) both;
+}
+.podium-stg.go .podium > :nth-child(3) {
+  animation-delay: 0.3s;
+}
+.podium-stg.go .podium > :nth-child(1) {
+  animation-delay: 1.3s;
+}
+.podium-stg.go .podium > :nth-child(2) {
+  animation-delay: 2.4s;
+}
+@keyframes podium-rise {
+  from {
+    opacity: 0;
+    transform: translateY(60px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.lead-flash {
+  animation: pop 0.5s ease-out;
+}
+
+.photo-flash {
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  pointer-events: none;
+  opacity: 0;
+  animation: photo-flash 0.7s ease-out 2.7s both;
+}
+@keyframes photo-flash {
+  0% {
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.75;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Linie zeichnet sich von links nach rechts */
+.draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: draw 1.6s ease-out 0.3s forwards;
+}
+@keyframes draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.lap-bars > span {
+  transform-origin: bottom;
+  transform: scaleY(0);
+  transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.lap-bars.go > span {
+  transform: none;
+}
+
+.quiz-right {
+  animation: pop 0.45s ease-out;
+}
+.stg-pop {
+  animation: stg-in 0.5s ease-out both;
+}
+
+/* Auszeichnung zum Umdrehen */
+.flip {
+  perspective: 900px;
+  background: none;
+  border: none;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  min-height: 150px;
+  display: flex;
+}
+.flip-inner {
+  position: relative;
+  flex: 1;
+  display: grid;
+  transform-style: preserve-3d;
+  transition: transform 0.7s cubic-bezier(0.3, 1.2, 0.4, 1);
+}
+.flip.open .flip-inner {
+  transform: rotateY(180deg);
+}
+.flip-face {
+  grid-area: 1 / 1;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 12px;
+  border-radius: 16px;
+  background: var(--tint-5);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  min-width: 0;
+}
+.flip-face.pts {
+  border-color: rgba(255, 216, 77, 0.45);
+  background: linear-gradient(160deg, rgba(255, 216, 77, 0.12), rgba(255, 255, 255, 0.03));
+}
+.flip-face.me-row {
+  background: linear-gradient(160deg, rgba(59, 188, 74, 0.3), rgba(59, 188, 74, 0.06));
+}
+.flip-front {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.flip-back {
+  transform: rotateY(180deg);
+}
+.flip-icon {
+  display: inline-flex;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--accent);
+  font-size: 20px;
+  font-weight: 800;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stg .stg-i,
+  .podium-stg .podium > * {
+    opacity: 1;
+    animation: none !important;
+  }
+  .draw {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+  .lap-bars > span {
+    transform: none;
+    transition: none;
+  }
+  .photo-flash,
+  .lead-flash,
+  .quiz-right,
+  .stg-pop {
+    animation: none;
+  }
+  .flip-inner {
+    transition: none;
+  }
+}

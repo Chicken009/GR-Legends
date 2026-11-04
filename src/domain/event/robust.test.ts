@@ -4,6 +4,7 @@ import { computeEvent, type EventContext } from './engine'
 import { driverInsight, eventFinished, storylines } from './insights'
 import { normalizeEvent } from './normalize'
 import { eventNumbers, eventProgress, heatPointsExplained, myRecap, pointsHistory, recapFacts, recapMoments, waitFor } from './progress'
+import { closeFinishes, costliestCrash, fastestLaps, headline, moreNumbers, mostConsistent, mostGained, quizQuestions, raceOfDay, rivalOf } from './recap'
 import { playThrough } from './simulate'
 import { TEMPLATES } from './templates'
 
@@ -15,13 +16,24 @@ const ctx = (sessions: Session[] = []): EventContext => ({ sessions, elo: (n) =>
 function everything(def: ReturnType<typeof normalizeEvent>, sessions: Session[]) {
   const state = computeEvent(def, ctx(sessions))
   const steps = pointsHistory(def, ctx(sessions))
-  recapFacts(state, steps)
+  const facts = recapFacts(state, steps)
   recapMoments(state, steps)
+  raceOfDay(state)
+  closeFinishes(state)
+  fastestLaps(state)
+  costliestCrash(state)
+  mostConsistent(state)
+  mostGained(state)
+  moreNumbers(state)
+  quizQuestions(state, facts, eventNumbers(state).perDriver, 'seed')
+  headline(state, steps, facts, null, state.complete)
   storylines(state)
   eventNumbers(state)
   eventProgress(state, 10_000)
   for (const d of state.drivers) {
     myRecap(state, steps, d)
+    rivalOf(state, d)
+    headline(state, steps, facts, d, state.complete)
     waitFor(state, d, 10_000)
     driverInsight(state, d)
   }
