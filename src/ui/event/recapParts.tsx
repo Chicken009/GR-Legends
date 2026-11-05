@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import type { QuizQuestion } from '../../domain/event/recap'
 import { ME } from '../colors'
 import { Avatar } from '../components'
@@ -138,6 +138,22 @@ export interface LaneFrame {
 /** Bis so viele Fahrer passen die Spuren in die Karte, darüber wird es eine Rangliste */
 const MAX_LANES = 10
 const ROWS_SHOWN = 8
+/** So lange bleibt „Führungswechsel!“ stehen (ms) */
+const FLASH_MS = 2200
+
+/** Wann (Fortschritt 0–1) wer die Führung übernimmt – Gleichstand an der Spitze zählt nicht als Wechsel */
+function leadChanges(frame: (p: number) => LaneFrame[]): { p: number; name: string }[] {
+  const out: { p: number; name: string }[] = []
+  let last: string | null = null
+  for (let i = 1; i <= 400; i++) {
+    const q = i / 400
+    const top = frame(q).filter((r) => r.rank === 1)
+    if (top.length !== 1) continue
+    if (last && top[0].name !== last) out.push({ p: q, name: top[0].name })
+    last = top[0].name
+  }
+  return out
+}
 
 /**
  * Rennen zum Zuschauen: Jeder Fahrer hat eine Spur, sein Avatar fährt Richtung Ziellinie, der Platz
@@ -146,16 +162,13 @@ const ROWS_SHOWN = 8
 export function LaneRace({ names, frame, duration, me, label, after, crashes }: { names: string[]; frame: (p: number) => LaneFrame[]; duration: number; me: string | null; label: (p: number) => ReactNode; after?: ReactNode; crashes?: boolean }) {
   // Leinwand: fertig, bevor die nächste Karte kommt
   const { auto } = useStoryCard()
-  const { p, playing, toggle, replay } = useTimeline(auto ? Math.min(duration, 8000) : duration)
+  const ms = auto ? Math.min(duration, 8000) : duration
+  const { p, playing, toggle, replay } = useTimeline(ms)
   const rows = frame(p)
   const by = new Map(rows.map((r) => [r.name, r]))
-  const leaderOf = (q: number) => {
-    const top = frame(q).filter((r) => r.rank === 1)
-    return top.length === 1 && q > 0 ? top[0].name : null
-  }
-  const now = leaderOf(p)
-  const before = leaderOf(Math.max(0, p - 0.05))
-  const flash = p > 0.03 && p < 1 && !!now && !!before && now !== before
+  // Letzter Führungswechsel bis jetzt; bleibt gut zwei Sekunden stehen (die Karte wird nicht neu gebaut, solange sie läuft)
+  const changes = useMemo(() => leadChanges(frame), [frame])
+  const flash = [...changes].reverse().find((c) => c.p <= p && p - c.p < FLASH_MS / ms) ?? null
   const lanes = names.length <= MAX_LANES
   const laneH = names.length <= 6 ? 36 : names.length <= 8 ? 31 : 27
   const car = laneH - 8
@@ -166,12 +179,14 @@ export function LaneRace({ names, frame, duration, me, label, after, crashes }: 
         <span className="num" style={{ fontSize: 14, fontWeight: 800 }}>
           {label(p)}
         </span>
-        {flash ? (
-          <span className="lead-flash" style={{ fontSize: 12, fontWeight: 800, color: 'var(--gold)' }}>
-            Führungswechsel!
+        <Controls playing={playing} done={done} toggle={toggle} replay={replay} />
+      </div>
+      {/* fester Platz, damit nichts springt */}
+      <div style={{ minHeight: 26, marginTop: -4, display: 'flex', alignItems: 'center' }} aria-live="polite">
+        {flash && (
+          <span key={flash.p} className="lead-flash" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 800, color: '#14181D', background: 'var(--gold)', borderRadius: 13, padding: '3px 10px' }}>
+            Führungswechsel! <span style={{ fontWeight: 600 }}>{flash.name === me ? 'Du führst' : `${flash.name} vorn`}</span>
           </span>
-        ) : (
-          <Controls playing={playing} done={done} toggle={toggle} replay={replay} />
         )}
       </div>
       {lanes ? (
