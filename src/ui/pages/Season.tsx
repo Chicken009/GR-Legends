@@ -1,22 +1,21 @@
+import { useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import type { SeasonStanding } from '../../domain/model'
 import { SEASON_POINTS } from '../../domain/season'
 import { CHALLENGE_XP } from '../../domain/challenges'
 import { CarThumb } from '../CarPhoto'
-import { PointsChart } from '../charts/PointsChart'
-import { Sparkline } from '../charts/Sparkline'
-import { BumpChart } from '../charts/StatsCharts'
 import { PointsLadder, RuleChip } from '../PointsLadder'
 import { RecapLink } from '../story'
-import { AREA, ME, seriesColors } from '../colors'
+import { AREA } from '../colors'
 import { Avatar, carPath, driverPath, PageHead, Segment, useData, useMyName } from '../components'
-import { fmtPts, formatDate } from '../format'
+import { fmtPts } from '../format'
 import { MedalBadge } from '../Medal'
 import { useChallengePopup, useMedalPopup } from '../MedalPopup'
 import { useStored } from '../useStored'
 import { ChallengeBadge, ChallengeItem, RarityLine } from '../ChallengeItem'
 import { byProgress, rarity, useMarkChallengesSeen } from '../challengeUtils'
 import { Amount } from '../currency'
+import { SeasonDriverSheet } from './SeasonDriverSheet'
 
 const ACCENT = AREA.season
 const CURRENT_YEAR = String(new Date().getFullYear())
@@ -67,52 +66,24 @@ function DriverStandings({ year }: { year: string }) {
   const me = useMyName()
   const location = useLocation()
   const rows = model.season(year)
-  const dates = [...new Set(model.sessions.filter((s) => s.date.startsWith(year)).map((s) => s.date))].sort()
   const mine = me ? rows.find((r) => r.name === me) : undefined
-  // Rangverlauf: Platz nach jedem Renntag (nach den gewerteten Rennen bis dahin)
-  const ranksAt = (i: number) => {
-    const order = rows.filter((r) => r.progress[i] != null).sort((a, b) => b.progress[i]! - a.progress[i]!)
-    return new Map(order.map((r, k) => [r.name, k + 1]))
-  }
-  const perDay = dates.map((_, i) => ranksAt(i))
-  const shown = [...new Set([...rows.slice(0, 5).map((r) => r.name), ...(mine ? [mine.name] : [])])]
-  const colors = seriesColors(shown, me)
+  const [open, setOpen] = useState<string | null>(null)
   return (
     <>
       {mine && <RecapLink to={`/wrapped/${year}/${encodeURIComponent(mine.name)}`} mine title={`Dein Jahr ${year}`} sub={`Platz ${mine.rank} · ${fmtPts(mine.points)} Pkt. – zum Rückblick`} />}
       <section className="card" style={{ gap: 2 }}>
         <div className="card-head">
           <span className="card-title">Fahrerwertung</span>
-          <span className="hint">Punkte · gewertete Gegner je Rennen</span>
+          <span className="hint">antippen für Details</span>
         </div>
         {rows.map((r) => (
-          <StandingRow key={r.name} row={r} me={me} bg={location} />
+          <StandingRow key={r.name} row={r} me={me} onOpen={() => setOpen(r.name)} />
         ))}
-        <div className="legend" style={{ marginTop: 6 }}>
-          <span>
-            <span className="day-chip">1,4</span> Punkte aus einem Rennen
-          </span>
-          <span>
-            <span className="day-chip challenge-chip">★ 3</span> geschaffte Challenges
-          </span>
-        </div>
+        <span style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6 }}>
+          Balken: gewertete Gegner von {SEASON_POINTS.countedBeats} · ★ geschaffte Challenges
+        </span>
       </section>
-      {dates.length >= 2 && (
-        <section className="card" style={{ gap: 8 }}>
-          <div className="card-head">
-            <span className="card-title">Punkteverlauf</span>
-            <span className="hint">Punkte antippen</span>
-          </div>
-          <PointsChart dates={dates} series={shown.map((n) => ({ name: n, color: colors.get(n) ?? 'var(--muted)', values: rows.find((r) => r.name === n)?.progress ?? [] }))} label={`Punkteverlauf der Saison ${year}`} />
-          <span style={{ fontSize: 11, color: 'var(--muted)' }}>Punktestand nach jedem Renntag (beste {SEASON_POINTS.countedBeats} geschlagene Gegner und Challenges bis dahin).</span>
-        </section>
-      )}
-      {dates.length >= 2 && (
-        <section className="card" style={{ gap: 8 }}>
-          <span className="card-title">Rangverlauf</span>
-          <BumpChart dates={dates} series={shown.map((n) => ({ name: n, ranks: perDay.map((m) => m.get(n) ?? null) }))} colors={colors} me={me} />
-        </section>
-      )}
+      {open && <SeasonDriverSheet year={year} driver={open} bg={location} onClose={() => setOpen(null)} />}
       <SeasonRules />
     </>
   )
@@ -129,7 +100,7 @@ function SeasonRules() {
         <span className="card-title">So wird gewertet</span>
         <span className="hint">4 gleich starke Fahrer</span>
       </div>
-      <PointsLadder points={[3, 2, 1, 0].map((n) => n * sp.perBeaten)} color={AREA.season} label="Saisonpunkte je Platz bei 4 gleich starken Fahrern" />
+      <PointsLadder points={[3, 2, 1, 0].map((n) => n * sp.perBeaten)} unit="pts" color={AREA.season} label="Saisonpunkte je Platz bei 4 gleich starken Fahrern" />
       <span style={{ fontSize: 13, color: 'var(--text-2)' }}>
         Je Gegner hinter dir {fmtPts(fixed)}–{fmtPts(most)} Pkt. – gegen Stärkere mehr
       </span>
@@ -156,9 +127,17 @@ function SeasonRules() {
   )
 }
 
-function StandingRow({ row: r, me, bg }: { row: SeasonStanding; me: string | null; bg: ReturnType<typeof useLocation> }) {
+function StandingRow({ row: r, me, onOpen }: { row: SeasonStanding; me: string | null; onOpen: () => void }) {
+  const n = r.countedList.length
+  const of = SEASON_POINTS.countedBeats
   return (
-    <Link to={driverPath(r.name)} state={{ bg }} className={`row${r.name === me ? ' me-row' : ''}`} style={{ padding: '8px', alignItems: 'flex-start', flexWrap: 'wrap', rowGap: 6 }}>
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label={`Saison von ${r.name}: Platz ${r.rank}, ${fmtPts(r.points)} Punkte`}
+      className={`row${r.name === me ? ' me-row' : ''}`}
+      style={{ padding: '8px', alignItems: 'flex-start', flexWrap: 'wrap', rowGap: 6, border: 'none', background: r.name === me ? undefined : 'none', textAlign: 'left', width: '100%' }}
+    >
       <span className={`rank${r.rank <= 3 ? ` r${r.rank}` : ''}`} style={{ minWidth: 22, fontSize: 16, paddingTop: 6 }}>
         {r.rank}
       </span>
@@ -171,28 +150,24 @@ function StandingRow({ row: r, me, bg }: { row: SeasonStanding; me: string | nul
           {r.fastestLaps ? ` · ${r.fastestLaps}× schnellste Runde` : ''}
         </span>
       </span>
-      <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', paddingTop: 4 }}>
+      <span style={{ paddingTop: 4 }}>
         <Amount kind="pts" value={r.points} size={18} />
       </span>
-      <span style={{ paddingTop: 8 }}>
-        <Sparkline values={r.progress} color={r.name === me ? ME : 'var(--muted)'} label={`Punkteverlauf ${r.name}`} />
-      </span>
-      {/* gewertete Rennen über die ganze Breite, eingerückt bis zum Namen */}
-      {(r.counted.length > 0 || r.challenges > 0) && (
-        <span style={{ display: 'flex', flexWrap: 'wrap', gap: 4, flexBasis: '100%', paddingLeft: 72 }}>
-          {r.counted.map((race, i) => (
-            <span key={`${race.fileId}-${i}`} className="day-chip" title={`${formatDate(race.date)} · ${race.label}: ${race.beaten} Gegner gewertet, ${fmtPts(race.points)} Pkt.`}>
-              {fmtPts(race.points)}
-            </span>
-          ))}
-          {r.challenges > 0 && (
-            <span className="day-chip challenge-chip" title={`${r.challenges} ${r.challenges === 1 ? 'Challenge' : 'Challenges'} geschafft: +${fmtPts(r.challengePoints)} Pkt.`}>
-              ★ {r.challenges}
-            </span>
-          )}
+      {/* Fortschritt zu den gewerteten Gegnern über die ganze Breite, eingerückt bis zum Namen */}
+      <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexBasis: '100%', paddingLeft: 72 }}>
+        <span className="bar" style={{ flex: 1, height: 6 }} role="img" aria-label={`${n} von ${of} Gegnern gewertet`}>
+          <span style={{ display: 'block', height: '100%', width: `${Math.min(100, (n / of) * 100)}%`, borderRadius: 3, background: ACCENT }} />
         </span>
-      )}
-    </Link>
+        <span className="num" style={{ fontSize: 11, fontWeight: 700, color: n >= of ? ACCENT : 'var(--muted)', minWidth: 34, textAlign: 'right' }}>
+          {n}/{of}
+        </span>
+        {r.challenges > 0 && (
+          <span className="num" style={{ fontSize: 11, fontWeight: 700, color: ACCENT }} title={`${r.challenges} ${r.challenges === 1 ? 'Challenge' : 'Challenges'} geschafft: +${fmtPts(r.challengePoints)} Pkt.`}>
+            ★ {r.challenges}
+          </span>
+        )}
+      </span>
+    </button>
   )
 }
 

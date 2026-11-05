@@ -41,10 +41,12 @@ export interface SeasonRace {
 }
 
 /** Ein geschlagener Gegner in einem Rennen und was er bringt */
-interface Beat {
+export interface SeasonBeat {
   race: SeasonRace
+  opponent: string
   value: number
 }
+type Beat = SeasonBeat
 
 export interface SeasonDay {
   date: string
@@ -57,6 +59,8 @@ export interface SeasonDay {
   raceList: SeasonRace[]
   /** Geschlagene Gegner des Tages, wertvollste zuerst (höchstens `beatsPerDay`) */
   beats: Beat[]
+  /** Alle geschlagenen Gegner des Tages (auch über `beatsPerDay` hinaus) */
+  allBeats: Beat[]
   /** Davon in der Saison gewertete Gegner */
   countedBeats: number
   fastestLap: boolean
@@ -73,6 +77,8 @@ export interface SeasonStanding {
   racePoints: number
   /** Rennen mit gewerteten Gegnern in zeitlicher Folge (Punkte und Zahl nur der gewerteten) */
   counted: SeasonRace[]
+  /** Die gewerteten geschlagenen Gegner (höchstens `countedBeats`) */
+  countedList: Beat[]
   /** Geschaffte Saison-Challenges und ihre Punkte (setzt das Modell) */
   challenges: number
   challengePoints: number
@@ -110,15 +116,15 @@ const isQualiSession = (s: Session) => /quali/i.test(s.type)
 const round1 = (v: number) => Math.round(v * 10) / 10
 const winProb = (a: number, b: number) => 1 / (1 + 10 ** ((b - a) / RATING.scale))
 
-/** Punkte je geschlagenem Gegner eines Ergebnisses, nach Stärke gewichtet (wertvollste zuerst) */
-export function beatValues(s: Session, position: number, strength: (driver: string, car: string) => number, cfg = SEASON_POINTS): number[] {
+/** Geschlagene Gegner eines Ergebnisses mit ihren Punkten, nach Stärke gewichtet (wertvollste zuerst) */
+export function beatValues(s: Session, position: number, strength: (driver: string, car: string) => number, cfg = SEASON_POINTS): { opponent: string; value: number }[] {
   const me = s.results.find((r) => r.position === position)
   if (!me) return []
   const own = strength(me.driver, me.car)
   return s.results
     .filter((o) => o.position > position)
-    .map((o) => cfg.perBeaten * (1 - cfg.fairShare + cfg.fairShare * 2 * (1 - winProb(own, strength(o.driver, o.car)))))
-    .sort((a, b) => b - a)
+    .map((o) => ({ opponent: o.driver, value: cfg.perBeaten * (1 - cfg.fairShare + cfg.fairShare * 2 * (1 - winProb(own, strength(o.driver, o.car)))) }))
+    .sort((a, b) => b.value - a.value)
 }
 
 /** Mittlere saubere Runde aus mindestens 20 Runden, sonst null */
@@ -165,6 +171,7 @@ function countBeats(st: SeasonStanding, cfg: typeof SEASON_POINTS): number {
     d.countedBeats = best.filter((b) => b.race.date === d.date).length
     d.counted = d.countedBeats > 0
   }
+  st.countedList = best
   st.counted = [...byRace.values()]
     .map((r) => ({ ...r, points: round1(r.points) }))
     .sort((a, b) => a.date.localeCompare(b.date) || a.label.localeCompare(b.label, 'de', { numeric: true }))
@@ -187,7 +194,7 @@ export function seasonStandings(sessions: Session[], ctx: SeasonContext = {}, cf
   const byDriver = new Map<string, SeasonStanding>()
   const get = (name: string) =>
     byDriver.get(name) ??
-    (byDriver.set(name, { name, points: 0, racePoints: 0, counted: [], challenges: 0, challengePoints: 0, gross: 0, days: [], races: 0, wins: 0, podiums: 0, poles: 0, fastestLaps: 0, rank: 0, progress: [] }), byDriver.get(name)!)
+    (byDriver.set(name, { name, points: 0, racePoints: 0, counted: [], countedList: [], challenges: 0, challengePoints: 0, gross: 0, days: [], races: 0, wins: 0, podiums: 0, poles: 0, fastestLaps: 0, rank: 0, progress: [] }), byDriver.get(name)!)
 
   for (const date of dates) {
     const day = sessions.filter((s) => s.date === date)
@@ -210,9 +217,9 @@ export function seasonStandings(sessions: Session[], ctx: SeasonContext = {}, cf
       for (const r of s.results) {
         if (isGuest(r.driver)) continue
         const values = beatValues(s, r.position, strength, cfg)
-        const race: SeasonRace = { fileId: s.fileId, date, label: `${s.type} ${s.heat}`, points: round1(values.reduce((a, b) => a + b, 0)), beaten: values.length }
+        const race: SeasonRace = { fileId: s.fileId, date, label: `${s.type} ${s.heat}`, points: round1(values.reduce((a, b) => a + b.value, 0)), beaten: values.length }
         pts.set(r.driver, [...(pts.get(r.driver) ?? []), race])
-        beatsOf.set(r.driver, [...(beatsOf.get(r.driver) ?? []), ...values.map((value) => ({ race, value }))])
+        beatsOf.set(r.driver, [...(beatsOf.get(r.driver) ?? []), ...values.map((v) => ({ race, ...v }))])
         const st = get(r.driver)
         st.races++
         if (r.position === 1 && s.results.length > 1) st.wins++
@@ -224,12 +231,13 @@ export function seasonStandings(sessions: Session[], ctx: SeasonContext = {}, cf
     const present = new Set([...pts.keys(), ...qualis.flatMap((s) => s.results.map((r) => r.driver)).filter((n) => !isGuest(n))])
     for (const name of present) {
       const list = (pts.get(name) ?? []).sort((a, b) => b.points - a.points)
-      const beats = (beatsOf.get(name) ?? []).sort((a, b) => b.value - a.value).slice(0, cfg.beatsPerDay)
+      const allBeats = (beatsOf.get(name) ?? []).sort((a, b) => b.value - a.value)
+      const beats = allBeats.slice(0, cfg.beatsPerDay)
       const dayPts = round1(beats.reduce((a, b) => a + b.value, 0))
       const st = get(name)
       if (name === fl) st.fastestLaps++
       if (name === pole) st.poles++
-      st.days.push({ date, points: dayPts, racePoints: dayPts, races: list.length, raceList: list, beats, countedBeats: 0, fastestLap: name === fl, pole: name === pole, counted: false })
+      st.days.push({ date, points: dayPts, racePoints: dayPts, races: list.length, raceList: list, beats, allBeats, countedBeats: 0, fastestLap: name === fl, pole: name === pole, counted: false })
     }
     // Zwischenstand nach diesem Renntag (beste Gegner bis hierhin)
     for (const st of byDriver.values()) st.progress.push(st.days.length ? countBeats(st, cfg) : null)

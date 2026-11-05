@@ -461,6 +461,11 @@ describe('Saisonwertung mit Punkten', () => {
     expect(ben.counted.filter((x) => x.date === '2026-01-10').map((x) => x.beaten)).toEqual([2, 2, 2, 2])
     expect(ben.progress).toHaveLength(8)
     expect(ben.progress[0]).toBe(8)
+    // Gewertete Gegner mit Namen; über 9 am Tag hinaus stehen sie als nicht gewertet in `allBeats`
+    expect(anna.countedList).toHaveLength(9)
+    expect(anna.countedList.reduce((a, b) => a + b.value, 0)).toBeCloseTo(anna.racePoints, 5)
+    expect(anna.days[0].allBeats).toHaveLength(12)
+    expect(new Set(anna.countedList.map((b) => b.opponent))).toEqual(new Set(['Ben', 'Cleo', 'Dora']))
   })
 
   it('kleine und große Felder: es zählen die geschlagenen Gegner, nicht die Rennen', () => {

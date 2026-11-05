@@ -1,13 +1,17 @@
+import { Amount } from './currency'
 import { fmtNum } from './format'
 
-/** Punkte je Platz als Treppe: Platz 1 links, Balkenhöhe nach Punkten (Saison und Wettkampf gleich) */
-export function PointsLadder({ points, color, label }: { points: number[]; color: string; label: string }) {
+/**
+ * Punkte je Platz als Treppe: Platz 1 links, Balkenhöhe nach Punkten (Saison und Wettkampf gleich);
+ * mit `unit="pts"` stehen die Punkte wie Saisonpunkte da (Pokal, Zahl, „Pkt.“)
+ */
+export function PointsLadder({ points, color, label, unit }: { points: number[]; color: string; label: string; unit?: 'pts' }) {
   const max = Math.max(1, ...points)
   return (
     <div className="points-ladder" role="img" aria-label={`${label}: ${points.map((p, i) => `Platz ${i + 1} ${fmtNum(p, 1)}`).join(', ')}`}>
       {points.map((p, i) => (
         <span key={i} className="step">
-          <b className="num">{fmtNum(p, Number.isInteger(p) ? 0 : 1)}</b>
+          {unit ? <Amount kind={unit} value={p} size={13} /> : <b className="num">{fmtNum(p, Number.isInteger(p) ? 0 : 1)}</b>}
           <span className="bar" style={{ height: Math.max(4, (p / max) * 56), background: color, opacity: 1 - i * (0.5 / Math.max(1, points.length - 1)) }} />
           <span className="place">{i + 1}.</span>
         </span>

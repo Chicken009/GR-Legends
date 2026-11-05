@@ -45,7 +45,8 @@ Smartrace-CSVs und dem Einstellungen-Sheet sind **für jeden lesbar**. Deshalb g
 - **Regeln/Wertung:** Punkte je Platz als Treppe (`PointsLadder`), Gewichtungen und Bonus als
   `RuleChip`, der ausführliche Text eingeklappt.
 - **Rückblicke:** immer als Story-Karten (`src/ui/story.tsx`), erreichbar über ein Banner (`RecapLink`).
-- **Verläufe:** Punkteverlauf (`PointsChart`) und Rangverlauf (`BumpChart`) in Saison und Wettkampf gleich.
+- **Verläufe:** Punkteverlauf (`PointsChart`) und Rangverlauf (`BumpChart`) im Wettkampf. Die Saisonwertung
+  zeigt stattdessen je Fahrer einen Balken bis zu den gewerteten Gegnern; Details im Fenster beim Antippen.
 
 ## Arbeitsweise
 
