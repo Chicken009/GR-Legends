@@ -15,6 +15,8 @@ export function parseTime(value: string): number | null {
  */
 export function formatTime(ms: number | null | undefined): string {
   if (ms == null) return '–'
+  // ganze Millisekunden (z. B. beim Hochzählen kommen Kommazahlen an)
+  ms = Math.round(ms)
   const min = Math.floor(ms / 60_000)
   const sec = Math.floor((ms % 60_000) / 1000)
   const milli = String(ms % 1000).padStart(3, '0')

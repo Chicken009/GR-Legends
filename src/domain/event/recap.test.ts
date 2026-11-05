@@ -3,7 +3,9 @@ import type { Lap, Result, Session } from '../../types'
 import { computeEvent, type EventContext } from './engine'
 import { normalizeEvent } from './normalize'
 import { eventNumbers, pointsHistory, recapFacts } from './progress'
-import { closeFinishes, costliestCrash, driveTimeFun, fastestLaps, headline, heatReplay, mostLaps, moreNumbers, positionChanges, quizQuestions, raceOfDay, replayAt, rivalOf } from './recap'
+import { formatTime } from '../../data/time'
+import type { ProgressStep } from './progress'
+import { closeFinishes, costliestCrash, driveTimeFun, fastestLaps, headline, heatReplay, mostLaps, moreNumbers, positionChanges, quizQuestions, raceOfDay, replayAt, rivalOf, standingsRace } from './recap'
 import { newSection } from './templates'
 
 const DRIVERS = ['Anton Berger', 'Mika', 'Emil', 'Pia S.']
@@ -142,5 +144,34 @@ describe('Quiz und Schlagzeile', () => {
     expect(mine.chips[0]).toMatch(/^Platz \d von 4$/)
     const general = headline(state, steps, f, null, true)
     expect(general.title.length).toBeGreaterThan(5)
+  })
+})
+
+describe('Rennen um die Spitze', () => {
+  const stand = (label: string, totals: Record<string, number>): ProgressStep => {
+    const names = Object.keys(totals)
+    const ranks = new Map(names.map((x) => [x, 1 + names.filter((o) => totals[o] > totals[x]).length]))
+    return { heatId: label, heatIds: [label], label, totals: new Map(Object.entries(totals)), ranks, teams: new Map() }
+  }
+  const path = [
+    stand('Start', { A: 0, B: 0, C: 0, D: 0 }),
+    stand('L1', { A: 3, B: 3, C: 1, D: 0 }),
+    stand('L2', { A: 4, B: 6, C: 4, D: 4 }),
+  ]
+  it('Gleichstand: gleicher Platz, aber nie dieselbe Zeile', () => {
+    const race = standingsRace(path, ['A', 'B', 'C', 'D'], true)
+    for (const p of [0, 0.25, 0.5, 0.75, 1]) {
+      const rows = race(p)
+      if (p === 0.5 || p === 1) expect(new Set(rows.map((r) => r.pos)).size).toBe(4)
+      for (const r of rows) expect(r.x).toBeGreaterThanOrEqual(0)
+    }
+    const end = race(1)
+    expect(end.find((r) => r.name === 'B')).toMatchObject({ rank: 1, pos: 1, x: 1 })
+    // A, C, D punktgleich auf Platz 2: getrennte Zeilen, Reihenfolge wie vorher
+    expect(end.filter((r) => r.rank === 2).map((r) => r.pos).sort()).toEqual([2, 3, 4])
+  })
+
+  it('Zeit beim Hochzählen ohne lange Nachkommastellen', () => {
+    expect(formatTime(10_299.73)).toBe('10,300 s')
   })
 })

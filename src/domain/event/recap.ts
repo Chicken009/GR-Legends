@@ -119,6 +119,59 @@ export function raceOfDay(state: EventState): { heat: Heat; replay: Replay; chan
   return best && { heat: best.heat, replay: best.replay, changes: best.changes, leadChanges: best.leadChanges }
 }
 
+// ---- Rennen um die Spitze --------------------------------------------------------------------
+
+export interface StandingsFrame {
+  name: string
+  /** Weg bis zur Ziellinie, 0–1 */
+  x: number
+  rank: number
+  /** Zeile in der Rangliste (Kommazahl beim Gleiten); bei Gleichstand eigene Zeilen, nie übereinander */
+  pos: number
+  points: number
+}
+
+const easeInOut = (t: number) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2)
+
+/**
+ * Das Rennen um die Spitze als Animation: Stand zwischen zwei Etappen bei Fortschritt p (0–1). Mit
+ * Punkten fährt jeder so weit, wie er Punkte hat (der Sieger erreicht am Ende die Ziellinie), sonst
+ * nach Platz. Gleichstand: gleicher Platz, aber getrennte Zeilen in der Reihenfolge davor.
+ */
+export function standingsRace(path: ProgressStep[], names: string[], byPoints: boolean): (p: number) => StandingsFrame[] {
+  const m = path.length - 1
+  const n = names.length
+  const maxPts = Math.max(0, ...[...path[m].totals.values()])
+  const usePoints = byPoints && maxPts > 0
+  const rankAt = (k: number, x: string) => path[k].ranks.get(x) ?? n
+  // Zeilen je Etappe: nach Platz, bei Gleichstand bleibt die Reihenfolge der Etappe davor (sort ist stabil)
+  const slots: Map<string, number>[] = []
+  let prev = [...names]
+  path.forEach((_, k) => {
+    const order = k === 0 ? prev : [...prev].sort((a, b) => rankAt(k, a) - rankAt(k, b))
+    slots.push(new Map(order.map((x, i) => [x, i + 1])))
+    prev = order
+  })
+  return (p) => {
+    const u = Math.min(m, Math.max(0, p) * m)
+    const k = Math.min(m - 1, Math.floor(u))
+    const move = p >= 1 ? 1 : easeInOut(Math.min(1, (u - k) / 0.7))
+    return names.map((x) => {
+      const t0 = path[k].totals.get(x) ?? 0
+      const t1 = path[k + 1].totals.get(x) ?? t0
+      // Am Start (alle gleich) steht schon der Platz nach dem ersten Lauf dran, sobald es losgeht
+      const r0 = k === 0 ? rankAt(1, x) : rankAt(k, x)
+      const r1 = rankAt(k + 1, x)
+      const rank = k === 0 && move < 0.5 ? 1 : move < 0.5 ? r0 : r1
+      const points = t0 + (t1 - t0) * move
+      const s0 = slots[k].get(x)!
+      const s1 = slots[k + 1].get(x)!
+      const x01 = usePoints ? Math.max(0, points) / maxPts : ((k + move) / m) * (1 - ((rank - 1) / Math.max(1, n)) * 0.6)
+      return { name: x, x: x01, rank, pos: s0 + (s1 - s0) * move, points: Math.round(points * 10) / 10 }
+    })
+  }
+}
+
 // ---- Knappe Entscheidungen ------------------------------------------------------------------
 
 export interface CloseFinish {

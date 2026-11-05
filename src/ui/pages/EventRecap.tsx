@@ -5,7 +5,7 @@ import { funDistance } from '../../domain/funDistance'
 import type { EventState } from '../../domain/event/engine'
 import { driverInsight } from '../../domain/event/insights'
 import { eventKind, eventNumbers, myRecap, recapFacts, stages, type ProgressStep } from '../../domain/event/progress'
-import { closeFinishes, costliestCrash, driveTimeFun, fastestLaps, headline, mostConsistent, mostGained, mostLaps, moreNumbers, quizQuestions, raceOfDay, replayAt, rivalOf } from '../../domain/event/recap'
+import { closeFinishes, costliestCrash, driveTimeFun, fastestLaps, headline, mostConsistent, mostGained, mostLaps, moreNumbers, quizQuestions, raceOfDay, replayAt, rivalOf, standingsRace } from '../../domain/event/recap'
 import { ME } from '../colors'
 import { Avatar, useData, useMyName } from '../components'
 import { fmtNum, formatDate, formatTime } from '../format'
@@ -22,7 +22,6 @@ const fmtMinutes = (min: number) => (min < 60 ? `${Math.round(min)} Min.` : `${M
 const you = (n: string, me: string | null) => (n === me ? 'Du' : n)
 const Name = ({ n, me }: { n: string; me: string | null }) => <b style={n === me ? { color: ME } : undefined}>{you(n, me)}</b>
 const medal = (place: number) => ['var(--gold)', 'var(--silver)', 'var(--bronze)'][place - 1]
-const ease = (t: number) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2)
 
 const ROCKET = 'M12 2c3 2 5 6 5 10l-2 4H9l-2-4c0-4 2-8 5-10zM9 16l-3 3M15 16l3 3M12 9.5a1.5 1.5 0 1 0 0 .01'
 const SWORDS = 'M4 4l10 10M20 4L10 14M4 20l4-4M20 20l-4-4M13 17l4-4M11 17l-4-4'
@@ -270,9 +269,10 @@ export function eventCards(state: EventState, steps: ProgressStep[], me: string 
         <>
           {fl.car && <CarHero car={fl.car} />}
           <Group>
-            <Huge color="var(--best)">
-              <CountUp value={fl.ms} format={(v) => formatTime(v)} duration={1400} />
-            </Huge>
+            {/* feste Breite: beim Hochzählen springt nichts, und „s“ bleibt in der Zeile */}
+            <span className="num" style={{ fontSize: 'clamp(40px, 13vw, 66px)', fontWeight: 800, lineHeight: 0.95, letterSpacing: -1, color: 'var(--best)', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+              <CountUp value={fl.ms} format={(v) => formatTime(Math.round(v))} duration={1400} />
+            </span>
             <Line>
               <Name n={fl.name} me={me} />
               {fl.car ? ` im ${fl.car}` : ''}
@@ -370,25 +370,9 @@ export function eventCards(state: EventState, steps: ProgressStep[], me: string 
     const path = st.length >= 3 && steps.length > 21 ? st : steps.map((s, i) => ({ ...s, short: i ? String(i) : 'Start' }))
     const m = path.length - 1
     const names = [...state.drivers.filter((d) => state.standings.some((s) => s.name === d)), ...state.standings.map((s) => s.name).filter((x) => !state.drivers.includes(x))]
-    const maxPts = Math.max(0, ...[...path[m].totals.values()])
-    const byPoints = !place && maxPts > 0
-    const frame = (p: number): LaneFrame[] => {
-      const u = Math.min(m, p * m)
-      const k = Math.min(m - 1, Math.floor(u))
-      const move = p >= 1 ? 1 : ease(Math.min(1, (u - k) / 0.7))
-      return names.map((x) => {
-        const t0 = path[k].totals.get(x) ?? 0
-        const t1 = path[k + 1].totals.get(x) ?? t0
-        const r0 = k === 0 ? (path[1].ranks.get(x) ?? n) : (path[k].ranks.get(x) ?? n)
-        const r1 = path[k + 1].ranks.get(x) ?? r0
-        const rank = move < 0.5 ? r0 : r1
-        const pts = t0 + (t1 - t0) * move
-        const x01 = byPoints ? Math.max(0, pts) / maxPts : ((k + move) / m) * (1 - ((rank - 1) / Math.max(1, n)) * 0.6)
-        // Am Start stehen alle in einer Reihe (Platz 1 für alle bis zum ersten Lauf)
-        const atStart = k === 0 && move < 0.5
-        return { name: x, x: x01, rank: atStart ? 1 : rank, pos: k === 0 ? r1 * move + (names.indexOf(x) + 1) * (1 - move) : r0 + (r1 - r0) * move, value: byPoints ? fmtPts(Math.round(pts * 10) / 10) : undefined }
-      })
-    }
+    const race = standingsRace(path, names, !place)
+    const byPoints = !place && Math.max(0, ...[...path[m].totals.values()]) > 0
+    const frame = (p: number): LaneFrame[] => race(p).map((r) => ({ ...r, value: byPoints ? fmtPts(r.points) : undefined }))
     const label = (p: number) => {
       const c = Math.min(m, Math.floor(p * m + 0.35))
       return (

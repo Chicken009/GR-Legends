@@ -117,7 +117,7 @@ export function driverInsight(state: EventState, driver: string): DriverInsight 
     const best = normal[0]
     const median = normal[Math.floor(normal.length / 2)]
     const loss = median - best
-    if (loss / best > 0.035) tips.push(`Deine typische Runde ist ${fmtSec(loss)} langsamer als deine beste. Gleichmäßig fahren bringt hier mehr als noch schneller.`)
+    if (loss / best > 0.035) tips.push(`Deine normalen Runden waren ${fmtSec(loss)} langsamer als deine beste (${fmtSec(best, 3)}). Jede Runde gleichmäßig sauber fahren bringt mehr als eine einzelne schnelle Runde.`)
   }
   const raceLaps = laps.filter(({ h }) => h.kind === 'race')
   const myCrashes = raceLaps.reduce((a, { r }) => a + r.lapTimes.filter((l) => l.status === 'crash').length, 0)
