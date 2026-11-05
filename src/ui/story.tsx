@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
 import { Link } from 'react-router-dom'
 import { CarPhoto, usePhotoId } from './CarPhoto'
-import { carPath } from './components'
+import { carPath, lockScroll } from './components'
 import { fmtNum } from './format'
 import { NAV_ICONS, StrokeIcon } from './icons'
 import { useSwipePager } from './useSwipePager'
@@ -175,13 +175,7 @@ export function CarHero({ car }: { car: string }) {
 export function StoryPager({ cards, label, onDone, auto, doneLabel = 'Zur Übersicht' }: { cards: CardDef[]; label: string; onDone: () => void; auto?: number; doneLabel?: string }) {
   const total = cards.length
   const { index, go, viewportProps, trackProps } = useSwipePager(total)
-  useEffect(() => {
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    return () => {
-      document.body.style.overflow = prev
-    }
-  }, [])
+  useEffect(() => lockScroll(), [])
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'ArrowRight') go(index + 1)

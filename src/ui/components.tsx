@@ -166,12 +166,11 @@ export function Sheet({ onClose, children, actions, label }: { onClose: () => vo
     sheetStack.push(id)
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && sheetStack[sheetStack.length - 1] === id && onClose()
     window.addEventListener('keydown', onKey)
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+    const unlock = lockScroll()
     return () => {
       sheetStack.splice(sheetStack.indexOf(id), 1)
       window.removeEventListener('keydown', onKey)
-      document.body.style.overflow = prev
+      unlock()
     }
   }, [onClose, id])
 
@@ -291,6 +290,24 @@ export function Sheet({ onClose, children, actions, label }: { onClose: () => vo
 
 /** Offene Panels und Pop-ups, oben = zuletzt geöffnet (Esc schließt nur das oberste) */
 export const sheetStack: string[] = []
+
+let scrollLocks = 0
+/**
+ * Seite sperren, solange irgendein Panel oder eine Story offen ist. Gezählt statt den alten Wert
+ * zurückzuschreiben: schließen mehrere gleichzeitig (z. B. Profil und Gegnerliste beim Wechsel in
+ * den Vergleich), bliebe die Seite sonst gesperrt.
+ */
+export function lockScroll(): () => void {
+  scrollLocks++
+  document.body.style.overflow = 'hidden'
+  let done = false
+  return () => {
+    if (done) return
+    done = true
+    scrollLocks--
+    if (!scrollLocks) document.body.style.overflow = ''
+  }
+}
 
 /** Neue Fahrer: statt Elo-Zahl und Veränderung nur der Fortschritt der Einstufung */
 export function Placement({ n, driver, size = 12, short }: { n: number; driver: string; size?: number; short?: boolean }) {
