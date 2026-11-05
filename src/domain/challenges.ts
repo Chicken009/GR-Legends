@@ -180,7 +180,10 @@ function shuffled<T>(xs: T[], seed: number): T[] {
 const FIRST_SEASON = 2020
 const selection = new Map<number, string[]>()
 
-/** Challenges einer Saison: zufällig aus dem Pool, mindestens `NEW_PER_SEASON` neue gegenüber dem Vorjahr. */
+/** Ab `TIME_FROM` ist eine der Challenges die Zeitjagd – so bleiben es immer `CHALLENGES_PER_SEASON` */
+export const poolCount = (year: number | string) => CHALLENGES_PER_SEASON - (Number(year) >= TIME_FROM ? 1 : 0)
+
+/** Challenges einer Saison aus dem Pool (ohne Zeitjagd): zufällig, mindestens `NEW_PER_SEASON` neue gegenüber dem Vorjahr. */
 export function seasonChallengeIds(year: number | string): string[] {
   const y = Number(year)
   const cached = selection.get(y)
@@ -188,7 +191,7 @@ export function seasonChallengeIds(year: number | string): string[] {
   const prev = new Set(y > FIRST_SEASON ? seasonChallengeIds(y - 1) : [])
   const order = shuffled(CHALLENGE_POOL.map((c) => c.id), y * 7919 + 17)
   const fresh = order.filter((id) => !prev.has(id)).slice(0, NEW_PER_SEASON)
-  const rest = order.filter((id) => !fresh.includes(id)).slice(0, CHALLENGES_PER_SEASON - fresh.length)
+  const rest = order.filter((id) => !fresh.includes(id)).slice(0, poolCount(y) - fresh.length)
   // Reihenfolge wie gezogen, damit neue und bekannte gemischt sind
   const ids = order.filter((id) => fresh.includes(id) || rest.includes(id))
   selection.set(y, ids)

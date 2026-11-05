@@ -6,6 +6,7 @@ import { byProgress } from '../challengeUtils'
 import { AREA } from '../colors'
 import { Avatar, driverPath, Sheet, useData, useMyName } from '../components'
 import { Amount } from '../currency'
+import { beatenText } from '../format'
 import { useChallengePopup } from '../MedalPopup'
 
 const ACCENT = AREA.season
@@ -125,17 +126,14 @@ export function SeasonDriverSheet({ year, driver, bg, onClose }: { year: string;
       <section style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
           <span className="kicker" style={{ fontSize: 11, color: ACCENT }}>
-            Geschlagene Gegner · {st.countedList.length} von {sp.countedBeats}
+            Geschlagene Gegner
           </span>
           <Amount kind="pts" value={st.racePoints} size={14} signed />
         </div>
-        <div className="bar" style={{ height: 6, margin: '4px 0' }} role="img" aria-label={`${st.countedList.length} von ${sp.countedBeats} Gegnern gewertet`}>
-          <span style={{ display: 'block', height: '100%', width: `${Math.min(100, (st.countedList.length / sp.countedBeats) * 100)}%`, borderRadius: 3, background: ACCENT }} />
-        </div>
-        {st.countedList.length === 0 && <span style={{ fontSize: 13, color: 'var(--muted)' }}>Noch kein Gegner geschlagen.</span>}
+        <span style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 2 }}>{beatenText(st.countedList.length, all.length)}</span>
         {byOpponent(st.countedList).map((o) => opponentRow(o))}
         <span style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
-          Gegen Stärkere gibt es mehr Punkte. Es zählen die {sp.countedBeats} wertvollsten, höchstens {sp.beatsPerDay} je Renntag.
+          Gegen Stärkere gibt es mehr Punkte. Es zählen die {sp.countedBeats} wertvollsten, höchstens {sp.beatsPerDay} je Renntag – ein wertvollerer Sieg ersetzt später einen schwächeren.
         </span>
       </section>
 

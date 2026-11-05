@@ -272,8 +272,8 @@ nur wenn so viele Runden gefahren wurden und keine ungültige Runde darin liegt.
 und Zeitmarken zählen je Strecke und ohne Tankfunktion. *Zeitmarken* sind runde Grenzen (Schritt
 ≈ 3,5 % der typischen Zeit, z. B. 5 s bei 10 Runden à 13 s): „10 Runden unter 2:00“. Daraus kommen
 Ziele, Tipps, Neuigkeiten und die Rückblick-Karte. Ab 2027 (`SPLIT_REWARDS_FROM`) kommen Medaillen
-(Rekord, erreichte Marke – Stufe nach Abstand zum Rekord) und eine zusätzliche Saison-Challenge
-(neue Bestmarke oder 3-mal unter der schon erreichten Marke) dazu – so ändern sich bestehende
+(Rekord, erreichte Marke – Stufe nach Abstand zum Rekord) dazu, und eine der 7 Saison-Challenges ist
+dann eine Zeitjagd (neue Bestmarke oder 3-mal unter der schon erreichten Marke) – so ändern sich bestehende
 Ergebnisse nicht nachträglich.
 
 **Wertung** (`src/domain/rating.ts`): Elo aus direkten Duellen jedes Laufs, Start 500, halbe

@@ -4,7 +4,7 @@ import { prepare } from '../data/useRaceDays'
 import { fixtureIds, readFixture } from '../test-utils'
 import type { Result, Session } from '../types'
 import { estimateCars, fitCars, type CarObs } from './carModel'
-import { CHALLENGE_POOL, CHALLENGES_PER_SEASON, NEW_PER_SEASON, seasonChallengeIds, seasonChallenges, TIME_POOL } from './challenges'
+import { CHALLENGE_POOL, CHALLENGES_PER_SEASON, NEW_PER_SEASON, poolCount, seasonChallengeIds, seasonChallenges, TIME_POOL } from './challenges'
 import { constructorStandings, SEASON_POINTS, seasonStandings } from './season'
 import { classifyIncidents, hasTankFunction, splitTime } from './laps'
 import { buildSplits, fmtMark, markNext, markReached, markStep, splitKey } from './splits'
@@ -509,9 +509,11 @@ describe('Saisonwertung mit Punkten', () => {
   it('verfolgt Saison-Challenges', () => {
     const sessions = [r('a', '2026-01-10', ['Anna', 'Ben']), r('b', '2026-02-10', ['Ben', 'Anna']), r('c', '2026-03-10', ['Anna', 'Ben'])]
     const ch = seasonChallenges('2026', { sessions, driver: 'Anna', personalBests: [], dayBonus: 0, upsetWins: 0, carsBefore: new Set() })
-    // erst ab 2027 kommt eine Zeitjagd über 10 oder 20 Runden dazu
+    // ab 2027 ist eine davon eine Zeitjagd über 10 oder 20 Runden – es bleiben 7
     expect(ch).toHaveLength(CHALLENGES_PER_SEASON)
-    expect(seasonChallenges('2027', { sessions, driver: 'Anna', personalBests: [], dayBonus: 0, upsetWins: 0, carsBefore: new Set() })).toHaveLength(CHALLENGES_PER_SEASON + 1)
+    const later = seasonChallenges('2027', { sessions, driver: 'Anna', personalBests: [], dayBonus: 0, upsetWins: 0, carsBefore: new Set() })
+    expect(later).toHaveLength(CHALLENGES_PER_SEASON)
+    expect(later.filter((c) => TIME_POOL.some((t) => t.id === c.id))).toHaveLength(1)
     for (const c of ch) expect(c.value).toBeLessThanOrEqual(c.target)
     const byId = new Map([...CHALLENGE_POOL, ...TIME_POOL].map((d) => [d.id, d]))
     expect(ch.every((c) => byId.has(c.id))).toBe(true)
@@ -520,7 +522,7 @@ describe('Saisonwertung mit Punkten', () => {
   it('zieht jede Saison zufällig, aber fest, mit mindestens 3 neuen Challenges', () => {
     for (let y = 2021; y <= 2035; y++) {
       const ids = seasonChallengeIds(y)
-      expect(new Set(ids).size).toBe(CHALLENGES_PER_SEASON)
+      expect(new Set(ids).size).toBe(poolCount(y))
       expect(seasonChallengeIds(y)).toEqual(ids)
       const prev = new Set(seasonChallengeIds(y - 1))
       expect(ids.filter((id) => !prev.has(id)).length).toBeGreaterThanOrEqual(NEW_PER_SEASON)

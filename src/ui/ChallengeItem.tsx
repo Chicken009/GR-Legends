@@ -50,7 +50,7 @@ export function ChallengeBadge({ c, accent, size = 52, fresh }: { c: Challenge; 
         {!c.done && share > 0 && <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={accent} strokeWidth={stroke} strokeLinecap="round" strokeDasharray={`${len * share} ${len}`} />}
       </svg>
       <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <StrokeIcon d={ICONS[c.id] ?? NAV_ICONS.season} size={Math.round(size * 0.46)} color={c.done ? '#0E1013' : share > 0 ? 'var(--text-2)' : 'var(--faint)'} width={2} />
+        <StrokeIcon d={ICONS[c.id] ?? NAV_ICONS.season} size={Math.round(size * 0.46)} color={c.done ? '#FFFFFF' : share > 0 ? 'var(--text-2)' : 'var(--faint)'} width={2} />
       </span>
     </span>
   )

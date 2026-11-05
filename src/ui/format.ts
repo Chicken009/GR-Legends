@@ -73,3 +73,9 @@ export function shortName(name: string): string {
 }
 
 export const plural = (n: number, one: string, many: string) => `${fmtInt(n)} ${n === 1 ? one : many}`
+
+/** Gewertete Gegner der Saison als neutraler Text: keine Zielmarke, denn mehr Gegner heißt nicht automatisch mehr Punkte */
+export function beatenText(counted: number, total: number): string {
+  if (!total) return 'noch kein Gegner geschlagen'
+  return counted === total ? `${total} Gegner geschlagen` : `${counted} von ${total} Gegnern gewertet`
+}
