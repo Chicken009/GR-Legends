@@ -404,9 +404,9 @@ describe('Saisonwertung mit Punkten', () => {
     const anna = st.find((x) => x.name === 'Anna')!
     const ben = st.find((x) => x.name === 'Ben')!
     // gleich stark: je Gegner 1 Punkt, kein Siegbonus und keine Tagesboni
-    expect(anna.days[0]).toMatchObject({ points: 3, fastestLap: true, counted: true, countedRaces: 1 })
+    expect(anna.days[0]).toMatchObject({ points: 3, fastestLap: true, counted: true, countedBeats: 3 })
     expect(anna.points).toBe(3)
-    expect(anna.counted).toEqual([{ fileId: 'a', date: '2026-01-10', label: 'Rennen 1', points: 3 }])
+    expect(anna.counted).toEqual([{ fileId: 'a', date: '2026-01-10', label: 'Rennen 1', points: 3, beaten: 3 }])
     expect(ben.points).toBe(2)
     expect(ben.poles).toBe(1)
     expect(anna.rank).toBe(1)
@@ -442,34 +442,45 @@ describe('Saisonwertung mit Punkten', () => {
     expect(st.find((x) => x.name === 'Anna')!.fastestLaps).toBe(0)
   })
 
-  it('wertet die besten 5 Rennen der Saison, höchstens 3 pro Renntag', () => {
+  it('wertet die besten 15 geschlagenen Gegner der Saison, höchstens 9 pro Renntag', () => {
     const sessions = [
-      // Tag 1: 4 Rennen, Anna gewinnt alle (je 1 Punkt) → nur 3 zählen
-      ...['a', 'b', 'c', 'd'].map((id) => r(id, '2026-01-10', ['Anna', 'Ben'])),
-      // Tage 2–6: je ein Rennen, Ben gewinnt → je 1
-      ...[2, 3, 4, 5].map((m) => r(`m${m}`, `2026-0${m}-10`, ['Ben', 'Anna'])),
-      r('dez', '2026-12-10', ['Ben', 'Anna']),
+      // Tag 1: 4 Rennen zu viert, Anna gewinnt alle → 12 geschlagene Gegner, nur 9 zählen
+      ...['a', 'b', 'c', 'd'].map((id) => r(id, '2026-01-10', ['Anna', 'Ben', 'Cleo', 'Dora'])),
+      // Tage 2–8: je ein Rennen zu zweit, Ben gewinnt → je 1 Gegner
+      ...[2, 3, 4, 5, 6, 7, 8].map((m) => r(`m${m}`, `2026-0${m}-10`, ['Ben', 'Anna'])),
     ]
     const st = seasonStandings(sessions)
     const anna = st.find((x) => x.name === 'Anna')!
     const ben = st.find((x) => x.name === 'Ben')!
-    expect(anna.days[0]).toMatchObject({ points: 3, countedRaces: 3 })
-    // Anna: höchstens 3 Rennen vom ersten Tag; die übrigen Rennen bringen nichts
-    expect(anna.points).toBe(3)
-    expect(anna.counted).toHaveLength(3)
-    // Ben: die 5 Rennen mit Sieg, der erste Tag (0 Punkte) bleibt ungewertet
-    expect(ben.points).toBe(5)
-    expect(ben.counted.map((x) => x.date)).toEqual(['2026-02-10', '2026-03-10', '2026-04-10', '2026-05-10', '2026-12-10'])
-    expect(ben.days.filter((d) => d.counted)).toHaveLength(5)
-    expect(ben.progress).toHaveLength(6)
-    expect(ben.progress[1]).toBe(1)
+    expect(anna.days[0]).toMatchObject({ points: 9, countedBeats: 9 })
+    // Anna: höchstens 9 vom ersten Tag; an den anderen Tagen schlägt sie niemanden
+    expect(anna.points).toBe(9)
+    // Ben: Tag 1 je 2 Gegner in 4 Rennen (8), dazu 7 Siege zu zweit = 15 – alles zählt
+    expect(ben.points).toBe(15)
+    expect(ben.counted).toHaveLength(11)
+    expect(ben.counted.filter((x) => x.date === '2026-01-10').map((x) => x.beaten)).toEqual([2, 2, 2, 2])
+    expect(ben.progress).toHaveLength(8)
+    expect(ben.progress[0]).toBe(8)
   })
 
-  it('zählt je Rennen höchstens die 3 wertvollsten geschlagenen Gegner', () => {
-    const st = seasonStandings([r('a', '2026-01-10', ['Anna', 'Ben', 'Cleo', 'Dora', 'Emil', 'Fritz'])])
-    expect(st.find((x) => x.name === 'Anna')!.days[0].racePoints).toBe(3)
-    expect(st.find((x) => x.name === 'Ben')!.days[0].racePoints).toBe(3)
-    expect(st.find((x) => x.name === 'Dora')!.days[0].racePoints).toBe(2)
+  it('kleine und große Felder: es zählen die geschlagenen Gegner, nicht die Rennen', () => {
+    // Ein Rennen zu sechst gewonnen = 5 Gegner; fünf Siege zu zweit = ebenfalls 5
+    const big = seasonStandings([r('a', '2026-01-10', ['Anna', 'Ben', 'Cleo', 'Dora', 'Emil', 'Fritz'])])
+    const small = seasonStandings(['a', 'b', 'c', 'd', 'e'].map((id, k) => r(id, `2026-0${k + 1}-10`, ['Anna', 'Ben'])))
+    expect(big.find((x) => x.name === 'Anna')!.points).toBe(5)
+    expect(small.find((x) => x.name === 'Anna')!.points).toBe(5)
+  })
+
+  it('wertet höchstens 15 Gegner, die wertvollsten zuerst', () => {
+    const elo: Record<string, number> = { Anna: 500, Stark: 700, Schwach: 300 }
+    const sessions = [
+      ...Array.from({ length: 10 }, (_, k) => r(`s${k}`, `2026-01-${String(k + 10)}`, ['Anna', 'Schwach'])),
+      ...Array.from({ length: 10 }, (_, k) => r(`t${k}`, `2026-02-${String(k + 10)}`, ['Anna', 'Stark'])),
+    ]
+    const anna = seasonStandings(sessions, { strength: (n) => elo[n] }).find((x) => x.name === 'Anna')!
+    // alle 10 Siege gegen den Starken zählen, dazu nur 5 gegen den Schwachen
+    expect(anna.counted.filter((x) => x.fileId.startsWith('t'))).toHaveLength(10)
+    expect(anna.counted.filter((x) => x.fileId.startsWith('s'))).toHaveLength(5)
   })
 
   it('gibt je geschaffter Challenge einen Punkt, im Verlauf ab dem Tag', () => {

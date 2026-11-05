@@ -337,15 +337,16 @@ schneller, steigen alle – die Wertung spiegelt so auch echte Verbesserung wide
 
 **Saisonwertung** (Seite „Saison“): Punkte statt Elo. So abgestimmt, dass nicht immer der
 Schnellste mit großem Abstand vorne liegt, er aber Favorit bleibt (abgeglichen an simulierten Saisons).
-- pro Rennen je geschlagenem Gegner im Schnitt 1 Punkt: 0,4 fest plus 0 bis 1,2 nach Stärke laut Elo
-  mit Auto vor dem Rennen – gegen Stärkere mehr, gegen Schwächere weniger; kein Siegbonus. Es zählen
-  höchstens die 3 wertvollsten geschlagenen Gegner (große Felder bringen nicht mehr als ein 4er-Feld)
-- Es zählen die besten 5 Rennen der Saison, höchstens 3 pro Renntag. Wer nur an einem Tag da war und
-  dort gut fuhr, wird so nicht übergewichtet – wer an mehreren Tagen fährt, kann mehr Rennen werten.
+- je geschlagenem Gegner im Schnitt 1 Punkt: 0,4 fest plus 0 bis 1,2 nach Stärke laut Elo mit Auto
+  vor dem Rennen – gegen Stärkere mehr, gegen Schwächere weniger; kein Siegbonus
+- Es zählen die 15 wertvollsten geschlagenen Gegner der Saison (derselbe Gegner kann mehrfach
+  zählen), höchstens 9 pro Renntag. So ist egal, wie viele Fahrer in einem Rennen waren; wer nur an
+  einem Tag da war, wird nicht übergewichtet – wer an mehreren Tagen fährt, kann mehr werten.
 - +1 Punkt je geschaffter Saison-Challenge (auch im Punkteverlauf ab dem Tag, an dem sie geschafft
   war). Pole und schnellste Runde bringen keine Punkte mehr, zählen aber für die Challenges.
-- Gilt rückwirkend für alle Jahre (ersetzt „beste 5 Renntage“, den Joker „bester Renntag doppelt“
-  und die Tagesboni für schnellste Runde, Pole und neue Bestzeit).
+- Gilt rückwirkend für alle Jahre (ersetzt „beste 5 Rennen, höchstens 3 pro Tag, höchstens 3 Gegner
+  pro Rennen“, davor „beste 5 Renntage“, den Joker „bester Renntag doppelt“ und die Tagesboni für
+  schnellste Runde, Pole und neue Bestzeit).
 
 Dazu: Konstrukteurswertung (Autos sammeln je Rennen 1 Punkt je geschlagenem Gegner, Sieg +1), Saison-Awards für
 abgeschlossene Jahre (Saisonsieger, Rookie, Aufsteiger, Jahresschnellster, Saubermann, Außenseiter),
