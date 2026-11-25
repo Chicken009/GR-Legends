@@ -28,15 +28,39 @@ async function slot<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+/** Nach so langer Zeit ohne Antwort wird eine Anfrage abgebrochen und neu versucht (statt ewig zu warten) */
+const TIMEOUT_MS = 20_000
+
+async function fetchWithTimeout(url: string): Promise<Response> {
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS)
+  try {
+    const res = await fetch(url, { signal: ctrl.signal })
+    // Auch der Inhalt muss in der Zeit ankommen – deshalb hier schon vollständig lesen
+    const body = await res.arrayBuffer()
+    return new Response(body, { status: res.status, statusText: res.statusText, headers: res.headers })
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/** Google nicht erreichbar (kein Netz, Tracking-Schutz oder Werbeblocker blockiert googleapis.com) */
+export class DriveUnreachableError extends Error {
+  constructor(cause: unknown) {
+    super('Google Drive ist nicht erreichbar.', { cause })
+    this.name = 'DriveUnreachableError'
+  }
+}
 const retryable = (status: number) => status === 403 || status === 429 || status >= 500
 
 export async function driveFetch(url: string): Promise<Response> {
   for (let attempt = 0; ; attempt++) {
     let res: Response | null = null
     try {
-      res = await slot(() => fetch(url))
+      res = await slot(() => fetchWithTimeout(url))
     } catch (err) {
-      if (attempt >= RETRIES) throw err
+      if (attempt >= RETRIES) throw new DriveUnreachableError(err)
     }
     if (res && (res.ok || !retryable(res.status) || attempt >= RETRIES)) return res
     // 0,5 s, 1 s, 2 s, 4 s – mit etwas Zufall, damit nicht alle gleichzeitig wiederkommen

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { HashRouter, Route, Routes, useLocation, useNavigate, useNavigationType, type Location } from 'react-router-dom'
-import { useAppData } from './data/useRaceDays'
+import { DriveUnreachableError } from './data/drive'
+import { useAppData, useLoadProgress } from './data/useRaceDays'
 import { Celebration } from './ui/Celebration'
 import { DataContext, Monogram } from './ui/components'
 import { GradientDefs } from './ui/icons'
@@ -99,21 +100,42 @@ function AppRoutes() {
   )
 }
 
+function Loading() {
+  const progress = useLoadProgress()
+  const pct = progress && progress.total ? Math.round((progress.done / progress.total) * 100) : 0
+  return (
+    <div className="state">
+      <Monogram width={90} />
+      <span>Lade Rennergebnisse …</span>
+      {progress && progress.total > 0 && (
+        <>
+          <div className="load-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
+            <div style={{ width: `${pct}%` }} />
+          </div>
+          <span className="muted small">
+            {progress.done} / {progress.total} Läufe · beim ersten Öffnen dauert es etwas
+          </span>
+        </>
+      )}
+    </div>
+  )
+}
+
 function Loaded() {
   const { data, isPending, error, refetch } = useAppData()
-  if (isPending) {
-    return (
-      <div className="state">
-        <Monogram width={90} />
-        <span>Lade Rennergebnisse …</span>
-      </div>
-    )
-  }
+  if (isPending) return <Loading />
   if (error) {
     return (
       <div className="state">
         <Monogram width={90} />
-        <p className="error">Die Rennergebnisse konnten nicht geladen werden: {error.message}</p>
+        {error instanceof DriveUnreachableError ? (
+          <p className="error">
+            Google Drive ist nicht erreichbar. Internetverbindung prüfen – oder ein Tracking-Schutz bzw. Werbeblocker sperrt
+            googleapis.com (in Edge: Schloss-Symbol neben der Adresse → Tracking-Verhinderung für diese Seite aus).
+          </p>
+        ) : (
+          <p className="error">Die Rennergebnisse konnten nicht geladen werden: {error.message}</p>
+        )}
         <button className="btn" onClick={() => refetch()}>
           Nochmal versuchen
         </button>

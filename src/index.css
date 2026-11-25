@@ -1290,6 +1290,28 @@ table.data .left {
   color: var(--crash-text);
 }
 
+.state .error {
+  max-width: 440px;
+}
+
+.load-bar {
+  width: min(240px, 70vw);
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.load-bar > div {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.2s;
+}
+
+.state .small {
+  font-size: 12px;
+}
+
 /* ---------- Scrollbare Tabelle mit festen Spalten (# und Bild) ---------- */
 .dt-card {
   padding: 0;

@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { useSyncExternalStore } from 'react'
 import { config, driveEnabled } from '../config'
 import { classifyAllLaps } from '../domain/laps'
 import { buildModel, type Model } from '../domain/model'
@@ -31,6 +32,22 @@ export interface AppData {
 
 type Raw = Omit<AppData, 'model' | 'days' | 'unmatched' | 'newcomers' | 'events' | 'allSessions'> & { sessions: Session[]; rawEvents: RawEvent[] }
 
+/** Ladefortschritt beim ersten Besuch (alle Läufe kommen aus Drive): geladen / gesamt, null = noch keine Liste */
+let progress: { done: number; total: number } | null = null
+const listeners = new Set<() => void>()
+function setProgress(p: typeof progress) {
+  progress = p
+  for (const l of listeners) l()
+}
+export const useLoadProgress = () =>
+  useSyncExternalStore(
+    (l) => {
+      listeners.add(l)
+      return () => listeners.delete(l)
+    },
+    () => progress,
+  )
+
 async function loadRaw(): Promise<Raw> {
   if (driveEnabled) {
     const apiKey = config.googleApiKey!
@@ -48,6 +65,8 @@ async function loadRaw(): Promise<Raw> {
             return EMPTY_SETTINGS
           })
       : Promise.resolve(EMPTY_SETTINGS)
+    let done = 0
+    setProgress({ done, total: listing.files.length })
     const sessions = await Promise.all(
       listing.files.map(async (file) => {
         try {
@@ -56,6 +75,8 @@ async function loadRaw(): Promise<Raw> {
           // undefined = nicht geladen (anders als null = keine gültige Smartrace-Datei)
           console.warn(`Datei nicht geladen: ${file.name}`, err)
           return undefined
+        } finally {
+          setProgress({ done: ++done, total: listing.files.length })
         }
       }),
     )
@@ -130,6 +151,8 @@ export function useAppData() {
       return { ...rest, events, unmatched: unmatchedSettings(sessions, rest.settings), newcomers: newcomers(sessions, rest.settings), ...prepare(sessions, rest.settings, events) }
     },
     staleTime: 5 * 60_000,
+    // Jede Anfrage wird schon einzeln mehrfach versucht – ein Fehler soll dann gleich zu sehen sein
+    retry: false,
     // Fehlende Läufe nachladen – was schon da ist, kommt aus dem Zwischenspeicher. Google sperrt
     // Downloads bei zu vielen Anfragen aus einem Netz eine Weile; häufiges Nachfragen verlängert
     // das. Deshalb wachsende Abstände: 15 s, 30 s, 1 min … höchstens 5 min.
