@@ -32,9 +32,14 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 /** Nach so langer Zeit ohne Antwort wird eine Anfrage abgebrochen und neu versucht (statt ewig zu warten) */
 const TIMEOUT_MS = 20_000
 
+/** Wird abgebrochen, sobald Google als nicht erreichbar gilt – beendet dann auch laufende Abrufe */
+let giveUp = new AbortController()
+
 async function fetchWithTimeout(url: string): Promise<Response> {
   const ctrl = new AbortController()
   const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS)
+  const stop = () => ctrl.abort()
+  giveUp.signal.addEventListener('abort', stop)
   try {
     const res = await fetch(url, { signal: ctrl.signal })
     // Auch der Inhalt muss in der Zeit ankommen – deshalb hier schon vollständig lesen
@@ -42,7 +47,17 @@ async function fetchWithTimeout(url: string): Promise<Response> {
     return new Response(body, { status: res.status, statusText: res.statusText, headers: res.headers })
   } finally {
     clearTimeout(timer)
+    giveUp.signal.removeEventListener('abort', stop)
   }
+}
+
+/** Was bei Drive-Abrufen schiefging (für die Ladeanzeige): Grund → Anzahl */
+export const driveProblems = new Map<string, number>()
+let onProblem: (() => void) | null = null
+export const setDriveProblemListener = (fn: (() => void) | null) => (onProblem = fn)
+function noteProblem(reason: string) {
+  driveProblems.set(reason, (driveProblems.get(reason) ?? 0) + 1)
+  onProblem?.()
 }
 
 /** Google nicht erreichbar (kein Netz, Tracking-Schutz oder Werbeblocker blockiert googleapis.com) */
@@ -54,14 +69,45 @@ export class DriveUnreachableError extends Error {
 }
 const retryable = (status: number) => status === 403 || status === 429 || status >= 500
 
+/**
+ * Abrufe hintereinander ohne jede Antwort. Ab zwei vollen Runden (2 × MAX_PARALLEL × 20 s) gilt
+ * Google als nicht erreichbar und alle weiteren Abrufe brechen sofort ab – sonst hinge das erste
+ * Laden bei vielen Dateien eine halbe Stunde.
+ */
+let silentInARow = 0
+const SILENT_LIMIT = 2 * MAX_PARALLEL
+
+/** Neuer Ladeversuch („Nochmal versuchen“, Nachladen) beginnt wieder normal */
+export function resetDriveState() {
+  silentInARow = 0
+  giveUp = new AbortController()
+  driveProblems.clear()
+}
+
 export async function driveFetch(url: string): Promise<Response> {
   for (let attempt = 0; ; attempt++) {
     let res: Response | null = null
     try {
-      res = await slot(() => fetchWithTimeout(url))
+      res = await slot(async () => {
+        // auch prüfen, wenn der Abruf erst nach dem Warten auf einen freien Platz startet
+        if (silentInARow >= SILENT_LIMIT) throw new DriveUnreachableError('keine Antwort')
+        try {
+          const r = await fetchWithTimeout(url)
+          silentInARow = 0
+          return r
+        } catch (err) {
+          // noch im Platz zählen – sonst startet der nächste Wartende, bevor das Limit greift
+          if (giveUp.signal.aborted) throw new DriveUnreachableError('keine Antwort')
+          if (err instanceof DOMException && err.name === 'AbortError' && ++silentInARow >= SILENT_LIMIT) giveUp.abort()
+          throw err
+        }
+      })
     } catch (err) {
-      if (attempt >= RETRIES) throw new DriveUnreachableError(err)
+      if (err instanceof DriveUnreachableError) throw err
+      noteProblem(err instanceof DOMException && err.name === 'AbortError' ? 'keine Antwort' : 'blockiert')
+      if (attempt >= RETRIES || silentInARow >= SILENT_LIMIT) throw new DriveUnreachableError(err)
     }
+    if (res && !res.ok) noteProblem(`Fehler ${res.status}`)
     if (res && (res.ok || !retryable(res.status) || attempt >= RETRIES)) return res
     // 0,5 s, 1 s, 2 s, 4 s – mit etwas Zufall, damit nicht alle gleichzeitig wiederkommen
     await sleep(500 * 2 ** attempt * (0.75 + Math.random() * 0.5))

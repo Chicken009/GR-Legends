@@ -115,6 +115,7 @@ function Loading() {
           <span className="muted small">
             {progress.done} / {progress.total} Läufe · beim ersten Öffnen dauert es etwas
           </span>
+          {progress.problems && <span className="muted small">Google: {progress.problems}</span>}
         </>
       )}
     </div>
@@ -123,6 +124,7 @@ function Loading() {
 
 function Loaded() {
   const { data, isPending, error, refetch } = useAppData()
+  const progress = useLoadProgress()
   if (isPending) return <Loading />
   if (error) {
     return (
@@ -136,6 +138,7 @@ function Loaded() {
         ) : (
           <p className="error">Die Rennergebnisse konnten nicht geladen werden: {error.message}</p>
         )}
+        {progress?.problems && <span className="muted small">Google: {progress.problems}</span>}
         <button className="btn" onClick={() => refetch()}>
           Nochmal versuchen
         </button>

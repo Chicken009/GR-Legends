@@ -5,7 +5,7 @@ import { classifyAllLaps } from '../domain/laps'
 import { buildModel, type Model } from '../domain/model'
 import { buildSession, dropDuplicates, groupRaceDays } from '../domain/sessions'
 import type { RaceDay, Session } from '../types'
-import { downloadDriveFile, listDriveFiles, pruneFileCache, readSettingsSheet } from './drive'
+import { downloadDriveFile, DriveUnreachableError, driveProblems, listDriveFiles, pruneFileCache, readSettingsSheet, resetDriveState, setDriveProblemListener } from './drive'
 import { renameEventDrivers, resolveEvents, type EventFolder, type RawEvent } from './events'
 import { eventSlug } from '../domain/event/normalize'
 import { applySettings, EMPTY_SETTINGS, nameKey, newcomers, parseSettings, unmatchedSettings, type Settings } from './settings'
@@ -33,12 +33,13 @@ export interface AppData {
 type Raw = Omit<AppData, 'model' | 'days' | 'unmatched' | 'newcomers' | 'events' | 'allSessions'> & { sessions: Session[]; rawEvents: RawEvent[] }
 
 /** Ladefortschritt beim ersten Besuch (alle Läufe kommen aus Drive): geladen / gesamt, null = noch keine Liste */
-let progress: { done: number; total: number } | null = null
+let progress: { done: number; total: number; problems: string } | null = null
 const listeners = new Set<() => void>()
-function setProgress(p: typeof progress) {
-  progress = p
+function setProgress(p: { done: number; total: number }) {
+  progress = { ...p, problems: [...driveProblems].map(([reason, n]) => `${n}× ${reason}`).join(', ') }
   for (const l of listeners) l()
 }
+setDriveProblemListener(() => progress && setProgress(progress))
 export const useLoadProgress = () =>
   useSyncExternalStore(
     (l) => {
@@ -51,6 +52,7 @@ export const useLoadProgress = () =>
 async function loadRaw(): Promise<Raw> {
   if (driveEnabled) {
     const apiKey = config.googleApiKey!
+    resetDriveState()
     const listing = await listDriveFiles(config.driveFolderId!, apiKey)
     pruneFileCache([...listing.files.map((f) => f.id), ...listing.events.flatMap((e) => (e.json ? [e.json.id] : []))])
     let settingsProblem: string | null = listing.settingsNotSheet
@@ -66,6 +68,7 @@ async function loadRaw(): Promise<Raw> {
           })
       : Promise.resolve(EMPTY_SETTINGS)
     let done = 0
+    let unreachable: DriveUnreachableError | null = null
     setProgress({ done, total: listing.files.length })
     const sessions = await Promise.all(
       listing.files.map(async (file) => {
@@ -74,12 +77,15 @@ async function loadRaw(): Promise<Raw> {
         } catch (err) {
           // undefined = nicht geladen (anders als null = keine gültige Smartrace-Datei)
           console.warn(`Datei nicht geladen: ${file.name}`, err)
+          if (err instanceof DriveUnreachableError) unreachable = err
           return undefined
         } finally {
           setProgress({ done: ++done, total: listing.files.length })
         }
       }),
     )
+    // Kein einziger Lauf angekommen, weil Google nicht antwortet: Meldung statt leerer App
+    if (unreachable && sessions.every((s) => s === undefined)) throw unreachable
     const rawEvents = await Promise.all(
       listing.events.map(async (e) => {
         let json: string | null = null
